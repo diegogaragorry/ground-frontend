@@ -347,7 +347,7 @@ function ExpenseTemplatesAdminCard({
 }: {
   categories: Category[];
   onboardingActive: boolean;
-  onScrollTargetRef?: React.RefObject<HTMLDivElement>;
+  onScrollTargetRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const [rows, setRows] = useState<ExpenseTemplateRow[]>([]);
   const [err, setErr] = useState("");

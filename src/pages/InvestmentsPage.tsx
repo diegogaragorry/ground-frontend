@@ -95,26 +95,6 @@ function parseReturnInputToDecimal(raw: string) {
   return n; // 0.08 => 0.08
 }
 
-function Badge({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      style={{
-        fontSize: 11,
-        padding: "2px 8px",
-        borderRadius: 999,
-        background: "rgba(15,23,42,0.06)",
-        color: "rgba(15,23,42,0.75)",
-        fontWeight: 750,
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
 export default function InvestmentsPage() {
   const nav = useNavigate();
 
@@ -232,7 +212,7 @@ export default function InvestmentsPage() {
     return baseValue * Math.pow(monthlyFactor(inv), diff);
   }
 
-  function capitalUsdAccountCarry(inv: Investment, snaps: SnapshotMonth[], m: number) {
+  function capitalUsdAccountCarry(_inv: Investment, snaps: SnapshotMonth[], m: number) {
     const byM = snapsByMonth(snaps);
     const s = byM[m];
     if (s?.closingCapitalUsd != null) return s.closingCapitalUsd;
@@ -268,7 +248,7 @@ export default function InvestmentsPage() {
     return baseValue * Math.pow(monthlyFactor(inv), diff);
   }
 
-  function capitalOrigAccountCarry(inv: Investment, snaps: SnapshotMonth[], m: number) {
+  function capitalOrigAccountCarry(_inv: Investment, snaps: SnapshotMonth[], m: number) {
     const byM = snapsByMonth(snaps);
     const s = byM[m];
     if (s?.closingCapital != null) return s.closingCapital;

@@ -308,14 +308,14 @@ export function AppShell(props: { children: React.ReactNode }) {
   const showWelcomePanel = ctx.meLoaded && !!ctx.me && ctx.onboardingStep === "welcome" && loc.pathname === "/";
 
   function startStep1() {
-    if (!ctx.me) return;
+    if (!ctx || !ctx.me) return;
     ctx.setOnboardingStep("admin");
     nav("/admin", { replace: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function skipSetup() {
-    if (!ctx.me) return;
+    if (!ctx || !ctx.me) return;
     ctx.setOnboardingStep("done");
     nav("/", { replace: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -323,7 +323,7 @@ export function AppShell(props: { children: React.ReactNode }) {
 
   function notNow() {
     // hide for now but keep ability to resume later via "Setup guide"
-    if (!ctx.me) return;
+    if (!ctx || !ctx.me) return;
     ctx.setOnboardingStep("done");
   }
 
