@@ -1,0 +1,227 @@
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { AppShell } from "../layout/AppShell";
+import { api } from "../api";
+
+type SnapshotMonth = {
+  month: number;
+  closingCapital: number | null;
+  closingCapitalUsd: number | null;
+  usdUyuRate?: number | null;
+  isClosed: boolean;
+};
+
+type Investment = {
+  id: string;
+  name: string;
+  currencyId: "USD" | "UYU";
+};
+
+type SnapshotsResponse = {
+  investment: Investment;
+  year: number;
+  months: SnapshotMonth[];
+};
+
+const usd0 = new Intl.NumberFormat(undefined, {
+  maximumFractionDigits: 0,
+});
+
+export default function InvestmentSnapshotsPage() {
+  const { id } = useParams<{ id: string }>();
+  const yearNow = new Date().getFullYear();
+
+  const [year, setYear] = useState(yearNow);
+  const [data, setData] = useState<SnapshotsResponse | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
+    if (!id) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api<SnapshotsResponse>(
+        `/investments/${id}/snapshots?year=${year}`
+      );
+      setData(res);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, [year, id]);
+
+  async function saveMonth(
+    month: number,
+    closingCapital: number,
+    usdUyuRate?: number
+  ) {
+    if (!id) return;
+    await api(
+      `/investments/${id}/snapshots/${year}/${month}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ closingCapital, usdUyuRate }),
+      }
+    );
+    load();
+  }
+
+  async function closeMonth(month: number) {
+    if (!id) return;
+    await api(
+      `/investments/${id}/snapshots/${year}/${month}/close`,
+      { method: "POST" }
+    );
+    load();
+  }
+
+  return (
+    <AppShell
+      title="Investment snapshots"
+      subtitle={data ? `${data.investment.name} · ${year}` : ""}
+    >
+      <div className="card">
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <div>
+            <strong>Year</strong>
+          </div>
+          <input
+            className="input"
+            type="number"
+            value={year}
+            onChange={(e) => setYear(Number(e.target.value))}
+            style={{ width: 120 }}
+          />
+        </div>
+      </div>
+
+      {error && <div style={{ color: "var(--danger)" }}>{error}</div>}
+      {loading && <div className="muted">Loading…</div>}
+
+      {data && (
+        <div className="card">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Month</th>
+                <th className="right">
+                  Capital ({data.investment.currencyId})
+                </th>
+                {data.investment.currencyId === "UYU" && (
+                  <th className="right">USD/UYU</th>
+                )}
+                <th className="right">Capital USD</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {data.months.map((m) => (
+                <SnapshotRow
+                  key={m.month}
+                  month={m}
+                  currencyId={data.investment.currencyId}
+                  onSave={saveMonth}
+                  onClose={closeMonth}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </AppShell>
+  );
+}
+
+/* -------------------------------------------------- */
+/* Row component                                      */
+/* -------------------------------------------------- */
+
+function SnapshotRow({
+  month,
+  currencyId,
+  onSave,
+  onClose,
+}: {
+  month: SnapshotMonth;
+  currencyId: "USD" | "UYU";
+  onSave: (month: number, capital: number, rate?: number) => void;
+  onClose: (month: number) => void;
+}) {
+  const [capital, setCapital] = useState<number | "">(
+    month.closingCapital ?? ""
+  );
+  const [rate, setRate] = useState<number | "">(
+    month.usdUyuRate ?? ""
+  );
+
+  const disabled = month.isClosed;
+
+  return (
+    <tr style={{ opacity: disabled ? 0.6 : 1 }}>
+      <td>{String(month.month).padStart(2, "0")}</td>
+
+      <td className="right">
+        <input
+          className="input"
+          type="number"
+          disabled={disabled}
+          value={capital}
+          onChange={(e) => setCapital(Number(e.target.value))}
+          style={{ textAlign: "right" }}
+        />
+      </td>
+
+      {currencyId === "UYU" && (
+        <td className="right">
+          <input
+            className="input"
+            type="number"
+            disabled={disabled}
+            value={rate}
+            onChange={(e) => setRate(Number(e.target.value))}
+            style={{ textAlign: "right" }}
+          />
+        </td>
+      )}
+
+      <td className="right">
+        {month.closingCapitalUsd == null
+          ? "—"
+          : usd0.format(month.closingCapitalUsd)}
+      </td>
+
+      <td className="right">
+        {!disabled ? (
+          <>
+            <button
+              className="btn"
+              onClick={() =>
+                onSave(
+                  month.month,
+                  Number(capital),
+                  currencyId === "UYU" ? Number(rate) : undefined
+                )
+              }
+            >
+              Save
+            </button>
+            <button
+              className="btn primary"
+              onClick={() => onClose(month.month)}
+            >
+              Close
+            </button>
+          </>
+        ) : (
+          <span className="muted">Closed</span>
+        )}
+      </td>
+    </tr>
+  );
+}
