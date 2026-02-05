@@ -15,24 +15,13 @@ function pickToken(r: LoginResp | any): string | null {
 }
 
 async function tryLogin(email: string, password: string): Promise<string> {
-  const payload = { email, password };
-  const endpoints = ["/auth/login", "/login", "/auth/signin"] as const;
-
-  let lastErr: any = null;
-  for (const ep of endpoints) {
-    try {
-      const resp = await api<LoginResp>(ep, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      const token = pickToken(resp);
-      if (!token) throw new Error("Login succeeded but token missing");
-      return token;
-    } catch (e: any) {
-      lastErr = e;
-    }
-  }
-  throw new Error(lastErr?.message ?? "Login failed");
+  const resp = await api<LoginResp>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+  const token = pickToken(resp);
+  if (!token) throw new Error("Login succeeded but token missing");
+  return token;
 }
 
 type ForgotStep = null | "email" | "code";

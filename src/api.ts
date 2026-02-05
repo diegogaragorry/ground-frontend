@@ -48,7 +48,14 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
         msg = body?.error ?? body?.message ?? msg;
       } else {
         const text = await res.text();
-        if (text?.trim()) msg = text.slice(0, 180);
+        // No mostrar HTML de error del servidor (p. ej. 404 de Express)
+        if (text?.trim() && !text.trimStart().toLowerCase().startsWith("<!")) {
+          msg = text.slice(0, 180);
+        } else if (res.status === 404) {
+          msg = "Service not available. Please try again later.";
+        } else if (res.status >= 500) {
+          msg = "Server error. Please try again later.";
+        }
       }
     } catch {
       // ignore
