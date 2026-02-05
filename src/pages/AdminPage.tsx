@@ -657,18 +657,18 @@ function ExpenseTemplatesAdminCard({
             </tr>
           </thead>
           <tbody>
-            {rows.map((t) => (
-              <tr key={t.id}>
-                <td className="muted">{t.expenseType}</td>
-                <td>{t.category?.name ?? t.categoryId}</td>
-                <td>{t.description}</td>
-                <td className="right">{t.defaultAmountUsd == null ? <span className="muted">—</span> : usd0.format(t.defaultAmountUsd)}</td>
+            {rows.map((row) => (
+              <tr key={row.id}>
+                <td className="muted">{row.expenseType}</td>
+                <td>{row.category?.name ?? row.categoryId}</td>
+                <td>{row.description}</td>
+                <td className="right">{row.defaultAmountUsd == null ? <span className="muted">—</span> : usd0.format(row.defaultAmountUsd)}</td>
                 <td className="right">
                   <div className="row" style={{ justifyContent: "flex-end", gap: 10 }}>
-                    <button className="btn" type="button" onClick={() => startEdit(t)} style={{ height: 34 }}>
+                    <button className="btn" type="button" onClick={() => startEdit(row)} style={{ height: 34 }}>
                       {t("admin.edit")}
                     </button>
-                    <button className="btn danger" type="button" onClick={() => del(t.id)} style={{ height: 34 }}>
+                    <button className="btn danger" type="button" onClick={() => del(row.id)} style={{ height: 34 }}>
                       {t("common.delete")}
                     </button>
                   </div>
