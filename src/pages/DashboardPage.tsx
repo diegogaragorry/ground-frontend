@@ -234,16 +234,12 @@ export default function DashboardPage() {
 
   return (
     <div className="dash">
-      {/* Header row (local toolbar) */}
+      {/* Toolbar: status chip + actions (title is in Topbar) */}
       <div className="dashTop">
-        <div>
-          <div className="hTitle">Dashboard</div>
-          <div className="hSub">
-            Monthly snapshot & annual projection (USD)
-            <span className={`chip ${isLocked ? "chipLocked" : ""}`} title={isLocked ? "Month is closed (locked)" : "Computed"}>
-              {isLocked ? "Locked" : "Live"} • {sourceBadge}
-            </span>
-          </div>
+        <div className="dashTopLeft">
+          <span className={`chip ${isLocked ? "chipLocked" : ""}`} title={isLocked ? "Month is closed (locked)" : "Computed"}>
+            {isLocked ? "Locked" : "Live"} • {sourceBadge}
+          </span>
         </div>
 
         <div className="dashActions">
@@ -426,10 +422,16 @@ export default function DashboardPage() {
 
         .dashTop{
           display:flex;
-          align-items:flex-start;
+          align-items:center;
           justify-content:space-between;
           gap:12px;
           flex-wrap:wrap;
+        }
+
+        .dashTopLeft{
+          display:flex;
+          align-items:center;
+          gap:10px;
         }
 
         .dashActions{

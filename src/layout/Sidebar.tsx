@@ -1,5 +1,4 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import logo from "../assets/ground-logo.jpg";
 
 export function Sidebar() {
   const nav = useNavigate();
@@ -10,92 +9,106 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="sidebar">
-      {/* BRAND */}
-      <div className="brand" style={{ gap: 12 }}>
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 12,
-            overflow: "hidden",
-            border: "1px solid var(--border)",
-            background: "white",
-            display: "grid",
-            placeItems: "center",
-            flex: "0 0 auto",
-          }}
-          title="Ground"
-        >
-          <img
-            src={logo}
-            alt="Ground"
-            style={{
-              width: 30,
-              height: 30,
-              objectFit: "contain",
-              display: "block",
-            }}
-          />
-        </div>
-
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 900, letterSpacing: 0.2, lineHeight: 1.1 }}>Ground</div>
-          <div className="muted" style={{ fontSize: 12, lineHeight: 1.2, marginTop: 2 }}>
-            Order your finances.
-          </div>
-        </div>
+    <aside className="sidebar sidebar-ground">
+      <div className="sidebar-brand">
+        <span className="sidebar-wordmark">Ground</span>
+        <span className="sidebar-tagline">Order your finances.</span>
       </div>
 
-      {/* NAV */}
-      <nav className="nav" style={{ marginTop: 14 }}>
+      <nav className="sidebar-nav">
         <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>
-          📊 Dashboard
+          Dashboard
         </NavLink>
-
         <NavLink to="/expenses" className={({ isActive }) => (isActive ? "active" : "")}>
-          💸 Expenses
+          Expenses
         </NavLink>
-
         <NavLink to="/budgets" className={({ isActive }) => (isActive ? "active" : "")}>
-          🎯 Budgets
+          Budgets
         </NavLink>
-
         <NavLink to="/investments" className={({ isActive }) => (isActive ? "active" : "")}>
-          📈 Investments
+          Investments
         </NavLink>
-
         <NavLink to="/admin" className={({ isActive }) => (isActive ? "active" : "")}>
-          🧩 Admin
+          Admin
         </NavLink>
       </nav>
 
-      {/* FOOTER */}
-      <div style={{ marginTop: 18, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
-        <button className="btn danger" style={{ width: "100%" }} onClick={logout} type="button">
+      <div className="sidebar-footer">
+        <button className="btn danger sidebar-logout" type="button" onClick={logout}>
           Logout
         </button>
       </div>
 
       <style>{`
-        .sidebar .brand {
-          padding: 14px 14px 10px;
+        .sidebar-ground {
+          display: flex;
+          flex-direction: column;
+          padding: 20px 16px;
+          background: var(--panel);
+          border-right: 1px solid var(--border);
         }
 
-        .sidebar .nav a {
-          border-radius: 12px;
+        .sidebar-brand {
+          padding-bottom: 20px;
+          margin-bottom: 20px;
+          border-bottom: 2px solid var(--border);
+        }
+
+        .sidebar-wordmark {
+          display: block;
+          font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+          font-size: 1.5rem;
+          font-weight: 800;
+          letter-spacing: -0.04em;
+          color: var(--text);
+          line-height: 1.1;
+        }
+
+        .sidebar-tagline {
+          display: block;
+          font-size: 0.75rem;
+          color: var(--muted);
+          margin-top: 4px;
+          line-height: 1.3;
+        }
+
+        .sidebar-nav {
+          display: grid;
+          gap: 4px;
+        }
+
+        .sidebar-nav a {
+          display: flex;
+          align-items: center;
           padding: 10px 12px;
-          transition: background 120ms ease, transform 120ms ease;
+          border-radius: 10px;
+          color: var(--muted);
+          text-decoration: none;
+          font-weight: 600;
+          font-size: 0.9375rem;
+          transition: background 0.15s, color 0.15s;
         }
 
-        .sidebar .nav a:hover {
-          background: rgba(0,0,0,0.03);
-          transform: translateY(-1px);
+        .sidebar-nav a:hover {
+          background: rgba(15, 23, 42, 0.06);
+          color: var(--text);
         }
 
-        .sidebar .nav a.active {
+        .sidebar-nav a.active {
           background: rgba(15, 23, 42, 0.08);
+          color: var(--text);
           border: 1px solid var(--border);
+        }
+
+        .sidebar-footer {
+          margin-top: auto;
+          padding-top: 16px;
+          border-top: 1px solid var(--border);
+        }
+
+        .sidebar-logout {
+          width: 100%;
+          font-size: 0.875rem;
         }
       `}</style>
     </aside>
