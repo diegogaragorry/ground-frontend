@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { api } from "../api";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { api } from "../api";
 
 type Step = "request" | "verify";
 
@@ -10,6 +11,7 @@ function normalizeEmail(v: string) {
 
 export default function RegisterPage() {
   const nav = useNavigate();
+  const { t, i18n } = useTranslation();
 
   const [step, setStep] = useState<Step>("request");
 
@@ -104,33 +106,32 @@ export default function RegisterPage() {
         <div className="brand-panel">
           <div className="brand-panel-inner">
             <div className="brand-wordmark-block">
-              <span className="brand-wordmark">Ground</span>
+              <span className="brand-wordmark">{t("brand.name")}</span>
             </div>
-            <h1 className="brand-headline">
-              Get good with your money.
-            </h1>
-            <p className="brand-subline">
-              Budgets, spending, and net worth in one place. No spreadsheets, no stress.
-            </p>
+            <h1 className="brand-headline">{t("brand.headline")}</h1>
+            <p className="brand-subline">{t("brand.subline")}</p>
             <div className="brand-cta">
-              <a href="/login" className="brand-cta-link">Sign in →</a>
+              <a href="/login" className="brand-cta-link">{t("brand.signIn")}</a>
+            </div>
+            <div className="brand-lang" style={{ marginTop: 24, display: "flex", alignItems: "center", gap: 8 }}>
+              <button type="button" style={{ background: "none", border: "none", fontSize: 14, fontWeight: 600, color: i18n.language === "en" ? "var(--text)" : "var(--muted)", cursor: "pointer" }} onClick={() => i18n.changeLanguage("en")}>EN</button>
+              <span style={{ color: "var(--muted)", fontSize: 12 }}>·</span>
+              <button type="button" style={{ background: "none", border: "none", fontSize: 14, fontWeight: 600, color: i18n.language === "es" ? "var(--text)" : "var(--muted)", cursor: "pointer" }} onClick={() => i18n.changeLanguage("es")}>ES</button>
             </div>
           </div>
         </div>
 
         <div className="register-panel">
           <div className="register-card">
-            <h2>Create your account</h2>
+            <h2>{t("register.title")}</h2>
             <p className="muted" style={{ marginBottom: 24 }}>
-              {step === "request"
-                ? "Enter your email and we’ll send you a verification code."
-                : "The email may take a few minutes to arrive. Check your spam folder if you don’t see it."}
+              {step === "request" ? t("register.requestSubtitle") : t("register.verifySubtitle")}
             </p>
 
             {step === "request" ? (
               <form onSubmit={requestCode} className="register-form">
                 <div>
-                  <label className="label">Email</label>
+                  <label className="label">{t("register.email")}</label>
                   <input
                     className="input"
                     type="email"
@@ -138,34 +139,34 @@ export default function RegisterPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     autoComplete="email"
-                    placeholder="you@example.com"
+                    placeholder={t("login.placeholderEmail")}
                   />
                 </div>
                 {error && <div className="error">{error}</div>}
                 {info && <div className="muted" style={{ fontSize: "0.875rem" }}>{info}</div>}
                 <button className="btn primary" type="submit" disabled={loading}>
-                  {loading ? "Sending…" : "Send verification code"}
+                  {loading ? t("register.sending") : t("register.sendCode")}
                 </button>
               </form>
             ) : (
               <form onSubmit={verifyAndCreate} className="register-form">
                 <p className="muted" style={{ marginBottom: 8 }}>
-                  Code sent to <strong>{normalizeEmail(email)}</strong>
+                  {t("register.codeSentTo")} <strong>{normalizeEmail(email)}</strong>
                 </p>
                 <div>
-                  <label className="label">Verification code</label>
+                  <label className="label">{t("register.verificationCode")}</label>
                   <input
                     className="input"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
-                    placeholder="6 digits"
+                    placeholder={t("register.placeholderCode")}
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     required
                   />
                 </div>
                 <div>
-                  <label className="label">Password</label>
+                  <label className="label">{t("register.password")}</label>
                   <input
                     className="input"
                     type="password"
@@ -174,16 +175,16 @@ export default function RegisterPage() {
                     required
                     minLength={8}
                     autoComplete="new-password"
-                    placeholder="••••••••"
+                    placeholder={t("login.placeholderPassword")}
                   />
                   <p className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
-                    Minimum 8 characters.
+                    {t("register.minChars")}
                   </p>
                 </div>
                 {error && <div className="error">{error}</div>}
                 {info && <div className="muted" style={{ fontSize: "0.875rem" }}>{info}</div>}
                 <button className="btn primary" type="submit" disabled={loading}>
-                  {loading ? "Creating…" : "Create account"}
+                  {loading ? t("register.creating") : t("register.createAccount")}
                 </button>
                 <div className="row" style={{ justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                   <button
@@ -198,7 +199,7 @@ export default function RegisterPage() {
                       setInfo("");
                     }}
                   >
-                    Change email
+                    {t("register.changeEmail")}
                   </button>
                   <button
                     className="btn"
@@ -206,15 +207,15 @@ export default function RegisterPage() {
                     disabled={loading}
                     onClick={resendCode}
                   >
-                    Resend code
+                    {t("register.resendCode")}
                   </button>
                 </div>
               </form>
             )}
 
             <p className="muted center" style={{ marginTop: 24, marginBottom: 0 }}>
-              Already have an account?{" "}
-              <a href="/login" className="link">Sign in</a>
+              {t("register.alreadyHave")}{" "}
+              <a href="/login" className="link">{t("register.signIn")}</a>
             </p>
           </div>
         </div>

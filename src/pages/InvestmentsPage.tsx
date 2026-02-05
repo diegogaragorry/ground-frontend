@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
 
@@ -97,8 +98,8 @@ function parseReturnInputToDecimal(raw: string) {
 
 export default function InvestmentsPage() {
   const nav = useNavigate();
+  const { t } = useTranslation();
 
-  // ✅ Opción A onboarding central
   const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess } = useAppShell();
   const { year } = useAppYearMonth();
 
@@ -124,8 +125,8 @@ export default function InvestmentsPage() {
   }
 
   useEffect(() => {
-    setHeader({ title: "Investments", subtitle: `Portfolio + Accounts — ${year}` });
-  }, [setHeader, year]);
+    setHeader({ title: t("investments.title"), subtitle: t("investments.subtitle", { year }) });
+  }, [setHeader, year, t]);
 
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [snapshots, setSnapshots] = useState<Record<string, SnapshotMonth[]>>({});
@@ -161,7 +162,7 @@ export default function InvestmentsPage() {
 
       await loadMonthCloses();
     } catch (e: any) {
-      setError(e?.message ?? "Error loading investments");
+      setError(e?.message ?? t("investments.errorLoadingInvestments"));
     } finally {
       setLoading(false);
     }
@@ -263,7 +264,7 @@ export default function InvestmentsPage() {
   async function saveCell(inv: Investment, m: number, value: number | null) {
     if (value === null || Number.isNaN(value)) return;
     if (isClosed(m)) {
-      setError("This month is closed. Reopen it in Admin to edit snapshots.");
+      setError(t("investments.monthClosedEditSnapshots"));
       return;
     }
     setError("");
@@ -279,7 +280,7 @@ export default function InvestmentsPage() {
       }));
       showSuccess("Snapshot saved.");
     } catch (e: any) {
-      setError(e?.message ?? "Error saving snapshot");
+      setError(e?.message ?? t("investments.errorSavingSnapshot"));
     }
   }
 
@@ -296,7 +297,7 @@ export default function InvestmentsPage() {
       setInvestments((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
       showSuccess("Target return saved.");
     } catch (e: any) {
-      setError(e?.message ?? "Error saving target annual return");
+      setError(e?.message ?? t("investments.errorSavingTargetReturn"));
     }
   }
 
@@ -381,7 +382,7 @@ export default function InvestmentsPage() {
   // MOVEMENTS CRUD
   async function createMovement(draft: { investmentId: string; type: "deposit" | "withdrawal" | "yield"; month: number; amount: number }) {
     if (isClosed(draft.month)) {
-      setError("This month is closed. Reopen it in Admin to add movements.");
+      setError(t("investments.monthClosedAddMovement"));
       return;
     }
     setError("");
@@ -401,14 +402,14 @@ export default function InvestmentsPage() {
       setMovements((prev) => [normalizeMovement(created), ...prev]);
       showSuccess("Movement added.");
     } catch (e: any) {
-      setError(e?.message ?? "Error adding movement");
+      setError(e?.message ?? t("investments.errorAddingMovement"));
     }
   }
 
   async function updateMovementFull(updated: MovementRow) {
     const m = updated.month ?? toMonthFromIso(updated.date);
     if (isClosed(m)) {
-      setError("This month is closed. Reopen it in Admin to edit movements.");
+      setError(t("investments.monthClosedEditMovements"));
       return;
     }
     setError("");
@@ -428,16 +429,16 @@ export default function InvestmentsPage() {
       setMovements((prev) => prev.map((x) => (x.id === normalized.id ? normalized : x)));
       showSuccess("Movement updated.");
     } catch (e: any) {
-      setError(e?.message ?? "Error updating movement");
+      setError(e?.message ?? t("investments.errorUpdatingMovement"));
     }
   }
 
   async function deleteMovement(id: string, monthOfMovement: number) {
     if (isClosed(monthOfMovement)) {
-      setError("This month is closed. Reopen it in Admin to delete movements.");
+      setError(t("investments.monthClosedDeleteMovements"));
       return;
     }
-    if (!confirm("Delete this movement? This cannot be undone.")) return;
+    if (!confirm(t("investments.deleteMovementConfirm"))) return;
     setError("");
     await api(`/investments/movements/${id}`, { method: "DELETE" });
     setMovements((prev) => prev.filter((x) => x.id !== id));
@@ -503,27 +504,27 @@ export default function InvestmentsPage() {
         <div className="card" style={{ border: "1px solid rgba(15,23,42,0.10)", background: "rgba(15,23,42,0.02)" }}>
           <div className="row" style={{ justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
             <div style={{ minWidth: 280 }}>
-              <div style={{ fontWeight: 950, fontSize: 16 }}>Step 3 — Set your Accounts / Funds</div>
+              <div style={{ fontWeight: 950, fontSize: 16 }}>{t("investments.step3Title")}</div>
               <div className="muted" style={{ marginTop: 4, fontSize: 13, maxWidth: 780 }}>
-                Add your bank <b>Accounts</b> (cash) and optional <b>Portfolio funds</b>, then fill monthly snapshots.
+                <Trans i18nKey="investments.step3Desc" components={{ 1: <b />, 2: <b /> }} />
               </div>
               <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-                Tip: If you only care about net worth, you can start with Accounts and add funds later.
+                {t("investments.step3Tip")}
               </div>
             </div>
 
             <div className="row" style={{ gap: 10, alignItems: "center" }}>
               <button className="btn" type="button" onClick={goAddFund} style={{ height: 40 }}>
-                Go to Add fund
+                {t("investments.goToAddFund")}
               </button>
               <button className="btn" type="button" onClick={goAccounts} style={{ height: 40 }}>
-                Go to Accounts
+                {t("investments.goToAccounts")}
               </button>
               <button className="btn primary" type="button" onClick={markStepDone} style={{ height: 40 }}>
-                Done → Next: Budgets
+                {t("investments.doneNextBudget")}
               </button>
               <button className="btn" type="button" onClick={skipOnboarding} style={{ height: 40 }}>
-                Skip
+                {t("common.skip")}
               </button>
             </div>
           </div>
@@ -533,7 +534,7 @@ export default function InvestmentsPage() {
       {loading && (
         <div className="loading-inline">
           <span className="loading-spinner" aria-hidden />
-          Loading…
+          {t("common.loading")}
         </div>
       )}
       {error && <div style={{ color: "var(--danger)" }}>{error}</div>}
@@ -542,10 +543,10 @@ export default function InvestmentsPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontWeight: 900 }}>Summary (USD)</div>
-            <div className="muted" style={{ fontSize: 12 }}>Year: {year}</div>
+            <div style={{ fontWeight: 900 }}>{t("investments.summaryUsd")}</div>
+            <div className="muted" style={{ fontSize: 12 }}>{t("investments.year")}: {year}</div>
           </div>
-          <button className="btn" type="button" onClick={load}>Refresh</button>
+          <button className="btn" type="button" onClick={load}>{t("common.refresh")}</button>
         </div>
 
         <div style={{ overflowX: "auto", maxWidth: "100%", marginTop: 10 }} role="region" aria-label="Net worth and returns by month">
@@ -561,21 +562,21 @@ export default function InvestmentsPage() {
 
             <tbody>
               <tr>
-                <td style={{ ...tdStyle, fontWeight: 800 }}>Total net worth</td>
+                <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.totalNetWorth")}</td>
                 {months.map((m, i) => (
                   <td key={`sum-nw-${m}`} className="right" style={tdStyle}>{usd0.format(totalNetWorthByMonthUsd[i] ?? 0)}</td>
                 ))}
               </tr>
 
               <tr>
-                <td style={{ ...tdStyle, fontWeight: 800 }}>Monthly Variation (Total net worth)</td>
+                <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.monthlyVariationTotal")}</td>
                 {months.map((m, i) => (
                   <td key={`sum-var-total-${m}`} className="right" style={tdStyle}>{usd0.format(totalMonthlyVariation[i] ?? 0)}</td>
                 ))}
               </tr>
 
               <tr>
-                <td style={{ ...tdStyle, fontWeight: 800 }}>Real returns (Portfolio)</td>
+                <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.realReturnsPortfolioLabel")}</td>
                 {months.map((m, i) => (
                   <td key={`sum-rr-${m}`} className="right" style={tdStyle}>{usd0.format(portfolioRealReturns[i] ?? 0)}</td>
                 ))}
@@ -585,20 +586,20 @@ export default function InvestmentsPage() {
         </div>
 
         <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-          * Monthly Variation usa NW(m+1) − NW(m). Real returns = Portfolio Variation − net flows (USD only).
+          {t("investments.monthlyVariationNote")}
         </div>
       </div>
 
       {/* ✅ ADD FUND */}
       <div className="card" ref={addFundRef}>
-        <div style={{ fontWeight: 900 }}>Add fund</div>
+        <div style={{ fontWeight: 900 }}>{t("investments.addFund")}</div>
         <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-          Create funds like “Urraburu” / “Pershing” to track them in your portfolio table.
+          {t("investments.addFundDesc")}
         </div>
 
         <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "end", marginTop: 10 }}>
           <div style={{ minWidth: 240 }}>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Name</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("investments.name")}</div>
             <input
               className="input"
               value={newName}
@@ -609,7 +610,7 @@ export default function InvestmentsPage() {
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Type</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("investments.type")}</div>
             <select
               className="select"
               value={newType}
@@ -622,7 +623,7 @@ export default function InvestmentsPage() {
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Currency</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("investments.currency")}</div>
             <select
               className="select"
               value={newCurrency}
@@ -635,25 +636,25 @@ export default function InvestmentsPage() {
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Target return (%)</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("investments.targetReturnPct")}</div>
             <input
               className="input"
               value={newTargetPct}
               onChange={(e) => setNewTargetPct(e.target.value)}
               style={{ height: 32, fontSize: 12, padding: "6px 10px", width: 140, textAlign: "right" }}
-              title="8 => 8% (0.08)"
+              title={t("investments.targetReturnTitle")}
             />
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Yield from</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("investments.yieldFrom")}</div>
             <select
               className="select"
               value={newYieldFrom}
               onChange={(e) => setNewYieldFrom(Number(e.target.value))}
               style={{ height: 32, fontSize: 12, padding: "6px 10px" }}
               disabled={newType !== "PORTFOLIO"}
-              title={newType !== "PORTFOLIO" ? "Accounts don't use yield" : undefined}
+              title={newType !== "PORTFOLIO" ? t("investments.accountsDontUseYield") : undefined}
             >
               {months.map((m) => (
                 <option key={`new-ys-${m}`} value={m}>{monthLabel(m)}</option>
@@ -668,7 +669,7 @@ export default function InvestmentsPage() {
             style={{ height: 32, padding: "6px 12px" }}
             disabled={!newName.trim()}
           >
-            Add
+            {t("investments.add")}
           </button>
         </div>
       </div>
@@ -677,8 +678,8 @@ export default function InvestmentsPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontWeight: 900 }}>Portfolio</div>
-            <div className="muted" style={{ fontSize: 12 }}>Only investments with type=PORTFOLIO</div>
+            <div style={{ fontWeight: 900 }}>{t("investments.portfolios")}</div>
+            <div className="muted" style={{ fontSize: 12 }}>{t("investments.portfolioTableDesc")}</div>
           </div>
         </div>
 
@@ -686,10 +687,10 @@ export default function InvestmentsPage() {
           <table className="table">
             <thead>
               <tr>
-                <th style={{ ...thStyle, ...stickyHead }}>Fund</th>
-                <th style={thStyle}>Cur</th>
-                <th style={thStyle} className="right" title="Annual return % (e.g. 8 = 8%)">Target return</th>
-                <th style={thStyle}>Yield from</th>
+                <th style={{ ...thStyle, ...stickyHead }}>{t("investments.fund")}</th>
+                <th style={thStyle}>{t("investments.cur")}</th>
+                <th style={thStyle} className="right" title={t("investments.annualReturnTitle")}>{t("investments.targetReturn")}</th>
+                <th style={thStyle}>{t("investments.yieldFrom")}</th>
                 {months.map((m) => (
                   <th key={`p-h-${m}`} className="right" style={thStyle}>{monthLabel(m)}</th>
                 ))}
@@ -710,7 +711,7 @@ export default function InvestmentsPage() {
                       <input
                         className="input"
                         style={{ width: 90, height: 28, fontSize: 11, padding: "4px 6px", textAlign: "right" }}
-                        title="Use % (8) or decimal (0.08)"
+                        title={t("investments.usePercentOrDecimal")}
                         defaultValue={displayReturnPct(inv)}
                         onBlur={(e) => {
                           const raw = (e.target as HTMLInputElement).value;
@@ -753,7 +754,7 @@ export default function InvestmentsPage() {
                             className="input"
                             style={{ ...inputStyle, opacity: locked ? 0.6 : hasReal ? 1 : 0.75 }}
                             disabled={locked}
-                            title={locked ? "Closed month" : undefined}
+                            title={locked ? t("investments.closedMonth") : undefined}
                             defaultValue={display == null ? "" : String(Math.round(display))}
                             onBlur={(e) => {
                               if (locked) return;
@@ -775,7 +776,7 @@ export default function InvestmentsPage() {
               {portfolios.length === 0 && !loading && (
                 <tr>
                   <td colSpan={4 + months.length} className="muted" style={tdStyle}>
-                    No portfolio investments yet.
+                    {t("investments.noPortfolioYet")}
                   </td>
                 </tr>
               )}
@@ -795,28 +796,28 @@ export default function InvestmentsPage() {
             </thead>
             <tbody>
               <tr>
-                <td style={{ ...tdStyle, fontWeight: 800 }}>Net worth (Portfolio)</td>
+                <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.netWorthPortfolio")}</td>
                 {months.map((m, i) => (
                   <td key={`ps-nw-${m}`} className="right" style={tdStyle}>{usd0.format(portfolioNetWorthByMonthUsd[i] ?? 0)}</td>
                 ))}
               </tr>
 
               <tr>
-                <td style={{ ...tdStyle, fontWeight: 800 }}>Monthly Variation</td>
+                <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.monthlyVariation")}</td>
                 {months.map((m, i) => (
                   <td key={`ps-var-${m}`} className="right" style={tdStyle}>{usd0.format(portfolioMonthlyVariation[i] ?? 0)}</td>
                 ))}
               </tr>
 
               <tr>
-                <td style={{ ...tdStyle, fontWeight: 800 }}>Net flows (from Movements)</td>
+                <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.netFlowsMovements")}</td>
                 {months.map((m, i) => (
                   <td key={`ps-flow-${m}`} className="right" style={tdStyle}>{usd0.format(flows.series[i] ?? 0)}</td>
                 ))}
               </tr>
 
               <tr>
-                <td style={{ ...tdStyle, fontWeight: 900 }}>Real returns</td>
+                <td style={{ ...tdStyle, fontWeight: 900 }}>{t("investments.realReturns")}</td>
                 {months.map((m, i) => (
                   <td key={`ps-rr-${m}`} className="right" style={{ ...tdStyle, fontWeight: 900 }}>
                     {usd0.format(portfolioRealReturns[i] ?? 0)}
@@ -832,8 +833,8 @@ export default function InvestmentsPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontWeight: 900 }}>Movements (Portfolio)</div>
-            <div className="muted" style={{ fontSize: 12 }}>Register money entering/leaving the portfolio (USD)</div>
+            <div style={{ fontWeight: 900 }}>{t("investments.movementsPortfolio")}</div>
+            <div className="muted" style={{ fontSize: 12 }}>{t("investments.movementsPortfolioDesc")}</div>
           </div>
         </div>
 
@@ -848,14 +849,14 @@ export default function InvestmentsPage() {
           style={{ gap: 10, alignItems: "end", flexWrap: "wrap", marginTop: 10 }}
         >
           <div style={{ minWidth: 220 }}>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Investment</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("investments.investment")}</div>
             <select
               className="select"
               value={mvInvId}
               disabled={mvIsClosed}
               onChange={(e) => setMvInvId(e.target.value)}
               style={{ height: 32, fontSize: 11, padding: "4px 6px" }}
-              title={mvIsClosed ? "Closed month" : undefined}
+              title={mvIsClosed ? t("investments.closedMonth") : undefined}
             >
               {portfolios.map((p) => (
                 <option key={`mv-opt-${p.id}`} value={p.id}>{p.name}</option>
@@ -864,7 +865,7 @@ export default function InvestmentsPage() {
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Month</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.month")}</div>
             <select
               className="select"
               value={mvMonth}
@@ -878,22 +879,22 @@ export default function InvestmentsPage() {
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Type</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("investments.type")}</div>
             <select
               className="select"
               value={mvType}
               disabled={mvIsClosed}
               onChange={(e) => setMvType(e.target.value as any)}
               style={{ height: 32, fontSize: 11, padding: "4px 6px" }}
-              title={mvIsClosed ? "Closed month" : undefined}
+              title={mvIsClosed ? t("investments.closedMonth") : undefined}
             >
-              <option value="withdrawal">Withdrawal (out)</option>
-              <option value="deposit">Deposit (in)</option>
+              <option value="withdrawal">{t("investments.withdrawalOut")}</option>
+              <option value="deposit">{t("investments.depositIn")}</option>
             </select>
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Amount (USD)</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("investments.amountUsd")}</div>
             <input
               className="input"
               type="number"
@@ -901,18 +902,18 @@ export default function InvestmentsPage() {
               disabled={mvIsClosed}
               onChange={(e) => setMvAmount(Number(e.target.value))}
               style={{ width: 160, height: 32, fontSize: 11, padding: "4px 6px" }}
-              title={mvIsClosed ? "Closed month" : undefined}
+              title={mvIsClosed ? t("investments.closedMonth") : undefined}
             />
           </div>
 
           <button className="btn primary" type="submit" style={{ height: 32, padding: "6px 10px" }} disabled={mvIsClosed}>
-            Add
+            {t("investments.add")}
           </button>
         </form>
 
         {mvIsClosed && (
           <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-            This month is closed. Reopen it in Admin to add movements.
+            {t("investments.monthClosedAddMovement")}
           </div>
         )}
 
@@ -920,11 +921,11 @@ export default function InvestmentsPage() {
           <table className="table">
             <thead>
               <tr>
-                <th style={thStyle}>Month</th>
-                <th style={thStyle}>Investment</th>
-                <th style={thStyle}>Type</th>
+                <th style={thStyle}>{t("expenses.month")}</th>
+                <th style={thStyle}>{t("investments.investment")}</th>
+                <th style={thStyle}>{t("investments.type")}</th>
                 <th className="right" style={thStyle}>USD</th>
-                <th style={{ ...thStyle, width: 110 }} className="right">Actions</th>
+                <th style={{ ...thStyle, width: 110 }} className="right">{t("expenses.actions")}</th>
               </tr>
             </thead>
 
@@ -946,7 +947,7 @@ export default function InvestmentsPage() {
                           style={{ height: 28, fontSize: 11, padding: "4px 6px" }}
                           value={mv.investmentId}
                           disabled={locked}
-                          title={locked ? "Closed month" : undefined}
+                          title={locked ? t("investments.closedMonth") : undefined}
                           onChange={(e) => updateMovementFull({ ...mv, investmentId: e.target.value })}
                         >
                           {portfolios.map((p) => (
@@ -961,7 +962,7 @@ export default function InvestmentsPage() {
                           style={{ height: 28, fontSize: 11, padding: "4px 6px" }}
                           value={mv.type}
                           disabled={locked}
-                          title={locked ? "Closed month" : undefined}
+                          title={locked ? t("investments.closedMonth") : undefined}
                           onChange={(e) => updateMovementFull({ ...mv, type: e.target.value as any })}
                         >
                           <option value="withdrawal">withdrawal</option>
@@ -975,7 +976,7 @@ export default function InvestmentsPage() {
                           className="input"
                           style={{ width: 120, height: 28, fontSize: 11, padding: "4px 6px", textAlign: "right", opacity: locked ? 0.7 : 1 }}
                           disabled={locked}
-                          title={locked ? "Closed month" : undefined}
+                          title={locked ? t("investments.closedMonth") : undefined}
                           defaultValue={String(mv.amount ?? 0)}
                           onBlur={(e) => {
                             if (locked) return;
@@ -994,11 +995,11 @@ export default function InvestmentsPage() {
                           className="btn danger"
                           type="button"
                           disabled={locked}
-                          title={locked ? "Closed month" : undefined}
+                          title={locked ? t("investments.closedMonth") : undefined}
                           onClick={() => deleteMovement(mv.id, m)}
                           style={{ height: 28, padding: "6px 10px" }}
                         >
-                          Delete
+                          {t("common.delete")}
                         </button>
                       </td>
                     </tr>
@@ -1008,7 +1009,7 @@ export default function InvestmentsPage() {
               {movements.length === 0 && (
                 <tr>
                   <td colSpan={5} className="muted" style={tdStyle}>
-                  No movements yet. Add deposits or withdrawals in the form above.
+                  {t("investments.noMovementsYet")}
                 </td>
                 </tr>
               )}
@@ -1017,21 +1018,21 @@ export default function InvestmentsPage() {
         </div>
 
         <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-          Notes: “withdrawal” reduces portfolio (negative flow), “deposit” increases portfolio (positive flow). USD only.
+          {t("investments.notesMovements")}
         </div>
       </div>
 
       {/* ACCOUNTS */}
       <div className="card" ref={accountsRef}>
-        <div style={{ fontWeight: 900 }}>Accounts</div>
-        <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>type=ACCOUNT • no yield • missing months carry forward</div>
+        <div style={{ fontWeight: 900 }}>{t("investments.accounts")}</div>
+        <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{t("investments.accountsDesc")}</div>
 
         <div style={{ overflowX: "auto", maxWidth: "100%", marginTop: 10 }}>
           <table className="table">
             <thead>
               <tr>
-                <th style={{ ...thStyle, ...stickyHead }}>Account</th>
-                <th style={thStyle}>Cur</th>
+                <th style={{ ...thStyle, ...stickyHead }}>{t("investments.account")}</th>
+                <th style={thStyle}>{t("investments.cur")}</th>
                 {months.map((m) => (
                   <th key={`a-h-${m}`} className="right" style={thStyle}>{monthLabel(m)}</th>
                 ))}
@@ -1060,7 +1061,7 @@ export default function InvestmentsPage() {
                             className="input"
                             style={{ ...inputStyle, opacity: locked ? 0.6 : hasReal ? 1 : 0.75 }}
                             disabled={locked}
-                            title={locked ? "Closed month" : undefined}
+                            title={locked ? t("investments.closedMonth") : undefined}
                             defaultValue={display == null ? "" : String(Math.round(display))}
                             onBlur={(e) => {
                               if (locked) return;
@@ -1081,7 +1082,7 @@ export default function InvestmentsPage() {
 
               {accounts.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={2 + months.length} className="muted" style={tdStyle}>No accounts yet.</td>
+                  <td colSpan={2 + months.length} className="muted" style={tdStyle}>{t("investments.noAccountsYet")}</td>
                 </tr>
               )}
             </tbody>

@@ -1,4 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 type SidebarProps = {
   /** Llamar al hacer click en un enlace de navegación (p. ej. cerrar drawer en móvil) */
@@ -7,6 +8,7 @@ type SidebarProps = {
 
 export function Sidebar(props: SidebarProps) {
   const nav = useNavigate();
+  const { t, i18n } = useTranslation();
   const { onNavigateClick } = props;
 
   function logout() {
@@ -17,31 +19,50 @@ export function Sidebar(props: SidebarProps) {
   return (
     <aside className="sidebar sidebar-ground">
       <div className="sidebar-brand">
-        <span className="sidebar-wordmark">Ground</span>
-        <span className="sidebar-tagline">Order your finances.</span>
+        <span className="sidebar-wordmark">{t("brand.name")}</span>
+        <span className="sidebar-tagline">{t("brand.tagline")}</span>
+        <div className="sidebar-lang" style={{ marginTop: 8 }}>
+          <button
+            type="button"
+            className={i18n.language === "en" ? "lang-btn active" : "lang-btn"}
+            onClick={() => i18n.changeLanguage("en")}
+            aria-label="English"
+          >
+            EN
+          </button>
+          <span style={{ color: "var(--muted)", fontSize: 12 }}>·</span>
+          <button
+            type="button"
+            className={i18n.language === "es" ? "lang-btn active" : "lang-btn"}
+            onClick={() => i18n.changeLanguage("es")}
+            aria-label="Español"
+          >
+            ES
+          </button>
+        </div>
       </div>
 
       <nav className="sidebar-nav">
         <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
-          Dashboard
+          {t("sidebar.dashboard")}
         </NavLink>
         <NavLink to="/expenses" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
-          Expenses
+          {t("sidebar.expenses")}
         </NavLink>
         <NavLink to="/budgets" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
-          Budgets
+          {t("sidebar.budgets")}
         </NavLink>
         <NavLink to="/investments" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
-          Investments
+          {t("sidebar.investments")}
         </NavLink>
         <NavLink to="/admin" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
-          Admin
+          {t("sidebar.admin")}
         </NavLink>
       </nav>
 
       <div className="sidebar-footer">
         <button className="btn danger sidebar-logout" type="button" onClick={logout}>
-          Logout
+          {t("sidebar.logout")}
         </button>
       </div>
 
@@ -81,6 +102,19 @@ export function Sidebar(props: SidebarProps) {
           margin-top: 4px;
           line-height: 1.3;
         }
+
+        .sidebar-lang { display: flex; align-items: center; gap: 6px; }
+        .lang-btn {
+          background: none;
+          border: none;
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: var(--muted);
+          cursor: pointer;
+          padding: 2px 4px;
+        }
+        .lang-btn:hover { color: var(--text); }
+        .lang-btn.active { color: var(--text); }
 
         .sidebar-nav {
           display: grid;

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
 
@@ -52,6 +53,7 @@ function editNumberOrNull(v: string): number | null {
 --------------------------------------------------------- */
 
 function ChangePasswordCard({ onDone }: { onDone?: () => void }) {
+  const { t } = useTranslation();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [msg, setMsg] = useState<string>("");
@@ -66,21 +68,21 @@ function ChangePasswordCard({ onDone }: { onDone?: () => void }) {
       });
       setCurrentPassword("");
       setNewPassword("");
-      setMsg("Password updated.");
+      setMsg(t("admin.passwordUpdated"));
       onDone?.();
     } catch (err: any) {
-      setMsg(err?.message ?? "Error");
+      setMsg(err?.message ?? t("common.error"));
     }
   }
 
   return (
     <div style={{ marginTop: 14 }}>
-      <div style={{ fontWeight: 800, marginBottom: 8 }}>Change your password</div>
+      <div style={{ fontWeight: 800, marginBottom: 8 }}>{t("admin.changePassword")}</div>
 
       <form onSubmit={submit} className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "end" }}>
         <div style={{ minWidth: 220 }}>
           <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
-            Current password
+            {t("admin.currentPassword")}
           </div>
           <input
             className="input"
@@ -92,13 +94,13 @@ function ChangePasswordCard({ onDone }: { onDone?: () => void }) {
 
         <div style={{ minWidth: 220 }}>
           <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
-            New password
+            {t("admin.newPassword")}
           </div>
           <input className="input" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
         </div>
 
         <button className="btn primary" type="submit" style={{ height: 42 }}>
-          Update
+          {t("admin.update")}
         </button>
       </form>
 
@@ -121,6 +123,7 @@ function ChangePasswordCard({ onDone }: { onDone?: () => void }) {
 --------------------------------------------------------- */
 
 function UsersAdminCard() {
+  const { t } = useTranslation();
   const { showSuccess } = useAppShell();
   const [rows, setRows] = useState<UserRow[]>([]);
   const [err, setErr] = useState("");
@@ -143,8 +146,8 @@ function UsersAdminCard() {
   }
 
   useEffect(() => {
-    loadUsers().catch((e: any) => setErr(e?.message ?? "Error"));
-  }, []);
+    loadUsers().catch((e: any) => setErr(e?.message ?? t("common.error")));
+  }, [t]);
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -160,10 +163,10 @@ function UsersAdminCard() {
       setPassword("");
       setRole("USER");
       await loadUsers();
-      setInfo("User created.");
-      showSuccess("User created.");
+      setInfo(t("admin.userCreated"));
+      showSuccess(t("admin.userCreated"));
     } catch (e: any) {
-      setErr(e?.message ?? "Error creating user");
+      setErr(e?.message ?? t("admin.errorCreatingUser"));
     }
   }
 
@@ -185,25 +188,25 @@ function UsersAdminCard() {
       setEditing(null);
       setEditPassword("");
       await loadUsers();
-      setInfo("User updated.");
-      showSuccess("User updated.");
+      setInfo(t("admin.userUpdated"));
+      showSuccess(t("admin.userUpdated"));
     } catch (e: any) {
-      setErr(e?.message ?? "Error updating user");
+      setErr(e?.message ?? t("admin.errorUpdatingUser"));
     }
   }
 
   async function del(id: string) {
     setErr("");
     setInfo("");
-    if (!confirm("Delete this user?")) return;
+    if (!confirm(t("admin.deleteUser"))) return;
 
     try {
       await api(`/admin/users/${id}`, { method: "DELETE" });
       await loadUsers();
-      setInfo("User deleted.");
-      showSuccess("User deleted.");
+      setInfo(t("admin.userDeleted"));
+      showSuccess(t("admin.userDeleted"));
     } catch (e: any) {
-      setErr(e?.message ?? "Error deleting user");
+      setErr(e?.message ?? t("admin.errorDeletingUser"));
     }
   }
 
@@ -211,27 +214,27 @@ function UsersAdminCard() {
     <div style={{ marginTop: 14 }}>
       <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
         <div>
-          <div style={{ fontWeight: 800 }}>Users</div>
-          <div className="muted" style={{ fontSize: 12 }}>Create, edit, delete users • reset passwords</div>
+          <div style={{ fontWeight: 800 }}>{t("admin.users")}</div>
+          <div className="muted" style={{ fontSize: 12 }}>{t("admin.usersDesc")}</div>
         </div>
         <button className="btn" type="button" onClick={loadUsers}>
-          Refresh
+          {t("common.refresh")}
         </button>
       </div>
 
       <form onSubmit={create} className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "end", marginTop: 10 }}>
         <div style={{ minWidth: 260 }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Email</div>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.email")}</div>
           <input className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="user@email.com" />
         </div>
 
         <div style={{ minWidth: 220 }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Password</div>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.password")}</div>
           <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
 
         <div style={{ minWidth: 180 }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Role</div>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.role")}</div>
           <select className="select" value={role} onChange={(e) => setRole(e.target.value as any)} style={{ height: 42 }}>
             <option value="USER">USER</option>
             <option value="SUPER_ADMIN">SUPER_ADMIN</option>
@@ -239,7 +242,7 @@ function UsersAdminCard() {
         </div>
 
         <button className="btn primary" type="submit" style={{ height: 42 }}>
-          Create
+          {t("admin.create")}
         </button>
       </form>
 
@@ -248,16 +251,16 @@ function UsersAdminCard() {
 
       {editing && (
         <div className="card" style={{ marginTop: 12, padding: 12, background: "rgba(15,23,42,0.03)" }}>
-          <div style={{ fontWeight: 800, marginBottom: 8 }}>Edit user</div>
+          <div style={{ fontWeight: 800, marginBottom: 8 }}>{t("admin.editUser")}</div>
 
           <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "end" }}>
             <div style={{ minWidth: 260 }}>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Email</div>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.email")}</div>
               <input className="input" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
             </div>
 
             <div style={{ minWidth: 180 }}>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Role</div>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.role")}</div>
               <select className="select" value={editRole} onChange={(e) => setEditRole(e.target.value as any)} style={{ height: 42 }}>
                 <option value="USER">USER</option>
                 <option value="SUPER_ADMIN">SUPER_ADMIN</option>
@@ -265,21 +268,21 @@ function UsersAdminCard() {
             </div>
 
             <div style={{ minWidth: 220 }}>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>New password (optional)</div>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.newPasswordOptional")}</div>
               <input className="input" type="password" value={editPassword} onChange={(e) => setEditPassword(e.target.value)} />
             </div>
 
             <button className="btn primary" type="button" onClick={saveEdit} style={{ height: 42 }}>
-              Save
+              {t("common.save")}
             </button>
 
             <button className="btn" type="button" onClick={() => setEditing(null)} style={{ height: 42 }}>
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
 
           <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-            Tip: If password is blank, it won’t be changed.
+            {t("admin.tipPasswordBlank")}
           </div>
         </div>
       )}
@@ -288,10 +291,10 @@ function UsersAdminCard() {
         <table className="table compact">
           <thead>
             <tr>
-              <th>Email</th>
-              <th style={{ width: 140 }}>Role</th>
-              <th style={{ width: 160 }}>Created</th>
-              <th className="right" style={{ width: 220 }}>Actions</th>
+              <th>{t("admin.email")}</th>
+              <th style={{ width: 140 }}>{t("admin.role")}</th>
+              <th style={{ width: 160 }}>{t("admin.created")}</th>
+              <th className="right" style={{ width: 220 }}>{t("expenses.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -313,10 +316,10 @@ function UsersAdminCard() {
                       }}
                       style={{ height: 34 }}
                     >
-                      Edit
+                      {t("admin.edit")}
                     </button>
                     <button className="btn danger" type="button" onClick={() => del(u.id)} style={{ height: 34 }}>
-                      Delete
+                      {t("common.delete")}
                     </button>
                   </div>
                 </td>
@@ -325,7 +328,7 @@ function UsersAdminCard() {
             {rows.length === 0 && (
               <tr>
                 <td colSpan={4} className="muted">
-                  No users.
+                  {t("admin.noUsers")}
                 </td>
               </tr>
             )}
@@ -353,6 +356,7 @@ function ExpenseTemplatesAdminCard({
   onboardingActive: boolean;
   onScrollTargetRef?: React.RefObject<HTMLDivElement | null>;
 }) {
+  const { t } = useTranslation();
   const { showSuccess } = useAppShell();
   const [rows, setRows] = useState<ExpenseTemplateRow[]>([]);
   const [err, setErr] = useState("");
@@ -383,7 +387,7 @@ function ExpenseTemplatesAdminCard({
   }
 
   useEffect(() => {
-    loadTemplates().catch((e: any) => setErr(e?.message ?? "Error"));
+    loadTemplates().catch((e: any) => setErr(e?.message ?? t("common.error")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -410,8 +414,8 @@ function ExpenseTemplatesAdminCard({
     setInfo("");
 
     const desc = description.trim();
-    if (!desc) return setErr("Description is required");
-    if (!categoryId) return setErr("Category is required");
+    if (!desc) return setErr(t("admin.descriptionRequired"));
+    if (!categoryId) return setErr(t("admin.categoryRequired"));
 
     const amt = editNumberOrNull(defaultAmountUsd);
 
@@ -429,19 +433,19 @@ function ExpenseTemplatesAdminCard({
       setDescription("");
       setDefaultAmountUsd("");
       await loadTemplates();
-      setInfo("Template created (planned drafts generated for open months of current year).");
-      showSuccess("Template created.");
+      setInfo(t("admin.templateCreatedInfo"));
+      showSuccess(t("admin.templateCreated"));
     } catch (e: any) {
-      setErr(e?.message ?? "Error creating template");
+      setErr(e?.message ?? t("admin.errorCreatingTemplate"));
     }
   }
 
-  function startEdit(t: ExpenseTemplateRow) {
-    setEditing(t);
-    setEditExpenseType(t.expenseType);
-    setEditCategoryId(t.categoryId);
-    setEditDescription(t.description);
-    setEditDefaultAmountUsd(t.defaultAmountUsd == null ? "" : String(Math.round(t.defaultAmountUsd)));
+  function startEdit(row: ExpenseTemplateRow) {
+    setEditing(row);
+    setEditExpenseType(row.expenseType);
+    setEditCategoryId(row.categoryId);
+    setEditDescription(row.description);
+    setEditDefaultAmountUsd(row.defaultAmountUsd == null ? "" : String(Math.round(row.defaultAmountUsd)));
     setErr("");
     setInfo("");
   }
@@ -457,8 +461,8 @@ function ExpenseTemplatesAdminCard({
     setInfo("");
 
     const desc = editDescription.trim();
-    if (!desc) return setErr("Description is required");
-    if (!editCategoryId) return setErr("Category is required");
+    if (!desc) return setErr(t("admin.descriptionRequired"));
+    if (!editCategoryId) return setErr(t("admin.categoryRequired"));
 
     const amt = editNumberOrNull(editDefaultAmountUsd);
 
@@ -485,7 +489,7 @@ function ExpenseTemplatesAdminCard({
   async function del(id: string) {
     setErr("");
     setInfo("");
-    if (!confirm("Delete this template?")) return;
+    if (!confirm(t("admin.deleteTemplate"))) return;
 
     try {
       await api(`/admin/expenseTemplates/${id}`, { method: "DELETE" });
@@ -506,7 +510,7 @@ function ExpenseTemplatesAdminCard({
     <div style={{ marginTop: 14 }} ref={onScrollTargetRef}>
       <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
         <div>
-          <div style={{ fontWeight: 900 }}>Expense templates</div>
+          <div style={{ fontWeight: 900 }}>{t("admin.expenseTemplates")}</div>
           <div className="muted" style={{ fontSize: 12 }}>
             Configure recurring expenses • When you create/update a template, drafts are generated/synced for open months of current year
           </div>
@@ -518,9 +522,9 @@ function ExpenseTemplatesAdminCard({
 
       {showOnbCallout && (
         <div className="onb-callout" style={{ marginTop: 12 }}>
-          <div style={{ fontWeight: 900, marginBottom: 4 }}>Step 1 — Review templates & categories</div>
+          <div style={{ fontWeight: 900, marginBottom: 4 }}>{t("admin.step1Title")}</div>
           <div className="muted" style={{ fontSize: 13 }}>
-            Create (or edit) your base templates (e.g. Rent, Utilities). This will generate drafts you can confirm in Expenses.
+            {t("admin.templatesDesc")}
           </div>
           <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
             Tip: Start with 2–5 fixed expenses and 2–5 variable ones.
@@ -645,11 +649,11 @@ function ExpenseTemplatesAdminCard({
         <table className="table compact">
           <thead>
             <tr>
-              <th style={{ width: 110 }}>Type</th>
-              <th style={{ width: 220 }}>Category</th>
-              <th>Description</th>
+              <th style={{ width: 110 }}>{t("expenses.type")}</th>
+              <th style={{ width: 220 }}>{t("expenses.category")}</th>
+              <th>{t("expenses.description")}</th>
               <th className="right" style={{ width: 180 }}>Default USD</th>
-              <th className="right" style={{ width: 220 }}>Actions</th>
+              <th className="right" style={{ width: 220 }}>{t("expenses.actions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -699,6 +703,7 @@ function ExpenseTemplatesAdminCard({
 
 export default function AdminPage() {
   const nav = useNavigate();
+  const { t } = useTranslation();
 
   const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess } = useAppShell();
   const { year: appYear } = useAppYearMonth();
@@ -765,10 +770,10 @@ export default function AdminPage() {
 
   useEffect(() => {
     setHeader({
-      title: "Admin",
-      subtitle: `Categories + Month close + Users — ${appYear}`,
+      title: t("admin.title"),
+      subtitle: t("admin.subtitle", { year: appYear }),
     });
-  }, [setHeader, appYear]);
+  }, [setHeader, appYear, t]);
 
   async function loadMe() {
     setMeError("");
@@ -890,7 +895,7 @@ export default function AdminPage() {
       await api(`/monthCloses/close`, { method: "POST", body: JSON.stringify({ year: mcYear, month: mcMonth }) });
       await loadMonthCloses(mcYear);
       setMcInfo(`Month ${m2(mcMonth)}/${mcYear} closed.`);
-      showSuccess("Month closed.");
+      showSuccess(t("admin.monthClosedSuccess"));
     } catch (err: any) {
       setMcError(err?.message ?? "Error closing month");
     }
@@ -930,9 +935,9 @@ export default function AdminPage() {
         <div className="card" style={{ border: "1px solid rgba(15,23,42,0.10)", background: "rgba(15,23,42,0.02)" }}>
           <div className="row" style={{ justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
             <div style={{ minWidth: 280 }}>
-              <div style={{ fontWeight: 950, fontSize: 16 }}>Welcome to Ground</div>
+              <div style={{ fontWeight: 950, fontSize: 16 }}>{t("onboarding.welcome")}</div>
               <div className="muted" style={{ marginTop: 4, fontSize: 13, maxWidth: 720 }}>
-                Step 1 is to review your Categories and Templates, and create your base template.
+                {t("admin.step1BannerDesc")}
               </div>
 
               <div style={{ marginTop: 10, fontSize: 13 }}>
@@ -948,13 +953,13 @@ export default function AdminPage() {
 
             <div className="row" style={{ gap: 10, alignItems: "center" }}>
               <button className="btn" type="button" onClick={goTemplates} style={{ height: 40 }}>
-                Go to Templates
+                {t("admin.goToTemplates")}
               </button>
               <button className="btn primary" type="button" onClick={markStep1Done} style={{ height: 40 }}>
-                I’m done with Step 1
+                {t("admin.imDoneStep1")}
               </button>
               <button className="btn" type="button" onClick={skipOnboarding} style={{ height: 40 }}>
-                Skip
+                {t("common.skip")}
               </button>
             </div>
           </div>
@@ -965,11 +970,11 @@ export default function AdminPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
           <div>
-            <div style={{ fontWeight: 900 }}>Categories</div>
-            <div className="muted" style={{ fontSize: 12 }}>Manage categories used by expenses and templates</div>
+            <div style={{ fontWeight: 900 }}>{t("admin.categories")}</div>
+            <div className="muted" style={{ fontSize: 12 }}>{t("admin.categoriesDesc")}</div>
           </div>
           <button className="btn" type="button" onClick={loadAll}>
-            Refresh
+            {t("common.refresh")}
           </button>
         </div>
 
@@ -1094,7 +1099,7 @@ export default function AdminPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
           <div>
-            <div style={{ fontWeight: 900 }}>Close month</div>
+            <div style={{ fontWeight: 900 }}>{t("admin.monthClose")}</div>
             <div className="muted" style={{ fontSize: 12 }}>Lock a month snapshot</div>
           </div>
         </div>
@@ -1125,12 +1130,12 @@ export default function AdminPage() {
 
           {isSelectedClosed ? (
             <button className="btn" type="button" onClick={reopenMonth} style={{ height: 42 }}>
-              Reopen
+              {t("admin.reopen")}
             </button>
           ) : (
             <button className="btn primary" type="button" onClick={closeMonth} style={{ height: 42 }}>
-              Close month
-            </button>
+{t("admin.closeMonth")}
+              </button>
           )}
         </div>
 
@@ -1163,7 +1168,7 @@ export default function AdminPage() {
         <div style={{ fontWeight: 900 }}>User admin</div>
 
         <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-          {meResp ? `Signed in as: ${meResp.email} (${meResp.role})` : "Loading user…"}
+          {meResp ? `${t("admin.signedInAs")}: ${meResp.email} (${meResp.role})` : t("admin.loadingUser")}
         </div>
 
         {meError && <div style={{ marginTop: 10, color: "var(--danger)" }}>{meError}</div>}

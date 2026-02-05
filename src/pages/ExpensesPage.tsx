@@ -1,6 +1,7 @@
 // src/pages/ExpensesPage.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
 
@@ -124,18 +125,18 @@ function Badge({ children }: { children: React.ReactNode }) {
 
 export default function ExpensesPage() {
   const nav = useNavigate();
+  const { t } = useTranslation();
 
-  // ✅ Opción A: onboarding central
   const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess } = useAppShell();
 
   const { year, month } = useAppYearMonth();
 
   useEffect(() => {
     setHeader({
-      title: "Expenses",
-      subtitle: "Create real expenses + confirm template drafts (Base: USD)",
+      title: t("expenses.title"),
+      subtitle: t("expenses.subtitle"),
     });
-  }, [setHeader]);
+  }, [setHeader, t]);
 
   // ✅ Step 2 activo = expenses
   const onboardingActive = meLoaded && !!me && onboardingStep === "expenses";
@@ -253,7 +254,7 @@ export default function ExpensesPage() {
       await Promise.all([loadExpenses(), loadPlanned(), loadSummary(), loadMonthCloses()]);
       setYmCreate(ymToInputValue(year, month));
     } catch (err: any) {
-      setError(err?.message ?? "Error");
+      setError(err?.message ?? t("common.error"));
     } finally {
       setLoading(false);
     }
@@ -285,10 +286,10 @@ export default function ExpensesPage() {
     setInfo("");
 
     const ym = inputValueToYm(ymCreate);
-    if (!ym) return setError("Invalid month");
-    if (isClosed(ym.month)) return setError("This month is closed. Reopen it in Admin to edit expenses.");
+    if (!ym) return setError(t("expenses.invalidMonth"));
+    if (isClosed(ym.month)) return setError(t("expenses.monthClosedEdit"));
 
-    if (!categoryId) return setError("Pick a category");
+    if (!categoryId) return setError(t("expenses.pickCategory"));
 
     const ct = categoryTypeOf(categoryId);
     const finalType: ExpenseType = ct ?? expenseTypeCreate;
@@ -310,32 +311,32 @@ export default function ExpensesPage() {
       });
 
       await Promise.all([loadExpenses(), loadSummary(), loadPlanned()]);
-      setInfo("Expense created.");
-      showSuccess("Expense created.");
+      setInfo(t("expenses.expenseCreated"));
+      showSuccess(t("expenses.expenseCreated"));
     } catch (err: any) {
-      setError(err?.message ?? "Error");
+      setError(err?.message ?? t("common.error"));
     }
   }
 
   async function removeExpense(expenseId: string, expenseMonth: number) {
     setError("");
     setInfo("");
-    if (isClosed(expenseMonth)) return setError("This month is closed. Reopen it in Admin to delete expenses.");
-    if (!confirm("Delete this expense? This cannot be undone.")) return;
+    if (isClosed(expenseMonth)) return setError(t("expenses.monthClosedDelete"));
+    if (!confirm(t("expenses.deleteExpenseConfirm"))) return;
 
     try {
       await api(`/expenses/${expenseId}`, { method: "DELETE" });
       await Promise.all([loadExpenses(), loadSummary()]);
-      setInfo("Expense deleted.");
-      showSuccess("Expense deleted.");
+      setInfo(t("expenses.expenseDeleted"));
+      showSuccess(t("expenses.expenseDeleted"));
     } catch (err: any) {
-      setError(err?.message ?? "Error");
+      setError(err?.message ?? t("common.error"));
     }
   }
 
   async function patchExpense(expenseId: string, expenseMonth: number, patch: any) {
     if (isClosed(expenseMonth)) {
-      setError("This month is closed. Reopen it in Admin to edit expenses.");
+      setError(t("expenses.monthClosedEdit"));
       return;
     }
     await api(`/expenses/${expenseId}`, {
@@ -347,7 +348,7 @@ export default function ExpensesPage() {
 
   async function patchPlanned(plannedId: string, patch: any) {
     if (isClosed(month)) {
-      setError("This month is closed. Reopen it in Admin to edit drafts.");
+      setError(t("expenses.monthClosedEditDrafts"));
       return;
     }
     await api(`/plannedExpenses/${plannedId}`, {
@@ -360,13 +361,13 @@ export default function ExpensesPage() {
   async function confirmPlanned(plannedId: string) {
     setError("");
     setInfo("");
-    if (isClosed(month)) return setError("This month is closed. Reopen it in Admin to confirm drafts.");
+    if (isClosed(month)) return setError(t("expenses.monthClosedConfirmDrafts"));
 
     try {
       await api(`/plannedExpenses/${plannedId}/confirm`, { method: "POST" });
       await Promise.all([loadPlanned(), loadExpenses(), loadSummary()]);
-      setInfo("Draft confirmed.");
-      showSuccess("Draft confirmed.");
+      setInfo(t("expenses.draftConfirmed"));
+      showSuccess(t("expenses.draftConfirmed"));
     } catch (err: any) {
       setError(err?.message ?? "Error confirming draft");
     }
@@ -375,7 +376,7 @@ export default function ExpensesPage() {
   async function confirmAllPlanned() {
     setError("");
     setInfo("");
-    if (isClosed(month)) return setError("This month is closed. Reopen it in Admin to confirm drafts.");
+    if (isClosed(month)) return setError(t("expenses.monthClosedConfirmDrafts"));
     if (planned.length === 0) return;
 
     setLoading(true);
@@ -428,34 +429,34 @@ export default function ExpensesPage() {
         <div className="card" style={{ border: "1px solid rgba(15,23,42,0.10)", background: "rgba(15,23,42,0.02)" }}>
           <div className="row" style={{ justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
             <div style={{ minWidth: 280 }}>
-              <div style={{ fontWeight: 950, fontSize: 16 }}>Step 2 — Confirm your drafts</div>
+              <div style={{ fontWeight: 950, fontSize: 16 }}>{t("expenses.step2Title")}</div>
               <div className="muted" style={{ marginTop: 4, fontSize: 13, maxWidth: 780 }}>
-                Drafts are generated from your Templates. Review them for <b>{monthLabel}</b>, edit if needed, and confirm to create real expenses.
+                <Trans i18nKey="expenses.step2Desc" values={{ month: monthLabel }} components={{ b: <b /> }} />
               </div>
               <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-                Tip: If you don’t see drafts, go back to Admin → Templates and create your base template.
+                {t("expenses.step2Tip")}
               </div>
             </div>
 
             <div className="row" style={{ gap: 10, alignItems: "center" }}>
               <button className="btn" type="button" onClick={goDrafts} style={{ height: 40 }}>
-                Go to Drafts
+                {t("expenses.goToDrafts")}
               </button>
               <button
                 className="btn"
                 type="button"
                 onClick={confirmAllPlanned}
                 disabled={!canEditThisMonth || planned.length === 0 || loading}
-                title={!canEditThisMonth ? "Month closed" : planned.length === 0 ? "No drafts to confirm" : "Confirm all drafts"}
+                title={!canEditThisMonth ? t("expenses.monthClosed") : planned.length === 0 ? t("expenses.noDraftsToConfirm") : t("expenses.confirmAllDrafts")}
                 style={{ height: 40 }}
               >
-                {loading ? "Confirming…" : `Confirm all (${planned.length})`}
+                {loading ? t("expenses.confirming") : `${t("expenses.confirmAll")} (${planned.length})`}
               </button>
               <button className="btn primary" type="button" onClick={markStep2Done} style={{ height: 40 }}>
-                I’m done with Step 2
+                {t("expenses.imDoneStep2")}
               </button>
               <button className="btn" type="button" onClick={skipOnboarding} style={{ height: 40 }}>
-                Skip
+                {t("common.skip")}
               </button>
             </div>
           </div>
@@ -466,17 +467,17 @@ export default function ExpensesPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
           <div>
-            <div style={{ fontWeight: 850, fontSize: 18 }}>Monthly summary (USD)</div>
+            <div style={{ fontWeight: 850, fontSize: 18 }}>{t("expenses.monthlySummary")}</div>
             <div className="muted" style={{ fontSize: 12 }}>
-              Viewing: {monthLabel} • Status:{" "}
+              {t("expenses.viewing")}: {monthLabel} • {t("expenses.status")}:{" "}
               <span style={{ fontWeight: 850, color: isClosed(month) ? "var(--text)" : "var(--muted)" }}>
-                {isClosed(month) ? "Closed" : "Open"}
+                {isClosed(month) ? t("common.closed") : t("common.open")}
               </span>
             </div>
           </div>
 
           <div className="right">
-            <div className="muted" style={{ fontSize: 12 }}>Total month</div>
+            <div className="muted" style={{ fontSize: 12 }}>{t("expenses.totalMonth")}</div>
             <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{usd0.format(totalUsdMonth)}</div>
           </div>
         </div>
@@ -486,10 +487,10 @@ export default function ExpensesPage() {
             {loading ? (
             <span className="loading-inline">
               <span className="loading-spinner" aria-hidden />
-              Loading…
+              {t("common.loading")}
             </span>
           ) : (
-            "Refresh"
+            t("common.refresh")
           )}
           </button>
           {info && <div style={{ color: "rgba(15,23,42,0.75)", fontWeight: 650 }}>{info}</div>}
@@ -500,7 +501,7 @@ export default function ExpensesPage() {
         <div style={{ marginTop: 12, overflowX: "auto" }}>
           {summaryByCategory.length === 0 ? (
             <div className="muted">
-              No expenses yet for this month. Add one below or confirm drafts from Admin → Templates.
+              {t("expenses.noExpensesYet")}
             </div>
           ) : (
             <table className="table">
@@ -531,12 +532,12 @@ export default function ExpensesPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
           <div>
-            <div style={{ fontWeight: 850, marginBottom: 6 }}>Add expense (real)</div>
+            <div style={{ fontWeight: 850, marginBottom: 6 }}>{t("expenses.addExpenseReal")}</div>
             <div className="muted" style={{ fontSize: 12 }}>
-              Creates a confirmed expense immediately • Type is enforced by category
+              {t("expenses.addExpenseDesc")}
             </div>
           </div>
-          <Badge>{createMonthClosed ? "Month closed" : "Month open"}</Badge>
+          <Badge>{createMonthClosed ? t("expenses.monthClosed") : t("expenses.monthOpen")}</Badge>
         </div>
 
         <form
@@ -553,7 +554,7 @@ export default function ExpensesPage() {
           }}
         >
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Type</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.type")}</div>
             <select
               className="select"
               value={expenseTypeCreate}
@@ -566,17 +567,17 @@ export default function ExpensesPage() {
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Description</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.description")}</div>
             <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} disabled={createMonthClosed} />
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Amount</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.amount")}</div>
             <input className="input" type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} disabled={createMonthClosed} />
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Curr</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.curr")}</div>
             <select
               className="select"
               value={currencyId}
@@ -613,7 +614,7 @@ export default function ExpensesPage() {
           )}
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Category</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.category")}</div>
             <select className="select" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={createMonthClosed}>
               {(categoriesByType[expenseTypeCreate] ?? []).map((c) => (
                 <option key={c.id} value={c.id}>
@@ -623,24 +624,24 @@ export default function ExpensesPage() {
             </select>
             {categoryId && (
               <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-                Enforced type: <b>{categoryTypeOf(categoryId) ?? expenseTypeCreate}</b>
+                {t("expenses.enforcedType")}: <b>{categoryTypeOf(categoryId) ?? expenseTypeCreate}</b>
               </div>
             )}
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Month</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.month")}</div>
             <input className="input" type="month" value={ymCreate} onChange={(e) => setYmCreate(e.target.value)} />
           </div>
 
           <button className="btn primary" type="submit" disabled={createMonthClosed}>
-            Add
+            {t("expenses.add")}
           </button>
         </form>
 
         {createMonthClosed && (
           <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-            This month is closed. Reopen it in Admin to add expenses.
+            {t("expenses.monthClosedAdd")}
           </div>
         )}
       </div>
@@ -649,10 +650,10 @@ export default function ExpensesPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontWeight: 850 }}>Fixed expenses (real)</div>
-            <div className="muted" style={{ fontSize: 12 }}>Inline edit • autosave on blur/change</div>
+            <div style={{ fontWeight: 850 }}>{t("expenses.fixedExpensesReal")}</div>
+            <div className="muted" style={{ fontSize: 12 }}>{t("expenses.inlineEditAutosave")}</div>
           </div>
-          <div className="muted" style={{ fontSize: 12 }}>{expensesFixed.length} items</div>
+          <div className="muted" style={{ fontSize: 12 }}>{t("expenses.itemsCount", { count: expensesFixed.length })}</div>
         </div>
 
         <RealExpensesTable
@@ -672,10 +673,10 @@ export default function ExpensesPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontWeight: 850 }}>Variable expenses (real)</div>
-            <div className="muted" style={{ fontSize: 12 }}>Inline edit • autosave on blur/change</div>
+            <div style={{ fontWeight: 850 }}>{t("expenses.variableExpensesReal")}</div>
+            <div className="muted" style={{ fontSize: 12 }}>{t("expenses.inlineEditAutosave")}</div>
           </div>
-          <div className="muted" style={{ fontSize: 12 }}>{expensesVariable.length} items</div>
+          <div className="muted" style={{ fontSize: 12 }}>{t("expenses.itemsCount", { count: expensesVariable.length })}</div>
         </div>
 
         <RealExpensesTable
@@ -695,22 +696,22 @@ export default function ExpensesPage() {
       <div className="card" ref={draftsRef}>
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
           <div>
-            <div style={{ fontWeight: 900 }}>Drafts from templates</div>
+            <div style={{ fontWeight: 900 }}>{t("expenses.draftsSectionTitle")}</div>
             <div className="muted" style={{ fontSize: 12 }}>
-              Edit inline • Confirm creates a real expense
+              {t("expenses.draftsSectionSubtitle")}
             </div>
           </div>
           <div className="row" style={{ gap: 10, alignItems: "center" }}>
-            <Badge>{canEditThisMonth ? "Editable" : "Locked (month closed)"}</Badge>
+            <Badge>{canEditThisMonth ? t("expenses.editable") : t("expenses.lockedMonthClosed")}</Badge>
             <button
               className="btn"
               type="button"
               onClick={confirmAllPlanned}
               disabled={!canEditThisMonth || planned.length === 0 || loading}
               style={{ height: 34 }}
-              title={!canEditThisMonth ? "Closed month" : planned.length === 0 ? "No drafts to confirm" : "Confirm all drafts"}
+              title={!canEditThisMonth ? t("expenses.monthClosed") : planned.length === 0 ? t("expenses.noDraftsToConfirm") : t("expenses.confirmAllDrafts")}
             >
-              {loading ? "Confirming…" : `Confirm all (${planned.length})`}
+              {loading ? t("expenses.confirming") : `${t("expenses.confirmAll")} (${planned.length})`}
             </button>
           </div>
         </div>
@@ -725,9 +726,9 @@ export default function ExpensesPage() {
               padding: "12px 14px",
             }}
           >
-            <div style={{ fontWeight: 900, marginBottom: 4 }}>Onboarding tip</div>
+            <div style={{ fontWeight: 900, marginBottom: 4 }}>{t("expenses.onboardingTip")}</div>
             <div className="muted" style={{ fontSize: 13 }}>
-              Review these drafts, adjust category/description/amount, then click <b>Confirm</b>. Once confirmed, they move to “real expenses”.
+              <Trans i18nKey="expenses.reviewDraftsTip" components={{ 1: <b /> }} />
             </div>
           </div>
         )}
@@ -736,11 +737,11 @@ export default function ExpensesPage() {
           <table className="table">
             <thead>
               <tr>
-                <th style={{ width: 120 }}>Type</th>
-                <th style={{ width: 220 }}>Category</th>
-                <th>Description</th>
-                <th className="right" style={{ width: 160 }}>Amount (USD)</th>
-                <th className="right" style={{ width: 220 }}>Actions</th>
+                <th style={{ width: 120 }}>{t("expenses.type")}</th>
+                <th style={{ width: 220 }}>{t("expenses.category")}</th>
+                <th>{t("expenses.description")}</th>
+                <th className="right" style={{ width: 160 }}>{t("expenses.amountUsd")}</th>
+                <th className="right" style={{ width: 220 }}>{t("expenses.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -822,10 +823,10 @@ export default function ExpensesPage() {
                           type="button"
                           disabled={locked}
                           onClick={() => confirmPlanned(p.id)}
-                          title={locked ? "Closed month" : "Confirm and create real expense"}
+                          title={locked ? t("expenses.monthClosed") : t("expenses.confirmAndCreateReal")}
                           style={{ height: 34 }}
                         >
-                          Confirm
+                          {t("expenses.confirmDraft")}
                         </button>
                       </div>
                     </td>
@@ -837,9 +838,9 @@ export default function ExpensesPage() {
                 <tr>
                   <td colSpan={5} className="muted">
                     <div style={{ padding: "8px 0" }}>
-                      <div style={{ fontWeight: 800, marginBottom: 4 }}>No drafts for this month.</div>
+                      <div style={{ fontWeight: 800, marginBottom: 4 }}>{t("expenses.noDrafts")}</div>
                       <div className="muted" style={{ fontSize: 13 }}>
-                        Drafts come from Admin → Templates. Create or update templates to generate drafts you can confirm here.
+                        {t("expenses.draftsFromTemplates")}
                       </div>
                     </div>
                   </td>
@@ -850,16 +851,16 @@ export default function ExpensesPage() {
         </div>
 
         <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-          Confirm will create a real Expense (and the draft will disappear).
+          {t("expenses.confirmCreatesRealNote")}
         </div>
 
         {onboardingActive && (
           <div className="row" style={{ justifyContent: "flex-end", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
             <button className="btn" type="button" onClick={confirmAllPlanned} disabled={!canEditThisMonth || planned.length === 0 || loading}>
-              {loading ? "Confirming…" : "Confirm all drafts"}
+              {loading ? t("expenses.confirming") : t("expenses.confirmAllDrafts")}
             </button>
             <button className="btn primary" type="button" onClick={markStep2Done}>
-              Done → Next: Investments
+              {t("expenses.doneNextInvestments")}
             </button>
           </div>
         )}
@@ -887,6 +888,7 @@ function RealExpensesTable(props: {
   removeExpense: (expenseId: string, expenseMonth: number) => Promise<void>;
   fallbackMonth: number;
 }) {
+  const { t } = useTranslation();
   const { expenses, categories, isMonthClosed, getDraft, setDraft, clearDraft, patchExpense, removeExpense, fallbackMonth } =
     props;
 
@@ -897,11 +899,11 @@ function RealExpensesTable(props: {
       <table className="table">
         <thead>
           <tr>
-            <th style={{ width: 130 }}>Month</th>
-            <th style={{ width: 110 }}>Type</th>
-            <th>Description</th>
-            <th style={{ width: 220 }}>Category</th>
-            <th style={{ width: 340 }}>Original</th>
+            <th style={{ width: 130 }}>{t("expenses.month")}</th>
+            <th style={{ width: 110 }}>{t("expenses.type")}</th>
+            <th>{t("expenses.description")}</th>
+            <th style={{ width: 220 }}>{t("expenses.category")}</th>
+            <th style={{ width: 340 }}>{t("expenses.original")}</th>
             <th className="right" style={{ width: 120 }}>USD</th>
             <th style={{ width: 110 }} />
           </tr>
@@ -941,7 +943,7 @@ function RealExpensesTable(props: {
                       patchExpense(e.id, expMonth, { date: ymValue }).then(() => clearDraft(e.id));
                     }}
                     style={{ width: 130 }}
-                    title={locked ? "Closed month" : undefined}
+                    title={locked ? t("expenses.monthClosed") : undefined}
                   />
                 </td>
 
@@ -961,7 +963,7 @@ function RealExpensesTable(props: {
                       if (!v) return;
                       patchExpense(e.id, expMonth, { description: v }).then(() => clearDraft(e.id));
                     }}
-                    title={locked ? "Closed month" : undefined}
+                    title={locked ? t("expenses.monthClosed") : undefined}
                   />
                 </td>
 
@@ -979,7 +981,7 @@ function RealExpensesTable(props: {
                       setDraft(e.id, { categoryId: v });
                       patchExpense(e.id, expMonth, { categoryId: v, expenseType: enforcedType }).then(() => clearDraft(e.id));
                     }}
-                    title={locked ? "Closed month" : undefined}
+                    title={locked ? t("expenses.monthClosed") : undefined}
                   >
                     {categoriesSorted.map((c) => (
                       <option key={c.id} value={c.id}>
@@ -1003,7 +1005,7 @@ function RealExpensesTable(props: {
                         patchExpense(e.id, expMonth, { amount: Number(currentAmount) }).then(() => clearDraft(e.id));
                       }}
                       style={{ width: 110, textAlign: "right" }}
-                      title={locked ? "Closed month" : undefined}
+                      title={locked ? t("expenses.monthClosed") : undefined}
                     />
 
                     <select
@@ -1024,7 +1026,7 @@ function RealExpensesTable(props: {
                         }
                       }}
                       style={{ width: 82 }}
-                      title={locked ? "Closed month" : undefined}
+                      title={locked ? t("expenses.monthClosed") : undefined}
                     >
                       <option value="UYU">UYU</option>
                       <option value="USD">USD</option>
@@ -1045,7 +1047,7 @@ function RealExpensesTable(props: {
                           patchExpense(e.id, expMonth, { usdUyuRate: Number(currentRate) }).then(() => clearDraft(e.id));
                         }}
                         style={{ width: 110 }}
-                        title={locked ? "Closed month" : "FX: 1 USD = X UYU"}
+                        title={locked ? t("expenses.monthClosed") : t("expenses.fxUsdUyu")}
                       />
                     )}
 
@@ -1067,9 +1069,9 @@ function RealExpensesTable(props: {
                     type="button"
                     disabled={locked}
                     onClick={() => removeExpense(e.id, expMonth)}
-                    title={locked ? "Closed month" : undefined}
+                    title={locked ? t("expenses.monthClosed") : undefined}
                   >
-                    Delete
+                    {t("common.delete")}
                   </button>
                 </td>
               </tr>
@@ -1079,7 +1081,7 @@ function RealExpensesTable(props: {
           {expenses.length === 0 && (
             <tr>
               <td colSpan={7} className="muted" style={{ padding: "12px 10px" }}>
-                No expenses in this list. Add one with the form above or confirm drafts.
+                {t("expenses.noExpensesInList")}
               </td>
             </tr>
           )}
@@ -1087,7 +1089,7 @@ function RealExpensesTable(props: {
       </table>
 
       <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-        Month is stored as the 1st day of the month (UTC). USD displayed without decimals.
+        {t("expenses.monthStoredNote")}
       </div>
     </div>
   );

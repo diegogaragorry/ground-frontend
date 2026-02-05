@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { api } from "../api";
@@ -76,32 +77,33 @@ function OnboardingPanel(props: {
   onDone: () => void;
   onSkip: () => void;
 }) {
+  const { t } = useTranslation();
   const { onStart, onDone, onSkip } = props;
 
-  const items: Array<{ title: string; sub: string }> = [
-    { title: "1) Review templates & categories", sub: "Admin → Templates. Define your base monthly template." },
-    { title: "2) Confirm January drafts", sub: "Expenses → confirm drafts to create real expenses." },
-    { title: "3) Set your accounts (optional funds)", sub: "Investments → add Bank Account and any funds you track." },
-    { title: "4) Add income & other expenses", sub: "Budgets → fill monthly income + “Other expenses”." },
-    { title: "5) Review your dashboard", sub: "See monthly snapshot + annual projection." },
+  const items: Array<{ titleKey: string; subKey: string }> = [
+    { titleKey: "onboarding.step1Title", subKey: "onboarding.step1Sub" },
+    { titleKey: "onboarding.step2Title", subKey: "onboarding.step2Sub" },
+    { titleKey: "onboarding.step3Title", subKey: "onboarding.step3Sub" },
+    { titleKey: "onboarding.step4Title", subKey: "onboarding.step4Sub" },
+    { titleKey: "onboarding.step5Title", subKey: "onboarding.step5Sub" },
   ];
 
   return (
     <div className="card" style={{ padding: 16 }}>
       <div style={{ display: "grid", gap: 10 }}>
-        <div style={{ fontSize: 18, fontWeight: 950, lineHeight: 1.1 }}>Welcome to Ground</div>
+        <div style={{ fontSize: 18, fontWeight: 950, lineHeight: 1.1 }}>{t("onboarding.welcome")}</div>
         <div className="muted" style={{ fontSize: 13, lineHeight: 1.35 }}>
-          Order your finances, ground your spending, grow your dreams.
+          {t("onboarding.tagline")}
         </div>
 
         <div style={{ marginTop: 6, padding: 12, borderRadius: 14, border: "1px solid var(--border)" }}>
-          <div style={{ fontWeight: 850, marginBottom: 10 }}>Your setup checklist</div>
+          <div style={{ fontWeight: 850, marginBottom: 10 }}>{t("onboarding.checklist")}</div>
 
           {items.map((it, idx) => (
             <div key={idx} className="ob-item">
               <div className="ob-left">
-                <div className="ob-title">{it.title}</div>
-                <div className="muted ob-sub">{it.sub}</div>
+                <div className="ob-title">{t(it.titleKey)}</div>
+                <div className="muted ob-sub">{t(it.subKey)}</div>
               </div>
 
               {/* only a hint here; real navigation happens when you start */}
@@ -115,15 +117,15 @@ function OnboardingPanel(props: {
         {/* CTA row */}
         <div className="ob-cta">
           <button className="btn primary ob-start" type="button" onClick={onStart}>
-            Start with Step 1 →
+            {t("onboarding.startWithStep1")}
           </button>
 
           <div className="row ob-right" style={{ gap: 10 }}>
-            <button className="btn" type="button" onClick={onSkip} title="Hide for now (you can reopen it later)">
-              Not now
+            <button className="btn" type="button" onClick={onSkip} title={t("onboarding.hideForNow")}>
+              {t("onboarding.notNow")}
             </button>
-            <button className="btn" type="button" onClick={onDone} title="Skip setup and go to dashboard">
-              Skip setup → Dashboard
+            <button className="btn" type="button" onClick={onDone} title={t("onboarding.skipToDashboard")}>
+              {t("onboarding.skipToDashboard")}
             </button>
           </div>
         </div>

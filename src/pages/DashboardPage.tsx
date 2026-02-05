@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
 
@@ -110,12 +111,13 @@ export default function DashboardPage() {
     setOnboardingStep("done");
   }
 
+  const { t } = useTranslation();
   useEffect(() => {
     setHeader({
-      title: "Dashboard",
-      subtitle: "Monthly snapshot & annual projection (USD)",
+      title: t("dashboard.title"),
+      subtitle: t("dashboard.subtitle"),
     });
-  }, [setHeader]);
+  }, [setHeader, t]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -238,8 +240,8 @@ export default function DashboardPage() {
       {/* Toolbar: status chip + actions (title is in Topbar) */}
       <div className="dashTop">
         <div className="dashTopLeft">
-          <span className={`chip ${isLocked ? "chipLocked" : ""}`} title={isLocked ? "Month is closed (locked)" : "Computed"}>
-            {isLocked ? "Locked" : "Live"} • {sourceBadge}
+          <span className={`chip ${isLocked ? "chipLocked" : ""}`} title={isLocked ? t("dashboard.monthClosed") : t("common.computed")}>
+            {isLocked ? t("common.locked") : t("common.open")} • {sourceBadge}
           </span>
         </div>
 
@@ -248,35 +250,34 @@ export default function DashboardPage() {
             {loading ? (
               <span className="loading-inline">
                 <span className="loading-spinner" aria-hidden />
-                Loading…
+                {t("common.loading")}
               </span>
             ) : (
-              "Refresh"
+              t("common.refresh")
             )}
           </button>
-          <button className="btn" type="button" onClick={reopenOnboarding} title="Reopen onboarding checklist">
-            Setup guide
+          <button className="btn" type="button" onClick={reopenOnboarding} title={t("dashboard.reopenOnboarding")}>
+            {t("dashboard.setupGuide")}
           </button>
         </div>
       </div>
 
-      {/* ✅ Onboarding banner (Step 5) */}
       {onboardingActive && (
         <div className="card onb" style={{ marginTop: 12 }}>
           <div className="row" style={{ justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
             <div style={{ minWidth: 280 }}>
-              <div style={{ fontWeight: 950, fontSize: 16 }}>Step 5 — Review your dashboard</div>
+              <div style={{ fontWeight: 950, fontSize: 16 }}>{t("dashboard.step5Title")}</div>
               <div className="muted" style={{ marginTop: 4, fontSize: 13, maxWidth: 780 }}>
-                Review your monthly snapshot and annual projection. If everything looks right, finish the setup.
+                {t("dashboard.step5Desc")}
               </div>
             </div>
 
             <div className="row" style={{ gap: 10 }}>
               <button className="btn primary" type="button" onClick={finishOnboarding} style={{ height: 40 }}>
-                Finish onboarding ✅
+                {t("dashboard.finishOnboarding")}
               </button>
               <button className="btn" type="button" onClick={skipOnboarding} style={{ height: 40 }}>
-                Skip
+                {t("common.skip")}
               </button>
             </div>
           </div>
@@ -293,7 +294,7 @@ export default function DashboardPage() {
       {/* KPI GRID */}
       <div className="kpiGrid">
         <div className="card kpi kpiMain">
-          <div className="kpiLabel">Monthly expenses</div>
+          <div className="kpiLabel">{t("dashboard.monthlyExpenses")}</div>
           <div className="kpiValue">{usd0.format(monthlyExpenses)}</div>
           <div className="kpiFoot muted">
             {year}-{month2(month)} • USD
@@ -301,21 +302,21 @@ export default function DashboardPage() {
         </div>
 
         <div className="card kpi">
-          <div className="kpiLabel">Monthly income</div>
+          <div className="kpiLabel">{t("dashboard.monthlyIncome")}</div>
           <div className="kpiValue">{usd0.format(monthIncome)}</div>
-          <div className="kpiFoot muted">From Budgets</div>
+          <div className="kpiFoot muted">{t("dashboard.fromBudgets")}</div>
         </div>
 
         <div className="card kpi">
-          <div className="kpiLabel">Monthly savings</div>
+          <div className="kpiLabel">{t("dashboard.monthlySavings")}</div>
           <div className="kpiValue">{usd0.format(monthBalance)}</div>
-          <div className="kpiFoot muted">Income − expenses</div>
+          <div className="kpiFoot muted">{t("dashboard.incomeMinusExpenses")}</div>
         </div>
 
         <div className="card kpi">
-          <div className="kpiLabel">Net worth</div>
+          <div className="kpiLabel">{t("dashboard.netWorth")}</div>
           <div className="kpiValue">{usd0.format(netWorthCurrentMonth)}</div>
-          <div className="kpiFoot muted">Start: {usd0.format(netWorthStartMonth)}</div>
+          <div className="kpiFoot muted">{t("dashboard.start")}: {usd0.format(netWorthStartMonth)}</div>
         </div>
       </div>
 
@@ -324,15 +325,15 @@ export default function DashboardPage() {
         {/* LEFT */}
         <div className="col">
           <div className="sectionHead">
-            <div className="sectionTitle">This month</div>
+            <div className="sectionTitle">{t("dashboard.thisMonth")}</div>
             <div className="muted">{year}-{month2(month)}</div>
           </div>
 
           <div className="card list">
             <div className="cardHead">
-              <div className="cardTitle">Top categories</div>
+              <div className="cardTitle">{t("dashboard.topCategories")}</div>
               <div className="muted" style={{ fontSize: 12 }}>
-                by spend
+                {t("dashboard.bySpend")}
               </div>
             </div>
 
@@ -353,16 +354,16 @@ export default function DashboardPage() {
 
             {topCategories.length === 0 && (
               <div className="muted">
-                No categories with spending this month. Add expenses in <Link to="/expenses">Expenses</Link> to see a breakdown.
+                <Trans i18nKey="dashboard.noCategories" components={{ 1: <Link to="/expenses" /> }} />
               </div>
             )}
           </div>
 
           <div className="card list">
             <div className="cardHead">
-              <div className="cardTitle">Top expenses</div>
+              <div className="cardTitle">{t("dashboard.topExpenses")}</div>
               <div className="muted" style={{ fontSize: 12 }}>
-                largest items
+                {t("dashboard.largestItems")}
               </div>
             </div>
 
@@ -388,43 +389,42 @@ export default function DashboardPage() {
 
             {topExpenses.length === 0 && (
               <div className="muted">
-                No expenses this month. Add or confirm drafts in <Link to="/expenses">Expenses</Link>.
+                <Trans i18nKey="dashboard.noExpensesThisMonth" components={{ 1: <Link to="/expenses" /> }} />
               </div>
             )}
           </div>
         </div>
 
-        {/* RIGHT */}
         <div className="col">
           <div className="sectionHead">
-            <div className="sectionTitle">This year</div>
-            <div className="muted">{year} projection</div>
+            <div className="sectionTitle">{t("dashboard.thisYear")}</div>
+            <div className="muted">{year} {t("dashboard.projection")}</div>
           </div>
 
           <div className="yearStack">
             <div className="card yearKpi">
-              <div className="kpiLabel">Total income</div>
+              <div className="kpiLabel">{t("dashboard.totalIncome")}</div>
               <div className="kpiValueSm">{usd0.format(annualTotals.income)}</div>
             </div>
 
             <div className="card yearKpi">
-              <div className="kpiLabel">Total expenses</div>
+              <div className="kpiLabel">{t("dashboard.totalExpenses")}</div>
               <div className="kpiValueSm">{usd0.format(annualTotals.expenses)}</div>
             </div>
 
             <div className="card yearKpi">
-              <div className="kpiLabel">Investment earnings</div>
+              <div className="kpiLabel">{t("dashboard.investmentEarnings")}</div>
               <div className="kpiValueSm">{usd0.format(annualTotals.earnings)}</div>
             </div>
 
             <div className="card yearKpi yearHighlight">
-              <div className="kpiLabel">Annual savings</div>
+              <div className="kpiLabel">{t("dashboard.annualSavings")}</div>
               <div className="kpiValue">{usd0.format(annualTotals.balance)}</div>
-              <div className="kpiFoot muted">Sum of monthly balances</div>
+              <div className="kpiFoot muted">{t("dashboard.sumMonthlyBalances")}</div>
             </div>
 
             <div className="card yearKpi">
-              <div className="kpiLabel">Net worth (end of year)</div>
+              <div className="kpiLabel">{t("dashboard.netWorthEndYear")}</div>
               <div className="kpiValueSm">{usd0.format(annualTotals.netWorthEndYear)}</div>
             </div>
           </div>

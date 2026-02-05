@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
 
@@ -57,8 +58,8 @@ function Badge({ children }: { children: React.ReactNode }) {
 
 export default function BudgetsPage() {
   const nav = useNavigate();
+  const { t } = useTranslation();
 
-  // ✅ Opción A onboarding central
   const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me } = useAppShell();
   const { year } = useAppYearMonth();
 
@@ -78,8 +79,8 @@ export default function BudgetsPage() {
   }
 
   useEffect(() => {
-    setHeader({ title: "Budget", subtitle: `Annual plan & actuals (USD base) — ${year}` });
-  }, [setHeader, year]);
+    setHeader({ title: t("budgets.title"), subtitle: t("budgets.subtitle", { year }) });
+  }, [setHeader, year, t]);
 
   const [data, setData] = useState<AnnualResp | null>(null);
   const [loading, setLoading] = useState(false);
@@ -106,7 +107,7 @@ export default function BudgetsPage() {
       setData(r);
       setDrafts({});
     } catch (e: any) {
-      setError(e?.message ?? "Error");
+      setError(e?.message ?? t("common.error"));
     } finally {
       setLoading(false);
     }
@@ -194,24 +195,24 @@ export default function BudgetsPage() {
         <div className="card" style={{ border: "1px solid rgba(15,23,42,0.10)", background: "rgba(15,23,42,0.02)" }}>
           <div className="row" style={{ justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
             <div style={{ minWidth: 280 }}>
-              <div style={{ fontWeight: 950, fontSize: 16 }}>Step 4 — Add income & other expenses</div>
+              <div style={{ fontWeight: 950, fontSize: 16 }}>{t("budgets.step4Title")}</div>
               <div className="muted" style={{ marginTop: 4, fontSize: 13, maxWidth: 780 }}>
-                Fill your monthly <b>Income</b> and <b>Other expenses</b>. Base expenses come from actuals/drafts.
+                <Trans i18nKey="budgets.step4Desc" components={{ b: <b /> }} />
               </div>
               <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-                Tip: Start with the current month — you can refine later.
+                {t("budgets.step4Tip")}
               </div>
             </div>
 
             <div className="row" style={{ gap: 10, alignItems: "center" }}>
               <button className="btn" type="button" onClick={goTable} style={{ height: 40 }}>
-                Go to table
+                {t("budgets.goToTable")}
               </button>
               <button className="btn primary" type="button" onClick={markStepDone} style={{ height: 40 }}>
-                Done → Next: Dashboard
+                {t("budgets.doneNextDashboard")}
               </button>
               <button className="btn" type="button" onClick={skipOnboarding} style={{ height: 40 }}>
-                Skip
+                {t("common.skip")}
               </button>
             </div>
           </div>
@@ -221,22 +222,22 @@ export default function BudgetsPage() {
       <div className="card" ref={tableRef}>
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
           <div>
-            <div style={{ fontWeight: 850, fontSize: 16 }}>Annual budget (USD)</div>
+            <div style={{ fontWeight: 850, fontSize: 16 }}>{t("budgets.annualBudget")}</div>
             <div className="muted" style={{ fontSize: 12 }}>
-              Closed months are locked • Open months: Income + Other expenses editable • Base expenses come from actuals or drafts
+              {t("budgets.closedMonthsLocked")}
             </div>
           </div>
 
           <div className="row" style={{ gap: 10, alignItems: "center" }}>
-            <Badge>{loading ? "Loading…" : "Ready"}</Badge>
+            <Badge>{loading ? t("common.loading") : t("common.ready")}</Badge>
             <button className="btn" type="button" onClick={load}>
               {loading ? (
               <span className="loading-inline">
                 <span className="loading-spinner" aria-hidden />
-                Loading…
+                {t("common.loading")}
               </span>
             ) : (
-              "Refresh"
+              t("common.refresh")
             )}
             </button>
           </div>
@@ -250,12 +251,12 @@ export default function BudgetsPage() {
               <tr>
                 <th style={{ width: 150 }}></th>
                 {months.map((m) => (
-                  <th key={`h-${m.month}`} className="right" title={m.isClosed ? "Closed" : "Open"} style={{ minWidth: 60 }}>
+                  <th key={`h-${m.month}`} className="right" title={m.isClosed ? t("common.closed") : t("common.open")} style={{ minWidth: 60 }}>
                     {m2(m.month)}
                   </th>
                 ))}
                 <th className="right" style={{ width: 110 }}>
-                  Total
+                  {t("budgets.total")}
                 </th>
               </tr>
             </thead>
@@ -263,7 +264,7 @@ export default function BudgetsPage() {
             <tbody>
               {/* Income */}
               <tr>
-                <td style={{ fontWeight: 750 }}>Income</td>
+                <td style={{ fontWeight: 750 }}>{t("budgets.income")}</td>
                 {months.map((m) => (
                   <td key={`inc-${m.month}`} className="right" title={m.source}>
                     {m.isClosed ? (
@@ -285,7 +286,7 @@ export default function BudgetsPage() {
                             await saveIncome(m.month, n);
                             clearDraft(m.month);
                           } catch (err: any) {
-                            setError(err?.message ?? "Error saving income");
+                            setError(err?.message ?? t("budgets.errorSavingIncome"));
                           }
                         }}
                         onKeyDown={(e) => {
@@ -302,9 +303,9 @@ export default function BudgetsPage() {
 
               {/* Base expenses (actuals if any, else drafts planned) */}
               <tr>
-                <td style={{ fontWeight: 750 }}>Base expenses</td>
+                <td style={{ fontWeight: 750 }}>{t("budgets.baseExpenses")}</td>
                 {months.map((m) => (
-                  <td key={`base-${m.month}`} className="right" title="Actuals if any, else drafts">
+                  <td key={`base-${m.month}`} className="right" title={t("budgets.actualsOrDrafts")}>
                     {usd0.format(m.baseExpensesUsd ?? 0)}
                   </td>
                 ))}
@@ -315,7 +316,7 @@ export default function BudgetsPage() {
 
               {/* Other expenses (manual editable) */}
               <tr>
-                <td style={{ fontWeight: 750 }}>Other expenses</td>
+                <td style={{ fontWeight: 750 }}>{t("budgets.otherExpenses")}</td>
                 {months.map((m) => (
                   <td key={`other-${m.month}`} className="right" title={m.source}>
                     {m.isClosed ? (
@@ -337,7 +338,7 @@ export default function BudgetsPage() {
                             await saveOtherExpenses(m.month, n);
                             clearDraft(m.month);
                           } catch (err: any) {
-                            setError(err?.message ?? "Error saving other expenses");
+                            setError(err?.message ?? t("budgets.errorSavingOtherExpenses"));
                           }
                         }}
                         onKeyDown={(e) => {
@@ -354,9 +355,9 @@ export default function BudgetsPage() {
 
               {/* Total expenses */}
               <tr>
-                <td style={{ fontWeight: 800 }}>Expenses</td>
+                <td style={{ fontWeight: 800 }}>{t("budgets.expensesCol")}</td>
                 {months.map((m) => (
-                  <td key={`exp-${m.month}`} className="right" title="Base + Other" style={{ fontWeight: 800 }}>
+                  <td key={`exp-${m.month}`} className="right" title={t("budgets.basePlusOther")} style={{ fontWeight: 800 }}>
                     {usd0.format(m.expensesUsd ?? 0)}
                   </td>
                 ))}
@@ -367,9 +368,9 @@ export default function BudgetsPage() {
 
               {/* Investment earnings */}
               <tr>
-                <td style={{ fontWeight: 750 }}>Investment earnings</td>
+                <td style={{ fontWeight: 750 }}>{t("budgets.investmentEarnings")}</td>
                 {months.map((m) => (
-                  <td key={`earn-${m.month}`} className="right" style={{ opacity: m.isClosed ? 1 : 0.85 }} title="Real returns (Portfolio)">
+                  <td key={`earn-${m.month}`} className="right" style={{ opacity: m.isClosed ? 1 : 0.85 }} title={t("budgets.realReturnsPortfolio")}>
                     {usd0.format(m.investmentEarningsUsd ?? 0)}
                   </td>
                 ))}
@@ -380,13 +381,13 @@ export default function BudgetsPage() {
 
               {/* Balance */}
               <tr>
-                <td style={{ fontWeight: 900 }}>Balance</td>
+                <td style={{ fontWeight: 900 }}>{t("budgets.balance")}</td>
                 {months.map((m) => (
                   <td
                     key={`bal-${m.month}`}
                     className="right"
                     style={{ fontWeight: 900, opacity: m.isClosed ? 1 : 0.9 }}
-                    title="income - expenses + investment earnings"
+                    title={t("budgets.incomeMinusExpensesEarnings")}
                   >
                     {usd0.format(m.balanceUsd ?? 0)}
                   </td>
@@ -398,9 +399,9 @@ export default function BudgetsPage() {
 
               {/* Net worth (start) */}
               <tr>
-                <td style={{ fontWeight: 750 }}>Net worth (start)</td>
+                <td style={{ fontWeight: 750 }}>{t("budgets.netWorthStart")}</td>
                 {months.map((m, idx) => (
-                  <td key={`nw-${m.month}`} className="right" title="Start of month">
+                  <td key={`nw-${m.month}`} className="right" title={t("budgets.startOfMonth")}>
                     {usd0.format(netWorthStartSeries[idx] ?? 0)}
                   </td>
                 ))}
@@ -411,7 +412,7 @@ export default function BudgetsPage() {
         </div>
 
         <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-          Tip: Base expenses = actuals if the month has expenses; otherwise it uses the sum of draft planned expenses (templates). Other expenses is your manual adjustment.
+          {t("budgets.tipBaseExpenses")}
         </div>
 
         <style>{`
