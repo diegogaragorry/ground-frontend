@@ -43,6 +43,10 @@ export function Sidebar() {
         .sidebar-ground {
           display: flex;
           flex-direction: column;
+          align-self: start;
+          position: sticky;
+          top: 0;
+          height: 100vh;
           padding: 20px 16px;
           background: var(--panel);
           border-right: 1px solid var(--border);
