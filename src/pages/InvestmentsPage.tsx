@@ -99,7 +99,7 @@ export default function InvestmentsPage() {
   const nav = useNavigate();
 
   // ✅ Opción A onboarding central
-  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me } = useAppShell();
+  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess } = useAppShell();
   const { year } = useAppYearMonth();
 
   // scroll targets for onboarding
@@ -263,10 +263,10 @@ export default function InvestmentsPage() {
   async function saveCell(inv: Investment, m: number, value: number | null) {
     if (value === null || Number.isNaN(value)) return;
     if (isClosed(m)) {
-      alert("This month is closed. Reopen it in Admin to edit snapshots.");
+      setError("This month is closed. Reopen it in Admin to edit snapshots.");
       return;
     }
-
+    setError("");
     try {
       const snap = await api<SnapshotMonth>(`/investments/${inv.id}/snapshots/${year}/${m}`, {
         method: "PUT",
@@ -277,15 +277,16 @@ export default function InvestmentsPage() {
         ...prev,
         [inv.id]: (prev[inv.id] ?? []).map((x) => (x.month === m ? snap : x)),
       }));
+      showSuccess("Snapshot saved.");
     } catch (e: any) {
-      alert(e?.message ?? "Error saving snapshot");
+      setError(e?.message ?? "Error saving snapshot");
     }
   }
 
   async function saveTargetReturn(inv: Investment, raw: string) {
     const parsed = parseReturnInputToDecimal(raw);
     if (parsed == null) return;
-
+    setError("");
     try {
       const updated = await api<Investment>(`/investments/${inv.id}`, {
         method: "PUT",
@@ -293,8 +294,9 @@ export default function InvestmentsPage() {
       });
 
       setInvestments((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      showSuccess("Target return saved.");
     } catch (e: any) {
-      alert(e?.message ?? "Error saving target annual return");
+      setError(e?.message ?? "Error saving target annual return");
     }
   }
 
@@ -379,54 +381,67 @@ export default function InvestmentsPage() {
   // MOVEMENTS CRUD
   async function createMovement(draft: { investmentId: string; type: "deposit" | "withdrawal" | "yield"; month: number; amount: number }) {
     if (isClosed(draft.month)) {
-      alert("This month is closed. Reopen it in Admin to add movements.");
+      setError("This month is closed. Reopen it in Admin to add movements.");
       return;
     }
+    setError("");
     const date = firstDayUtc(year, draft.month).toISOString();
+    try {
+      const created = await api<MovementApiRow>("/investments/movements", {
+        method: "POST",
+        body: JSON.stringify({
+          investmentId: draft.investmentId,
+          date,
+          type: draft.type,
+          currencyId: "USD",
+          amount: Number(draft.amount) || 0,
+        }),
+      });
 
-    const created = await api<MovementApiRow>("/investments/movements", {
-      method: "POST",
-      body: JSON.stringify({
-        investmentId: draft.investmentId,
-        date,
-        type: draft.type,
-        currencyId: "USD",
-        amount: Number(draft.amount) || 0,
-      }),
-    });
-
-    setMovements((prev) => [normalizeMovement(created), ...prev]);
+      setMovements((prev) => [normalizeMovement(created), ...prev]);
+      showSuccess("Movement added.");
+    } catch (e: any) {
+      setError(e?.message ?? "Error adding movement");
+    }
   }
 
   async function updateMovementFull(updated: MovementRow) {
     const m = updated.month ?? toMonthFromIso(updated.date);
     if (isClosed(m)) {
-      alert("This month is closed. Reopen it in Admin to edit movements.");
+      setError("This month is closed. Reopen it in Admin to edit movements.");
       return;
     }
+    setError("");
+    try {
+      const res = await api<MovementApiRow>(`/investments/movements/${updated.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          investmentId: updated.investmentId,
+          date: updated.date,
+          type: updated.type,
+          currencyId: updated.currencyId,
+          amount: updated.amount,
+        }),
+      });
 
-    const res = await api<MovementApiRow>(`/investments/movements/${updated.id}`, {
-      method: "PUT",
-      body: JSON.stringify({
-        investmentId: updated.investmentId,
-        date: updated.date,
-        type: updated.type,
-        currencyId: updated.currencyId,
-        amount: updated.amount,
-      }),
-    });
-
-    const normalized = normalizeMovement(res);
-    setMovements((prev) => prev.map((x) => (x.id === normalized.id ? normalized : x)));
+      const normalized = normalizeMovement(res);
+      setMovements((prev) => prev.map((x) => (x.id === normalized.id ? normalized : x)));
+      showSuccess("Movement updated.");
+    } catch (e: any) {
+      setError(e?.message ?? "Error updating movement");
+    }
   }
 
   async function deleteMovement(id: string, monthOfMovement: number) {
     if (isClosed(monthOfMovement)) {
-      alert("This month is closed. Reopen it in Admin to delete movements.");
+      setError("This month is closed. Reopen it in Admin to delete movements.");
       return;
     }
+    if (!confirm("Delete this movement? This cannot be undone.")) return;
+    setError("");
     await api(`/investments/movements/${id}`, { method: "DELETE" });
     setMovements((prev) => prev.filter((x) => x.id !== id));
+    showSuccess("Movement deleted.");
   }
 
   // MOVEMENT FORM
@@ -515,7 +530,12 @@ export default function InvestmentsPage() {
         </div>
       )}
 
-      {loading && <div className="muted">Loading…</div>}
+      {loading && (
+        <div className="loading-inline">
+          <span className="loading-spinner" aria-hidden />
+          Loading…
+        </div>
+      )}
       {error && <div style={{ color: "var(--danger)" }}>{error}</div>}
 
       {/* SUMMARY */}
@@ -528,8 +548,8 @@ export default function InvestmentsPage() {
           <button className="btn" type="button" onClick={load}>Refresh</button>
         </div>
 
-        <div style={{ overflowX: "auto", maxWidth: "100%", marginTop: 10 }}>
-          <table className="table">
+        <div style={{ overflowX: "auto", maxWidth: "100%", marginTop: 10 }} role="region" aria-label="Net worth and returns by month">
+          <table className="table" aria-label="Summary by month (USD)">
             <thead>
               <tr>
                 <th style={{ ...thStyle, width: 190 }}></th>
@@ -987,7 +1007,9 @@ export default function InvestmentsPage() {
 
               {movements.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="muted" style={tdStyle}>No movements yet.</td>
+                  <td colSpan={5} className="muted" style={tdStyle}>
+                  No movements yet. Add deposits or withdrawals in the form above.
+                </td>
                 </tr>
               )}
             </tbody>

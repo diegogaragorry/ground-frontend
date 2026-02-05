@@ -126,7 +126,7 @@ export default function ExpensesPage() {
   const nav = useNavigate();
 
   // ✅ Opción A: onboarding central
-  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me } = useAppShell();
+  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess } = useAppShell();
 
   const { year, month } = useAppYearMonth();
 
@@ -311,6 +311,7 @@ export default function ExpensesPage() {
 
       await Promise.all([loadExpenses(), loadSummary(), loadPlanned()]);
       setInfo("Expense created.");
+      showSuccess("Expense created.");
     } catch (err: any) {
       setError(err?.message ?? "Error");
     }
@@ -320,11 +321,13 @@ export default function ExpensesPage() {
     setError("");
     setInfo("");
     if (isClosed(expenseMonth)) return setError("This month is closed. Reopen it in Admin to delete expenses.");
+    if (!confirm("Delete this expense? This cannot be undone.")) return;
 
     try {
       await api(`/expenses/${expenseId}`, { method: "DELETE" });
       await Promise.all([loadExpenses(), loadSummary()]);
       setInfo("Expense deleted.");
+      showSuccess("Expense deleted.");
     } catch (err: any) {
       setError(err?.message ?? "Error");
     }
@@ -363,6 +366,7 @@ export default function ExpensesPage() {
       await api(`/plannedExpenses/${plannedId}/confirm`, { method: "POST" });
       await Promise.all([loadPlanned(), loadExpenses(), loadSummary()]);
       setInfo("Draft confirmed.");
+      showSuccess("Draft confirmed.");
     } catch (err: any) {
       setError(err?.message ?? "Error confirming draft");
     }
@@ -383,6 +387,7 @@ export default function ExpensesPage() {
       }
       await Promise.all([loadPlanned(), loadExpenses(), loadSummary()]);
       setInfo("All drafts confirmed.");
+      showSuccess("All drafts confirmed.");
     } catch (err: any) {
       setError(err?.message ?? "Error confirming drafts");
     } finally {
@@ -478,7 +483,14 @@ export default function ExpensesPage() {
 
         <div className="row" style={{ gap: 10, marginTop: 10, flexWrap: "wrap" }}>
           <button className="btn" type="button" onClick={loadAll}>
-            {loading ? "Loading…" : "Refresh"}
+            {loading ? (
+            <span className="loading-inline">
+              <span className="loading-spinner" aria-hidden />
+              Loading…
+            </span>
+          ) : (
+            "Refresh"
+          )}
           </button>
           {info && <div style={{ color: "rgba(15,23,42,0.75)", fontWeight: 650 }}>{info}</div>}
         </div>
@@ -487,7 +499,9 @@ export default function ExpensesPage() {
 
         <div style={{ marginTop: 12, overflowX: "auto" }}>
           {summaryByCategory.length === 0 ? (
-            <div className="muted">No expenses yet for this month.</div>
+            <div className="muted">
+              No expenses yet for this month. Add one below or confirm drafts from Admin → Templates.
+            </div>
           ) : (
             <table className="table">
               <thead>
@@ -824,8 +838,8 @@ export default function ExpensesPage() {
                   <td colSpan={5} className="muted">
                     <div style={{ padding: "8px 0" }}>
                       <div style={{ fontWeight: 800, marginBottom: 4 }}>No drafts for this month.</div>
-                      <div className="muted" style={{ fontSize: 12 }}>
-                        Drafts are created from Templates. Go to <b>Admin → Expense templates</b> and create your base template.
+                      <div className="muted" style={{ fontSize: 13 }}>
+                        Drafts come from Admin → Templates. Create or update templates to generate drafts you can confirm here.
                       </div>
                     </div>
                   </td>
@@ -1064,8 +1078,8 @@ function RealExpensesTable(props: {
 
           {expenses.length === 0 && (
             <tr>
-              <td colSpan={7} className="muted">
-                No expenses.
+              <td colSpan={7} className="muted" style={{ padding: "12px 10px" }}>
+                No expenses in this list. Add one with the form above or confirm drafts.
               </td>
             </tr>
           )}

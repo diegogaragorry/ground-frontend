@@ -126,10 +126,23 @@ h1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
   padding: 14px 18px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
+}
+
+/* Toast éxito (mensaje bajo el topbar) */
+.toast-success {
+  padding: 10px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  color: #166534;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 /* Cards / Tables / Inputs */
@@ -207,6 +220,35 @@ textarea:focus {
   color: #b91c1c;
 }
 .btn.danger:hover { background: #fee2e2; }
+
+/* Focus visible (accesibilidad) */
+.btn:focus-visible,
+a:focus-visible,
+.input:focus-visible,
+.select:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* Loading consistente */
+.loading-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.loading-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 /* Drawer (mobile) */
 .drawerOverlay {

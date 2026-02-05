@@ -171,6 +171,8 @@ function OnboardingPanel(props: {
    Context
 ========================= */
 
+type Toast = { text: string } | null;
+
 type AppShellCtx = {
   year: number;
   month: number;
@@ -185,6 +187,9 @@ type AppShellCtx = {
   onboardingStep: OnboardingStep;
   setOnboardingStep: (s: OnboardingStep) => void;
   reopenOnboarding: () => void;
+
+  toast: Toast;
+  showSuccess: (text: string) => void;
 };
 
 const Ctx = createContext<AppShellCtx | null>(null);
@@ -207,6 +212,17 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
   const [meLoaded, setMeLoaded] = useState(false);
 
   const [onboardingStep, _setOnboardingStep] = useState<OnboardingStep>("welcome");
+
+  const [toast, setToast] = useState<Toast>(null);
+  const showSuccess = React.useCallback((text: string) => {
+    setToast({ text });
+  }, []);
+
+  React.useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   React.useEffect(() => {
     api<Me>("/auth/me")
@@ -247,6 +263,8 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
     onboardingStep,
     setOnboardingStep,
     reopenOnboarding,
+    toast,
+    showSuccess,
   };
 
   return <Ctx.Provider value={value}>{props.children}</Ctx.Provider>;
@@ -269,6 +287,7 @@ export function useAppShell() {
     onboardingStep: ctx.onboardingStep,
     setOnboardingStep: ctx.setOnboardingStep,
     reopenOnboarding: ctx.reopenOnboarding,
+    showSuccess: ctx.showSuccess,
   };
 }
 
@@ -285,6 +304,14 @@ export function AppShell(props: { children: React.ReactNode }) {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const ymValue = ymToInputValue(ctx.year, ctx.month);
+
+  React.useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setDrawerOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   // Keep step aligned with navigation (only after welcome has started)
   React.useEffect(() => {
@@ -334,13 +361,18 @@ export function AppShell(props: { children: React.ReactNode }) {
       {drawerOpen && (
         <div className="drawerOverlay" onClick={() => setDrawerOpen(false)}>
           <div className="drawer" onClick={(e) => e.stopPropagation()}>
-            <Sidebar />
+            <Sidebar onNavigateClick={() => setDrawerOpen(false)} />
           </div>
         </div>
       )}
 
       <main className="main">
         <div style={{ display: "grid", gap: 12 }}>
+          {ctx.toast && (
+            <div className="toast-success" role="status">
+              {ctx.toast.text}
+            </div>
+          )}
           <Topbar
             title={ctx.header.title}
             subtitle={ctx.header.subtitle}

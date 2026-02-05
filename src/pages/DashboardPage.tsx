@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
 
@@ -244,7 +245,14 @@ export default function DashboardPage() {
 
         <div className="dashActions">
           <button className="btn" type="button" onClick={load}>
-            {loading ? "Loading…" : "Refresh"}
+            {loading ? (
+              <span className="loading-inline">
+                <span className="loading-spinner" aria-hidden />
+                Loading…
+              </span>
+            ) : (
+              "Refresh"
+            )}
           </button>
           <button className="btn" type="button" onClick={reopenOnboarding} title="Reopen onboarding checklist">
             Setup guide
@@ -343,7 +351,11 @@ export default function DashboardPage() {
               );
             })}
 
-            {topCategories.length === 0 && <div className="muted">No data.</div>}
+            {topCategories.length === 0 && (
+              <div className="muted">
+                No categories with spending this month. Add expenses in <Link to="/expenses">Expenses</Link> to see a breakdown.
+              </div>
+            )}
           </div>
 
           <div className="card list">
@@ -374,7 +386,11 @@ export default function DashboardPage() {
               );
             })}
 
-            {topExpenses.length === 0 && <div className="muted">No expenses.</div>}
+            {topExpenses.length === 0 && (
+              <div className="muted">
+                No expenses this month. Add or confirm drafts in <Link to="/expenses">Expenses</Link>.
+              </div>
+            )}
           </div>
         </div>
 

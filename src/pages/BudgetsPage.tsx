@@ -230,15 +230,22 @@ export default function BudgetsPage() {
           <div className="row" style={{ gap: 10, alignItems: "center" }}>
             <Badge>{loading ? "Loading…" : "Ready"}</Badge>
             <button className="btn" type="button" onClick={load}>
-              {loading ? "Loading…" : "Refresh"}
+              {loading ? (
+              <span className="loading-inline">
+                <span className="loading-spinner" aria-hidden />
+                Loading…
+              </span>
+            ) : (
+              "Refresh"
+            )}
             </button>
           </div>
         </div>
 
         {error && <div style={{ marginTop: 10, color: "var(--danger)" }}>{error}</div>}
 
-        <div style={{ overflowX: "auto", marginTop: 12 }}>
-          <table className="table compact">
+        <div style={{ overflowX: "auto", marginTop: 12 }} role="region" aria-label="Annual budget by month">
+          <table className="table compact" aria-label="Budget grid: income, expenses, balance by month">
             <thead>
               <tr>
                 <th style={{ width: 150 }}></th>

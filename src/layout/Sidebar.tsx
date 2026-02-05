@@ -1,7 +1,13 @@
 import { NavLink, useNavigate } from "react-router-dom";
 
-export function Sidebar() {
+type SidebarProps = {
+  /** Llamar al hacer click en un enlace de navegación (p. ej. cerrar drawer en móvil) */
+  onNavigateClick?: () => void;
+};
+
+export function Sidebar(props: SidebarProps) {
   const nav = useNavigate();
+  const { onNavigateClick } = props;
 
   function logout() {
     localStorage.removeItem("token");
@@ -16,19 +22,19 @@ export function Sidebar() {
       </div>
 
       <nav className="sidebar-nav">
-        <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")}>
+        <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
           Dashboard
         </NavLink>
-        <NavLink to="/expenses" className={({ isActive }) => (isActive ? "active" : "")}>
+        <NavLink to="/expenses" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
           Expenses
         </NavLink>
-        <NavLink to="/budgets" className={({ isActive }) => (isActive ? "active" : "")}>
+        <NavLink to="/budgets" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
           Budgets
         </NavLink>
-        <NavLink to="/investments" className={({ isActive }) => (isActive ? "active" : "")}>
+        <NavLink to="/investments" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
           Investments
         </NavLink>
-        <NavLink to="/admin" className={({ isActive }) => (isActive ? "active" : "")}>
+        <NavLink to="/admin" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
           Admin
         </NavLink>
       </nav>

@@ -160,6 +160,7 @@ function UsersAdminCard() {
       setRole("USER");
       await loadUsers();
       setInfo("User created.");
+      showSuccess("User created.");
     } catch (e: any) {
       setErr(e?.message ?? "Error creating user");
     }
@@ -184,6 +185,7 @@ function UsersAdminCard() {
       setEditPassword("");
       await loadUsers();
       setInfo("User updated.");
+      showSuccess("User updated.");
     } catch (e: any) {
       setErr(e?.message ?? "Error updating user");
     }
@@ -198,6 +200,7 @@ function UsersAdminCard() {
       await api(`/admin/users/${id}`, { method: "DELETE" });
       await loadUsers();
       setInfo("User deleted.");
+      showSuccess("User deleted.");
     } catch (e: any) {
       setErr(e?.message ?? "Error deleting user");
     }
@@ -425,6 +428,7 @@ function ExpenseTemplatesAdminCard({
       setDefaultAmountUsd("");
       await loadTemplates();
       setInfo("Template created (planned drafts generated for open months of current year).");
+      showSuccess("Template created.");
     } catch (e: any) {
       setErr(e?.message ?? "Error creating template");
     }
@@ -470,6 +474,7 @@ function ExpenseTemplatesAdminCard({
       setEditing(null);
       await loadTemplates();
       setInfo("Template updated (planned drafts synced for open months of current year).");
+      showSuccess("Template updated.");
     } catch (e: any) {
       setErr(e?.message ?? "Error updating template");
     }
@@ -484,6 +489,7 @@ function ExpenseTemplatesAdminCard({
       await api(`/admin/expenseTemplates/${id}`, { method: "DELETE" });
       await loadTemplates();
       setInfo("Template deleted.");
+      showSuccess("Template deleted.");
     } catch (e: any) {
       setErr(e?.message ?? "Error deleting template");
     }
@@ -692,7 +698,7 @@ function ExpenseTemplatesAdminCard({
 export default function AdminPage() {
   const nav = useNavigate();
 
-  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me } = useAppShell();
+  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess } = useAppShell();
   const { year: appYear } = useAppYearMonth();
 
   const [meResp, setMeResp] = useState<MeResp | null>(null);
@@ -816,6 +822,7 @@ export default function AdminPage() {
       setNewType("VARIABLE");
       await loadCategories();
       setCatInfo("Category created.");
+      showSuccess("Category created.");
     } catch (err: any) {
       setCatError(err?.message ?? "Error");
     }
@@ -849,6 +856,7 @@ export default function AdminPage() {
       setEditValue("");
       await loadCategories();
       setCatInfo("Category updated.");
+      showSuccess("Category updated.");
     } catch (err: any) {
       setCatError(err?.message ?? "Error");
     }
@@ -861,6 +869,7 @@ export default function AdminPage() {
       await api(`/categories/${id}`, { method: "DELETE" });
       await loadCategories();
       setCatInfo("Category deleted.");
+      showSuccess("Category deleted.");
     } catch (err: any) {
       const msg = err?.message ?? "Error";
       setCatError(
@@ -879,6 +888,7 @@ export default function AdminPage() {
       await api(`/monthCloses/close`, { method: "POST", body: JSON.stringify({ year: mcYear, month: mcMonth }) });
       await loadMonthCloses(mcYear);
       setMcInfo(`Month ${m2(mcMonth)}/${mcYear} closed.`);
+      showSuccess("Month closed.");
     } catch (err: any) {
       setMcError(err?.message ?? "Error closing month");
     }
@@ -891,6 +901,7 @@ export default function AdminPage() {
       await api(`/monthCloses/reopen`, { method: "POST", body: JSON.stringify({ year: mcYear, month: mcMonth }) });
       await loadMonthCloses(mcYear);
       setMcInfo(`Month ${m2(mcMonth)}/${mcYear} reopened.`);
+      showSuccess("Month reopened.");
     } catch (err: any) {
       setMcError(err?.message ?? "Error reopening month");
     }
