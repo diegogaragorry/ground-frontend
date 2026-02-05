@@ -99,114 +99,125 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="card" style={{ maxWidth: 420, margin: "40px auto" }}>
-      <div style={{ fontWeight: 900, fontSize: 20, marginBottom: 6 }}>
-        Create account
-      </div>
-
-      {step === "request" ? (
-        <form onSubmit={requestCode} className="grid" style={{ gap: 12 }}>
-          <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
-              Email
+    <div className="register-root">
+      <div className="register-grid">
+        <div className="brand-panel">
+          <div className="brand-panel-inner">
+            <div className="brand-wordmark-block">
+              <span className="brand-wordmark">Ground</span>
             </div>
-            <input
-              className="input"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-            />
-          </div>
-
-          {error && <div style={{ color: "var(--danger)" }}>{error}</div>}
-          {info && <div style={{ color: "rgba(15,23,42,0.75)" }}>{info}</div>}
-
-          <button className="btn primary" type="submit" disabled={loading}>
-            {loading ? "Sending..." : "Send verification code"}
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={verifyAndCreate} className="grid" style={{ gap: 12 }}>
-          <div className="muted" style={{ fontSize: 12 }}>
-            Code sent to <b>{normalizeEmail(email)}</b>
-          </div>
-          <div className="muted" style={{ fontSize: 12 }}>
-            The email may take a few minutes to arrive. Check your spam folder if you don’t see it.
-          </div>
-
-          <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
-              Verification code
-            </div>
-            <input
-              className="input"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="6 digits"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              required
-            />
-          </div>
-
-          <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
-              Password
-            </div>
-            <input
-              className="input"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-              autoComplete="new-password"
-            />
-            <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-              Minimum 8 characters.
+            <h1 className="brand-headline">
+              Get good with your money.
+            </h1>
+            <p className="brand-subline">
+              Budgets, spending, and net worth in one place. No spreadsheets, no stress.
+            </p>
+            <div className="brand-cta">
+              <a href="/login" className="brand-cta-link">Sign in →</a>
             </div>
           </div>
+        </div>
 
-          {error && <div style={{ color: "var(--danger)" }}>{error}</div>}
-          {info && <div style={{ color: "rgba(15,23,42,0.75)" }}>{info}</div>}
+        <div className="register-panel">
+          <div className="register-card">
+            <h2>Create your account</h2>
+            <p className="muted" style={{ marginBottom: 24 }}>
+              {step === "request"
+                ? "Enter your email and we’ll send you a verification code."
+                : "The email may take a few minutes to arrive. Check your spam folder if you don’t see it."}
+            </p>
 
-          <button className="btn primary" type="submit" disabled={loading}>
-            {loading ? "Creating..." : "Create account"}
-          </button>
+            {step === "request" ? (
+              <form onSubmit={requestCode} className="register-form">
+                <div>
+                  <label className="label">Email</label>
+                  <input
+                    className="input"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                  />
+                </div>
+                {error && <div className="error">{error}</div>}
+                {info && <div className="muted" style={{ fontSize: "0.875rem" }}>{info}</div>}
+                <button className="btn primary" type="submit" disabled={loading}>
+                  {loading ? "Sending…" : "Send verification code"}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={verifyAndCreate} className="register-form">
+                <p className="muted" style={{ marginBottom: 8 }}>
+                  Code sent to <strong>{normalizeEmail(email)}</strong>
+                </p>
+                <div>
+                  <label className="label">Verification code</label>
+                  <input
+                    className="input"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    placeholder="6 digits"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="label">Password</label>
+                  <input
+                    className="input"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    placeholder="••••••••"
+                  />
+                  <p className="muted" style={{ fontSize: "0.8rem", marginTop: 6 }}>
+                    Minimum 8 characters.
+                  </p>
+                </div>
+                {error && <div className="error">{error}</div>}
+                {info && <div className="muted" style={{ fontSize: "0.875rem" }}>{info}</div>}
+                <button className="btn primary" type="submit" disabled={loading}>
+                  {loading ? "Creating…" : "Create account"}
+                </button>
+                <div className="row" style={{ justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                  <button
+                    className="btn"
+                    type="button"
+                    disabled={loading}
+                    onClick={() => {
+                      setStep("request");
+                      setCode("");
+                      setPassword("");
+                      setError("");
+                      setInfo("");
+                    }}
+                  >
+                    Change email
+                  </button>
+                  <button
+                    className="btn"
+                    type="button"
+                    disabled={loading}
+                    onClick={resendCode}
+                  >
+                    Resend code
+                  </button>
+                </div>
+              </form>
+            )}
 
-          <div className="row" style={{ justifyContent: "space-between", gap: 10 }}>
-            <button
-              className="btn"
-              type="button"
-              disabled={loading}
-              onClick={() => {
-                setStep("request");
-                setCode("");
-                setPassword("");
-                setError("");
-                setInfo("");
-              }}
-            >
-              Change email
-            </button>
-
-            <button
-              className="btn"
-              type="button"
-              disabled={loading}
-              onClick={resendCode}
-            >
-              Resend code
-            </button>
+            <p className="muted center" style={{ marginTop: 24, marginBottom: 0 }}>
+              Already have an account?{" "}
+              <a href="/login" className="link">Sign in</a>
+            </p>
           </div>
-        </form>
-      )}
-
-      <div className="muted" style={{ fontSize: 12, marginTop: 12 }}>
-        Already have an account?{" "}
-        <a href="/login">Log in</a>
+        </div>
       </div>
     </div>
   );

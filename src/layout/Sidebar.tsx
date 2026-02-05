@@ -94,8 +94,8 @@ export function Sidebar() {
         }
 
         .sidebar .nav a.active {
-          background: rgba(79,70,229,0.10);
-          border: 1px solid rgba(79,70,229,0.18);
+          background: rgba(15, 23, 42, 0.08);
+          border: 1px solid var(--border);
         }
       `}</style>
     </aside>

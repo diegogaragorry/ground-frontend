@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 
-import logo from "../assets/ground-logo.jpg";
-
 type LoginResp = {
   token?: string;
   accessToken?: string;
@@ -134,53 +132,44 @@ export default function LoginPage() {
   return (
     <div className="login-root">
       <div className="login-grid">
-        {/* BRAND SIDE */}
+        {/* IZQUIERDA: copy limpio, mucho blanco (estilo Trustly) */}
         <div className="brand-panel">
-          <img src={logo} alt="Ground logo" className="brand-logo" />
-
-          <h1 className="brand-title">Ground</h1>
-
-          <p className="brand-tagline">
-            Order your finances, ground your spending, grow your dreams.
-          </p>
-
-          <p className="brand-description">
-            Ground helps you bring structure to your personal finances.
-            Plan your year, understand your spending, and track your net worth
-            with clarity and calm.
-          </p>
-
-          <ul className="brand-list">
-            <li><b>Templates</b> to define your real monthly baseline</li>
-            <li><b>Budgets</b> that project your year without losing reality</li>
-            <li><b>Investments</b> to see your net worth evolve month by month</li>
-          </ul>
-
-          <p className="brand-footnote">
-            Designed for people who want order — not spreadsheets.
-          </p>
+          <div className="brand-panel-inner">
+            <div className="brand-wordmark-block">
+              <span className="brand-wordmark">Ground</span>
+            </div>
+            <h1 className="brand-headline">
+              Get good with your money.
+            </h1>
+            <p className="brand-subline">
+              Budgets, spending, and net worth in one place. No spreadsheets, no stress.
+            </p>
+            <div className="brand-cta">
+              <a href="/register" className="brand-cta-link">Create your account →</a>
+            </div>
+          </div>
         </div>
 
         {/* LOGIN CARD */}
         <div className="login-panel">
-          <div className="card login-card">
+          <div className="login-card">
             {forgotSuccess ? (
               <>
-                <h2 style={{ fontWeight: 900, marginBottom: 6 }}>Password reset</h2>
-                <p className="muted" style={{ marginBottom: 18 }}>
+                <h2>Password reset</h2>
+                <p className="muted" style={{ marginBottom: 24 }}>
                   Your password has been updated. You can sign in with your new password.
                 </p>
-                <button type="button" className="btn primary" style={{ height: 44 }} onClick={backToLogin}>
+                <button type="button" className="btn primary" onClick={backToLogin}>
                   Back to sign in
                 </button>
               </>
             ) : forgotStep === "email" ? (
               <>
-                <h2 style={{ fontWeight: 900, marginBottom: 6 }}>Forgot password</h2>
-                <p className="muted" style={{ marginBottom: 18 }}>
+                <h2>Forgot password</h2>
+                <p className="muted" style={{ marginBottom: 24 }}>
                   Enter your email and we’ll send you a code to reset your password.
                 </p>
-                <form onSubmit={onForgotSendCode} style={{ display: "grid", gap: 14 }}>
+                <form onSubmit={onForgotSendCode} className="login-form">
                   <div>
                     <label className="label">Email</label>
                     <input
@@ -193,26 +182,26 @@ export default function LoginPage() {
                     />
                   </div>
                   {error && <div className="error">{error}</div>}
-                  <button className="btn primary" style={{ height: 44 }} disabled={loading}>
+                  <button className="btn primary" type="submit" disabled={loading}>
                     {loading ? "Sending…" : "Send reset code"}
                   </button>
                 </form>
-                <div className="muted center" style={{ marginTop: 16 }}>
+                <p className="muted center" style={{ marginTop: 20, marginBottom: 0 }}>
                   <button type="button" className="link-btn" onClick={backToLogin}>
                     Back to sign in
                   </button>
-                </div>
+                </p>
               </>
             ) : forgotStep === "code" ? (
               <>
-                <h2 style={{ fontWeight: 900, marginBottom: 6 }}>Reset password</h2>
-                <p className="muted" style={{ marginBottom: 18 }}>
+                <h2>Reset password</h2>
+                <p className="muted" style={{ marginBottom: 12 }}>
                   Enter the code we sent to <strong>{forgotEmail}</strong> and your new password.
                 </p>
-                <p className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
+                <p className="muted" style={{ marginBottom: 20, fontSize: 13 }}>
                   The email may take a few minutes to arrive. Check your spam folder if you don’t see it.
                 </p>
-                <form onSubmit={onForgotReset} style={{ display: "grid", gap: 14 }}>
+                <form onSubmit={onForgotReset} className="login-form">
                   <div>
                     <label className="label">Code</label>
                     <input
@@ -239,27 +228,23 @@ export default function LoginPage() {
                     />
                   </div>
                   {error && <div className="error">{error}</div>}
-                  <button className="btn primary" style={{ height: 44 }} disabled={loading}>
+                  <button className="btn primary" type="submit" disabled={loading}>
                     {loading ? "Resetting…" : "Reset password"}
                   </button>
                 </form>
-                <div className="muted center" style={{ marginTop: 16 }}>
+                <p className="muted center" style={{ marginTop: 20, marginBottom: 0 }}>
                   <button type="button" className="link-btn" onClick={startForgot}>
                     Use a different email
                   </button>
-                </div>
+                </p>
               </>
             ) : (
               <>
-                <h2 style={{ fontWeight: 900, marginBottom: 6 }}>
-                  Sign in to Ground
-                </h2>
-
-                <p className="muted" style={{ marginBottom: 18 }}>
+                <h2>Sign in to Ground</h2>
+                <p className="muted" style={{ marginBottom: 24 }}>
                   Use your email and password to continue.
                 </p>
-
-                <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
+                <form onSubmit={onSubmit} className="login-form">
                   <div>
                     <label className="label">Email</label>
                     <input
@@ -296,139 +281,22 @@ export default function LoginPage() {
 
                   {error && <div className="error">{error}</div>}
 
-                  <button className="btn primary" style={{ height: 44 }} disabled={loading}>
+                  <button className="btn primary" type="submit" disabled={loading}>
                     {loading ? "Signing in…" : "Sign in"}
                   </button>
                 </form>
 
-                <div className="muted center" style={{ marginTop: 16 }}>
+                <p className="muted center" style={{ marginTop: 24, marginBottom: 0 }}>
                   New to Ground?{" "}
                   <a href="/register" className="link">
                     Create your account
                   </a>
-                </div>
+                </p>
               </>
             )}
           </div>
         </div>
       </div>
-
-      <style>{`
-        .login-root {
-          min-height: 100vh;
-          display: grid;
-          place-items: center;
-          padding: 24px;
-        }
-
-        .login-grid {
-          width: min(1100px, 100%);
-          display: grid;
-          grid-template-columns: 1.2fr 0.8fr;
-          gap: 32px;
-        }
-
-        .brand-panel {
-          padding: 24px 32px;
-          display: grid;
-          align-content: center;
-        }
-
-        .brand-logo {
-          width: 96px;
-          height: 96px;
-          object-fit: contain;
-          margin-bottom: 18px;
-        }
-
-        .brand-title {
-          font-size: 42px;
-          font-weight: 950;
-          margin-bottom: 8px;
-        }
-
-        .brand-tagline {
-          font-size: 18px;
-          color: var(--muted);
-          margin-bottom: 18px;
-          max-width: 520px;
-        }
-
-        .brand-description {
-          font-size: 15px;
-          line-height: 1.45;
-          max-width: 560px;
-          margin-bottom: 18px;
-        }
-
-        .brand-list {
-          padding-left: 18px;
-          margin-bottom: 18px;
-          font-size: 14px;
-        }
-
-        .brand-list li {
-          margin: 8px 0;
-        }
-
-        .brand-footnote {
-          font-size: 13px;
-          color: var(--muted);
-        }
-
-        .login-panel {
-          display: grid;
-          align-content: center;
-        }
-
-        .login-card {
-          padding: 24px;
-          border-radius: 18px;
-        }
-
-        .label {
-          font-size: 12px;
-          color: var(--muted);
-          margin-bottom: 6px;
-          display: block;
-        }
-
-        .error {
-          font-size: 13px;
-          color: var(--danger);
-        }
-
-        .center {
-          text-align: center;
-        }
-
-        .link {
-          font-weight: 800;
-          text-decoration: underline;
-        }
-
-        .link-btn {
-          background: none;
-          border: none;
-          color: inherit;
-          cursor: pointer;
-          font-weight: 800;
-          text-decoration: underline;
-          padding: 0;
-        }
-        .link-btn:hover {
-          opacity: 0.85;
-        }
-
-        @media (max-width: 900px) {
-          .login-grid {
-            grid-template-columns: 1fr;
-          }
-          .brand-panel {
-            padding: 0;
-          }
-        }
-      `}</style>
     </div>
   );
 }
