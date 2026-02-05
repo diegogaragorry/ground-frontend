@@ -369,7 +369,7 @@ export default function ExpensesPage() {
       setInfo(t("expenses.draftConfirmed"));
       showSuccess(t("expenses.draftConfirmed"));
     } catch (err: any) {
-      setError(err?.message ?? "Error confirming draft");
+      setError(err?.message ?? t("expenses.errorConfirmingDraft"));
     }
   }
 
@@ -387,10 +387,10 @@ export default function ExpensesPage() {
         await api(`/plannedExpenses/${p.id}/confirm`, { method: "POST" });
       }
       await Promise.all([loadPlanned(), loadExpenses(), loadSummary()]);
-      setInfo("All drafts confirmed.");
-      showSuccess("All drafts confirmed.");
+      setInfo(t("expenses.allDraftsConfirmed"));
+      showSuccess(t("expenses.allDraftsConfirmed"));
     } catch (err: any) {
-      setError(err?.message ?? "Error confirming drafts");
+      setError(err?.message ?? t("expenses.errorConfirmingDrafts"));
     } finally {
       setLoading(false);
     }
@@ -595,7 +595,7 @@ export default function ExpensesPage() {
 
           {currencyId === "UYU" && (
             <div>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>FX</div>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.fx")}</div>
               <div className="row" style={{ gap: 6, alignItems: "center" }}>
                 <input
                   className="input"
@@ -904,7 +904,7 @@ function RealExpensesTable(props: {
             <th>{t("expenses.description")}</th>
             <th style={{ width: 220 }}>{t("expenses.category")}</th>
             <th style={{ width: 340 }}>{t("expenses.original")}</th>
-            <th className="right" style={{ width: 120 }}>USD</th>
+            <th className="right" style={{ width: 120 }}>{t("expenses.usd")}</th>
             <th style={{ width: 110 }} />
           </tr>
         </thead>

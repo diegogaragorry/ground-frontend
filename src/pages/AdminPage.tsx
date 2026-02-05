@@ -534,7 +534,7 @@ function ExpenseTemplatesAdminCard({
 
       <form onSubmit={create} className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "end", marginTop: 10 }}>
         <div style={{ minWidth: 180 }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Type</div>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.type")}</div>
           <select className="select" value={expenseType} onChange={(e) => setExpenseType(e.target.value as any)} style={{ height: 42 }}>
             <option value="FIXED">FIXED</option>
             <option value="VARIABLE">VARIABLE</option>
@@ -542,7 +542,7 @@ function ExpenseTemplatesAdminCard({
         </div>
 
         <div style={{ minWidth: 220 }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Category</div>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.category")}</div>
           <select className="select" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} style={{ height: 42 }}>
             {(expenseType === "FIXED" ? catsByType.fixed : catsByType.variable).map((c) => (
               <option key={c.id} value={c.id}>
@@ -551,30 +551,30 @@ function ExpenseTemplatesAdminCard({
             ))}
             {(expenseType === "FIXED" ? catsByType.fixed : catsByType.variable).length === 0 && (
               <option value="" disabled>
-                No categories of this type
+                {t("admin.noCategoriesOfThisType")}
               </option>
             )}
           </select>
         </div>
 
         <div style={{ minWidth: 260, flex: 1 }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Description</div>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.description")}</div>
           <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Rent" />
         </div>
 
         <div style={{ minWidth: 200 }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Default amount (USD)</div>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.defaultAmountUsd")}</div>
           <input
             className="input"
             type="number"
             value={defaultAmountUsd}
             onChange={(e) => setDefaultAmountUsd(e.target.value)}
-            placeholder="optional"
+            placeholder={t("admin.optionalPlaceholder")}
           />
         </div>
 
         <button className="btn primary" type="submit" style={{ height: 42 }}>
-          Create
+          {t("admin.create")}
         </button>
       </form>
 
@@ -583,11 +583,11 @@ function ExpenseTemplatesAdminCard({
 
       {editing && (
         <div className="card" style={{ marginTop: 12, padding: 12, background: "rgba(15,23,42,0.03)" }}>
-          <div style={{ fontWeight: 800, marginBottom: 8 }}>Edit template</div>
+          <div style={{ fontWeight: 800, marginBottom: 8 }}>{t("admin.editTemplate")}</div>
 
           <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "end" }}>
             <div style={{ minWidth: 180 }}>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Type</div>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.type")}</div>
               <select
                 className="select"
                 value={editExpenseType}
@@ -600,7 +600,7 @@ function ExpenseTemplatesAdminCard({
             </div>
 
             <div style={{ minWidth: 220 }}>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Category</div>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.category")}</div>
               <select className="select" value={editCategoryId} onChange={(e) => setEditCategoryId(e.target.value)} style={{ height: 42 }}>
                 {(editExpenseType === "FIXED" ? catsByType.fixed : catsByType.variable).map((c) => (
                   <option key={c.id} value={c.id}>
@@ -611,39 +611,39 @@ function ExpenseTemplatesAdminCard({
             </div>
 
             <div style={{ minWidth: 260, flex: 1 }}>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Description</div>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.description")}</div>
               <input className="input" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
             </div>
 
             <div style={{ minWidth: 200 }}>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Default amount (USD)</div>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.defaultAmountUsd")}</div>
               <input
                 className="input"
                 type="number"
                 value={editDefaultAmountUsd}
                 onChange={(e) => setEditDefaultAmountUsd(e.target.value)}
-                placeholder="optional"
+                placeholder={t("admin.optionalPlaceholder")}
               />
             </div>
 
             <button className="btn primary" type="button" onClick={saveEdit} style={{ height: 42 }}>
-              Save
+              {t("common.save")}
             </button>
 
             <button className="btn" type="button" onClick={cancelEdit} style={{ height: 42 }}>
-              Cancel
+              {t("common.cancel")}
             </button>
           </div>
 
           <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-            Note: On update, only planned drafts in <b>open months</b> and <b>not confirmed</b> are synced.
+            {t("admin.templateNote")}
           </div>
         </div>
       )}
 
       <div style={{ overflowX: "auto", marginTop: 12 }}>
         <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
-          FIXED: {fixedRows.length} • VARIABLE: {variableRows.length}
+          {t("admin.templateFixedVariable", { fixed: fixedRows.length, variable: variableRows.length })}
         </div>
 
         <table className="table compact">
@@ -652,7 +652,7 @@ function ExpenseTemplatesAdminCard({
               <th style={{ width: 110 }}>{t("expenses.type")}</th>
               <th style={{ width: 220 }}>{t("expenses.category")}</th>
               <th>{t("expenses.description")}</th>
-              <th className="right" style={{ width: 180 }}>Default USD</th>
+              <th className="right" style={{ width: 180 }}>{t("admin.defaultUsd")}</th>
               <th className="right" style={{ width: 220 }}>{t("expenses.actions")}</th>
             </tr>
           </thead>
@@ -666,10 +666,10 @@ function ExpenseTemplatesAdminCard({
                 <td className="right">
                   <div className="row" style={{ justifyContent: "flex-end", gap: 10 }}>
                     <button className="btn" type="button" onClick={() => startEdit(t)} style={{ height: 34 }}>
-                      Edit
+                      {t("admin.edit")}
                     </button>
                     <button className="btn danger" type="button" onClick={() => del(t.id)} style={{ height: 34 }}>
-                      Delete
+                      {t("common.delete")}
                     </button>
                   </div>
                 </td>
@@ -677,7 +677,7 @@ function ExpenseTemplatesAdminCard({
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="muted">No templates yet.</td>
+                <td colSpan={5} className="muted">{t("admin.noTemplatesYet")}</td>
               </tr>
             )}
           </tbody>
@@ -828,8 +828,8 @@ export default function AdminPage() {
       setNewName("");
       setNewType("VARIABLE");
       await loadCategories();
-      setCatInfo("Category created.");
-      showSuccess("Category created.");
+      setCatInfo(t("admin.categoryCreated"));
+      showSuccess(t("admin.categoryCreated"));
     } catch (err: any) {
       setCatError(err?.message ?? "Error");
     }
@@ -862,8 +862,8 @@ export default function AdminPage() {
       setEditingId(null);
       setEditValue("");
       await loadCategories();
-      setCatInfo("Category updated.");
-      showSuccess("Category updated.");
+      setCatInfo(t("admin.categoryUpdated"));
+      showSuccess(t("admin.categoryUpdated"));
     } catch (err: any) {
       setCatError(err?.message ?? "Error");
     }
@@ -875,8 +875,8 @@ export default function AdminPage() {
     try {
       await api(`/categories/${id}`, { method: "DELETE" });
       await loadCategories();
-      setCatInfo("Category deleted.");
-      showSuccess("Category deleted.");
+      setCatInfo(t("admin.categoryDeleted"));
+      showSuccess(t("admin.categoryDeleted"));
     } catch (err: any) {
       const msg = err?.message ?? "Error";
       setCatError(
@@ -942,11 +942,11 @@ export default function AdminPage() {
 
               <div style={{ marginTop: 10, fontSize: 13 }}>
                 <div style={{ display: "grid", gap: 6 }}>
-                  <div><span style={{ fontWeight: 900 }}>1.</span> Review templates & categories (you are here)</div>
-                  <div className="muted">2. Confirm drafts in Expenses</div>
-                  <div className="muted">3. Set Accounts/Funds in Investments</div>
-                  <div className="muted">4. Add Income & Other expenses in Budgets</div>
-                  <div className="muted">5. Review Dashboard</div>
+                  <div><span style={{ fontWeight: 900 }}>1.</span> {t("admin.step1Here")}</div>
+                  <div className="muted">{t("admin.step2Muted")}</div>
+                  <div className="muted">{t("admin.step3Muted")}</div>
+                  <div className="muted">{t("admin.step4Muted")}</div>
+                  <div className="muted">{t("admin.step5Muted")}</div>
                 </div>
               </div>
             </div>
@@ -978,16 +978,16 @@ export default function AdminPage() {
           </button>
         </div>
 
-        <div style={{ marginTop: 12, fontWeight: 800 }}>Add category</div>
+        <div style={{ marginTop: 12, fontWeight: 800 }}>{t("admin.addCategory")}</div>
 
         <form onSubmit={createCategory} className="row" style={{ alignItems: "end", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
           <div style={{ flex: 1, minWidth: 260 }}>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Name</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.name")}</div>
             <input className="input" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Supermarket" />
           </div>
 
           <div style={{ minWidth: 180 }}>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Type</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.type")}</div>
             <select className="select" value={newType} onChange={(e) => setNewType(e.target.value as any)} style={{ height: 42 }}>
               <option value="VARIABLE">VARIABLE</option>
               <option value="FIXED">FIXED</option>
@@ -995,7 +995,7 @@ export default function AdminPage() {
           </div>
 
           <button className="btn primary" type="submit" style={{ height: 42 }}>
-            Add
+            {t("common.add")}
           </button>
         </form>
 
@@ -1007,8 +1007,8 @@ export default function AdminPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
           <div>
-            <div style={{ fontWeight: 800 }}>Your categories</div>
-            <div className="muted" style={{ fontSize: 12 }}>Rename / change type / delete</div>
+            <div style={{ fontWeight: 800 }}>{t("admin.yourCategories")}</div>
+            <div className="muted" style={{ fontSize: 12 }}>{t("admin.yourCategoriesSub")}</div>
           </div>
           <div className="muted" style={{ fontSize: 12 }}>{categories.length} items</div>
         </div>
@@ -1017,9 +1017,9 @@ export default function AdminPage() {
           <table className="table compact">
             <thead>
               <tr>
-                <th>Name</th>
-                <th style={{ width: 160 }}>Type</th>
-                <th style={{ width: 240 }} className="right">Actions</th>
+                <th>{t("admin.name")}</th>
+                <th style={{ width: 160 }}>{t("admin.type")}</th>
+                <th style={{ width: 240 }} className="right">{t("expenses.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -1059,19 +1059,19 @@ export default function AdminPage() {
                       {isEditing ? (
                         <div className="row" style={{ justifyContent: "flex-end", gap: 10 }}>
                           <button className="btn primary" type="button" onClick={saveEdit} style={{ height: 34 }}>
-                            Save
+                            {t("common.save")}
                           </button>
                           <button className="btn" type="button" onClick={cancelEdit} style={{ height: 34 }}>
-                            Cancel
+                            {t("common.cancel")}
                           </button>
                         </div>
                       ) : (
                         <div className="row" style={{ justifyContent: "flex-end", gap: 10 }}>
                           <button className="btn" type="button" onClick={() => startEdit(c)} style={{ height: 34 }}>
-                            Edit
+                            {t("admin.edit")}
                           </button>
                           <button className="btn danger" type="button" onClick={() => removeCategory(c.id)} style={{ height: 34 }}>
-                            Delete
+                            {t("common.delete")}
                           </button>
                         </div>
                       )}
@@ -1082,7 +1082,7 @@ export default function AdminPage() {
 
               {categories.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="muted">No categories yet.</td>
+                  <td colSpan={3} className="muted">{t("admin.noCategoriesYet")}</td>
                 </tr>
               )}
             </tbody>
@@ -1100,18 +1100,18 @@ export default function AdminPage() {
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
           <div>
             <div style={{ fontWeight: 900 }}>{t("admin.monthClose")}</div>
-            <div className="muted" style={{ fontSize: 12 }}>Lock a month snapshot</div>
+            <div className="muted" style={{ fontSize: 12 }}>{t("admin.lockMonthSnapshot")}</div>
           </div>
         </div>
 
         <div className="row" style={{ gap: 10, flexWrap: "wrap", marginTop: 12, alignItems: "end" }}>
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Year</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.year")}</div>
             <input className="input" type="number" value={mcYear} onChange={(e) => setMcYear(Number(e.target.value))} style={{ width: 120, height: 42 }} />
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>Month</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.month")}</div>
             <select className="select" value={mcMonth} onChange={(e) => setMcMonth(Number(e.target.value))} style={{ width: 120, height: 42 }}>
               {months.map((m) => (
                 <option key={m} value={m}>{m2(m)}</option>

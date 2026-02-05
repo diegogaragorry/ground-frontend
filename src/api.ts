@@ -27,10 +27,18 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     ...(options.headers ?? {}),
   };
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: mergedHeaders,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: mergedHeaders,
+    });
+  } catch (err) {
+    const msg = err instanceof TypeError && String(err.message).toLowerCase().includes("fetch")
+      ? `No se pudo conectar con el servidor. ¿Está corriendo el backend en ${API_BASE}?`
+      : err instanceof Error ? err.message : "Network error";
+    throw new Error(msg);
+  }
 
   // ✅ si expira token o no es válido, limpiamos y vamos a /login
   if (res.status === 401) {
@@ -45,7 +53,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     try {
       if (isJsonResponse(res)) {
         const body = await res.json();
-        msg = body?.error ?? body?.message ?? msg;
+        msg = body?.detail ?? body?.error ?? body?.message ?? msg;
       } else {
         const text = await res.text();
         // No mostrar HTML de error del servidor (p. ej. 404 de Express)
