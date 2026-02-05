@@ -279,27 +279,29 @@ a:focus-visible,
 .login-grid,
 .register-grid {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr 1fr;
   min-height: 100vh;
+  align-items: stretch;
 }
 
 .brand-panel {
-  padding: 80px 64px;
+  padding: 48px 64px;
   display: flex;
   align-items: center;
   background: #fff;
+  min-height: 100%;
 }
 
 .brand-panel-inner {
-  max-width: 420px;
+  max-width: 480px;
 }
 
 .brand-wordmark-block {
-  margin-bottom: 44px;
-  padding-bottom: 28px;
+  margin-bottom: 28px;
+  padding-bottom: 20px;
   border-bottom: 2px solid var(--border);
 }
 
@@ -315,19 +317,19 @@ a:focus-visible,
 
 .brand-headline {
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: clamp(2rem, 3.5vw, 2.75rem);
+  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
   font-weight: 700;
-  line-height: 1.15;
-  margin: 0 0 24px;
+  line-height: 1.2;
+  margin: 0 0 14px;
   color: var(--text);
   letter-spacing: -0.02em;
 }
 
 .brand-subline {
-  font-size: 1.125rem;
-  line-height: 1.65;
+  font-size: 1rem;
+  line-height: 1.55;
   color: var(--muted);
-  margin: 0 0 40px;
+  margin: 0 0 24px;
 }
 
 .brand-cta {
@@ -358,14 +360,17 @@ a:focus-visible,
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 48px;
+  padding: 48px 56px;
   background: #f8fafc;
+  min-height: 100%;
 }
 
 .login-card,
 .register-card {
   width: 100%;
-  max-width: 400px;
+  max-width: 440px;
+  /* Misma banda vertical que el panel izquierdo: de Ground hasta EN/ES */
+  min-height: 360px;
   padding: 48px;
   background: var(--panel);
   border-radius: 16px;
@@ -505,13 +510,13 @@ a:focus-visible,
   }
 
   .brand-panel {
-    padding: 48px 24px;
+    padding: 40px 24px;
     min-height: auto;
   }
 
   .brand-wordmark-block {
-    margin-bottom: 32px;
-    padding-bottom: 24px;
+    margin-bottom: 22px;
+    padding-bottom: 16px;
   }
 
   .brand-wordmark {
@@ -519,7 +524,7 @@ a:focus-visible,
   }
 
   .brand-headline {
-    font-size: 1.75rem;
+    font-size: 1.35rem;
   }
 
   .login-panel,
