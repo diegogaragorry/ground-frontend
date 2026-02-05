@@ -121,6 +121,7 @@ function ChangePasswordCard({ onDone }: { onDone?: () => void }) {
 --------------------------------------------------------- */
 
 function UsersAdminCard() {
+  const { showSuccess } = useAppShell();
   const [rows, setRows] = useState<UserRow[]>([]);
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
@@ -352,6 +353,7 @@ function ExpenseTemplatesAdminCard({
   onboardingActive: boolean;
   onScrollTargetRef?: React.RefObject<HTMLDivElement | null>;
 }) {
+  const { showSuccess } = useAppShell();
   const [rows, setRows] = useState<ExpenseTemplateRow[]>([]);
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
