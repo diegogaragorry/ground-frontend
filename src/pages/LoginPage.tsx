@@ -37,6 +37,8 @@ async function tryLogin(email: string, password: string): Promise<string> {
   throw new Error(lastErr?.message ?? "Login failed");
 }
 
+type ForgotStep = null | "email" | "code";
+
 export default function LoginPage() {
   const nav = useNavigate();
 
@@ -44,6 +46,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const [forgotStep, setForgotStep] = useState<ForgotStep>(null);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotCode, setForgotCode] = useState("");
+  const [forgotNewPassword, setForgotNewPassword] = useState("");
+  const [forgotSuccess, setForgotSuccess] = useState(false);
 
   useEffect(() => {
     const t = localStorage.getItem("token");
@@ -63,6 +71,63 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function onForgotSendCode(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    const em = forgotEmail.trim().toLowerCase();
+    if (!em) return setError("Email is required");
+    setLoading(true);
+    try {
+      await api("/auth/forgot-password/request-code", {
+        method: "POST",
+        body: JSON.stringify({ email: em }),
+      });
+      setForgotStep("code");
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to send code");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onForgotReset(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    const em = forgotEmail.trim().toLowerCase();
+    if (!em || !forgotCode.trim()) return setError("Email and code are required");
+    if (forgotNewPassword.length < 8) return setError("Password must be at least 8 characters");
+    setLoading(true);
+    try {
+      await api("/auth/forgot-password/verify", {
+        method: "POST",
+        body: JSON.stringify({
+          email: em,
+          code: forgotCode.trim(),
+          newPassword: forgotNewPassword,
+        }),
+      });
+      setForgotSuccess(true);
+    } catch (err: any) {
+      setError(err?.message ?? "Failed to reset password");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function startForgot() {
+    setForgotStep("email");
+    setForgotEmail("");
+    setForgotCode("");
+    setForgotNewPassword("");
+    setForgotSuccess(false);
+    setError("");
+  }
+
+  function backToLogin() {
+    setForgotStep(null);
+    setError("");
   }
 
   return (
@@ -98,52 +163,148 @@ export default function LoginPage() {
         {/* LOGIN CARD */}
         <div className="login-panel">
           <div className="card login-card">
-            <h2 style={{ fontWeight: 900, marginBottom: 6 }}>
-              Sign in to Ground
-            </h2>
+            {forgotSuccess ? (
+              <>
+                <h2 style={{ fontWeight: 900, marginBottom: 6 }}>Password reset</h2>
+                <p className="muted" style={{ marginBottom: 18 }}>
+                  Your password has been updated. You can sign in with your new password.
+                </p>
+                <button type="button" className="btn primary" style={{ height: 44 }} onClick={backToLogin}>
+                  Back to sign in
+                </button>
+              </>
+            ) : forgotStep === "email" ? (
+              <>
+                <h2 style={{ fontWeight: 900, marginBottom: 6 }}>Forgot password</h2>
+                <p className="muted" style={{ marginBottom: 18 }}>
+                  Enter your email and we’ll send you a code to reset your password.
+                </p>
+                <form onSubmit={onForgotSendCode} style={{ display: "grid", gap: 14 }}>
+                  <div>
+                    <label className="label">Email</label>
+                    <input
+                      className="input"
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      required
+                    />
+                  </div>
+                  {error && <div className="error">{error}</div>}
+                  <button className="btn primary" style={{ height: 44 }} disabled={loading}>
+                    {loading ? "Sending…" : "Send reset code"}
+                  </button>
+                </form>
+                <div className="muted center" style={{ marginTop: 16 }}>
+                  <button type="button" className="link-btn" onClick={backToLogin}>
+                    Back to sign in
+                  </button>
+                </div>
+              </>
+            ) : forgotStep === "code" ? (
+              <>
+                <h2 style={{ fontWeight: 900, marginBottom: 6 }}>Reset password</h2>
+                <p className="muted" style={{ marginBottom: 18 }}>
+                  Enter the code we sent to <strong>{forgotEmail}</strong> and your new password.
+                </p>
+                <form onSubmit={onForgotReset} style={{ display: "grid", gap: 14 }}>
+                  <div>
+                    <label className="label">Code</label>
+                    <input
+                      className="input"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      value={forgotCode}
+                      onChange={(e) => setForgotCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder="000000"
+                      maxLength={6}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">New password</label>
+                    <input
+                      className="input"
+                      type="password"
+                      value={forgotNewPassword}
+                      onChange={(e) => setForgotNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      minLength={8}
+                      required
+                    />
+                  </div>
+                  {error && <div className="error">{error}</div>}
+                  <button className="btn primary" style={{ height: 44 }} disabled={loading}>
+                    {loading ? "Resetting…" : "Reset password"}
+                  </button>
+                </form>
+                <div className="muted center" style={{ marginTop: 16 }}>
+                  <button type="button" className="link-btn" onClick={startForgot}>
+                    Use a different email
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 style={{ fontWeight: 900, marginBottom: 6 }}>
+                  Sign in to Ground
+                </h2>
 
-            <p className="muted" style={{ marginBottom: 18 }}>
-              Use your email and password to continue.
-            </p>
+                <p className="muted" style={{ marginBottom: 18 }}>
+                  Use your email and password to continue.
+                </p>
 
-            <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
-              <div>
-                <label className="label">Email</label>
-                <input
-                  className="input"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  required
-                />
-              </div>
+                <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
+                  <div>
+                    <label className="label">Email</label>
+                    <input
+                      className="input"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      required
+                    />
+                  </div>
 
-              <div>
-                <label className="label">Password</label>
-                <input
-                  className="input"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
+                  <div>
+                    <label className="label">Password</label>
+                    <input
+                      className="input"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                    />
+                    <div style={{ marginTop: 6 }}>
+                      <button
+                        type="button"
+                        className="link-btn"
+                        style={{ fontSize: 13, padding: 0 }}
+                        onClick={startForgot}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                  </div>
 
-              {error && <div className="error">{error}</div>}
+                  {error && <div className="error">{error}</div>}
 
-              <button className="btn primary" style={{ height: 44 }} disabled={loading}>
-                {loading ? "Signing in…" : "Sign in"}
-              </button>
-            </form>
+                  <button className="btn primary" style={{ height: 44 }} disabled={loading}>
+                    {loading ? "Signing in…" : "Sign in"}
+                  </button>
+                </form>
 
-            <div className="muted center" style={{ marginTop: 16 }}>
-              New to Ground?{" "}
-              <a href="/register" className="link">
-                Create your account
-              </a>
-            </div>
+                <div className="muted center" style={{ marginTop: 16 }}>
+                  New to Ground?{" "}
+                  <a href="/register" className="link">
+                    Create your account
+                  </a>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -240,6 +401,19 @@ export default function LoginPage() {
         .link {
           font-weight: 800;
           text-decoration: underline;
+        }
+
+        .link-btn {
+          background: none;
+          border: none;
+          color: inherit;
+          cursor: pointer;
+          font-weight: 800;
+          text-decoration: underline;
+          padding: 0;
+        }
+        .link-btn:hover {
+          opacity: 0.85;
         }
 
         @media (max-width: 900px) {
