@@ -39,7 +39,7 @@ export default function RegisterPage() {
         body: JSON.stringify({ email: em }),
       });
       setStep("verify");
-      setInfo("We sent you a 6-digit code. Check your inbox (and spam).");
+      setInfo("We sent you a 6-digit code. It may take a few minutes to arrive. Check your inbox (and spam).");
     } catch (err: any) {
       setError(err?.message ?? "Error sending code");
     } finally {
@@ -90,7 +90,7 @@ export default function RegisterPage() {
         method: "POST",
         body: JSON.stringify({ email: em }),
       });
-      setInfo("New code sent.");
+      setInfo("New code sent. It may take a few minutes to arrive.");
     } catch (err: any) {
       setError(err?.message ?? "Error resending code");
     } finally {
@@ -131,6 +131,9 @@ export default function RegisterPage() {
         <form onSubmit={verifyAndCreate} className="grid" style={{ gap: 12 }}>
           <div className="muted" style={{ fontSize: 12 }}>
             Code sent to <b>{normalizeEmail(email)}</b>
+          </div>
+          <div className="muted" style={{ fontSize: 12 }}>
+            The email may take a few minutes to arrive. Check your spam folder if you don’t see it.
           </div>
 
           <div>

@@ -127,6 +127,7 @@ export default function LoginPage() {
 
   function backToLogin() {
     setForgotStep(null);
+    setForgotSuccess(false);
     setError("");
   }
 
@@ -207,6 +208,9 @@ export default function LoginPage() {
                 <h2 style={{ fontWeight: 900, marginBottom: 6 }}>Reset password</h2>
                 <p className="muted" style={{ marginBottom: 18 }}>
                   Enter the code we sent to <strong>{forgotEmail}</strong> and your new password.
+                </p>
+                <p className="muted" style={{ marginBottom: 14, fontSize: 13 }}>
+                  The email may take a few minutes to arrive. Check your spam folder if you don’t see it.
                 </p>
                 <form onSubmit={onForgotReset} style={{ display: "grid", gap: 14 }}>
                   <div>
