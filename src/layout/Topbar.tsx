@@ -18,13 +18,13 @@ export function Topbar(props: {
       <div className="row" style={{ gap: 12, alignItems: "center" }}>
         {props.right}
         <button
-          className="btn"
+          className="btn mobile-menu-btn"
           onClick={props.onOpenMenu}
-          style={{ display: "none" }}
           id="mobileMenuBtn"
           type="button"
+          aria-label="Menu"
         >
-          ☰
+          <span style={{ fontSize: 20 }}>☰</span>
         </button>
       </div>
     </div>

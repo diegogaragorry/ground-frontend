@@ -301,7 +301,7 @@ export function OnboardingWizard(props: {
   }
 
   return (
-    <div className="card" style={{ padding: 20, maxWidth: 560 }}>
+    <div className="card" style={{ padding: 20, maxWidth: 560, width: "100%" }}>
       {error && <div style={{ color: "var(--danger)", marginBottom: 12 }}>{error}</div>}
 
       {/* Step 0: Welcome */}
@@ -543,7 +543,7 @@ export function OnboardingWizard(props: {
             {incomeInvestments && (
               <div style={{ paddingLeft: 28, display: "grid", gap: 10 }}>
                 {investmentsList.map((inv, idx) => (
-                  <div key={idx} style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr auto auto" }}>
+                  <div key={idx} style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr auto auto" }} className="wizard-investment-row">
                     <input
                       type="text"
                       className="input"
@@ -615,7 +615,7 @@ export function OnboardingWizard(props: {
       )}
 
       {/* Footer */}
-      <div className="row" style={{ marginTop: 24, gap: 10, flexWrap: "wrap" }}>
+      <div className="row" style={{ marginTop: 24, gap: 10, flexWrap: "wrap", justifyContent: "flex-start" }}>
         {step > 0 && step < 7 && (
           <button type="button" className="btn" onClick={back} disabled={loading}>
             {t("onboarding.wizardBack")}

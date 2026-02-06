@@ -14,6 +14,7 @@ export function OnboardingTour(props: {
 
   return (
     <div
+      className="onboarding-tour-overlay"
       style={{
         position: "fixed",
         inset: 0,
@@ -23,6 +24,7 @@ export function OnboardingTour(props: {
         alignItems: "center",
         justifyContent: "center",
         padding: 24,
+        WebkitOverflowScrolling: "touch",
       }}
     >
       <div

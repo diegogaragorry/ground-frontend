@@ -296,7 +296,7 @@ export function AppShell(props: { children: React.ReactNode }) {
                     if (!v) return;
                     ctx.setYearMonth(v);
                   }}
-                  style={{ width: 132 }}
+                  style={{ width: 132, minWidth: 0 }}
                 />
               </div>
             }
@@ -316,6 +316,7 @@ export function AppShell(props: { children: React.ReactNode }) {
                 justifyContent: "center",
                 padding: 20,
                 overflow: "auto",
+                WebkitOverflowScrolling: "touch",
               }}
             >
               <OnboardingWizard
