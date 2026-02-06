@@ -517,192 +517,269 @@ function ExpenseTemplatesAdminCard({
   const showOnbCallout = onboardingActive;
 
   return (
-    <div style={{ marginTop: 14 }} ref={onScrollTargetRef}>
-      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+    <div className="admin-card-templates" style={{ marginTop: 0 }} ref={onScrollTargetRef}>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
         <div>
-          <div style={{ fontWeight: 900 }}>{t("admin.expenseTemplates")}</div>
-          <div className="muted" style={{ fontSize: 12 }}>
-            Configure recurring expenses • When you create/update a template, drafts are generated/synced for open months of current year
-          </div>
+          <div style={{ fontWeight: 900 }}>{t("admin.tabTemplates")}</div>
+          <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{t("admin.templatesIntro")}</div>
         </div>
         <button className="btn" type="button" onClick={loadTemplates}>
-          Refresh
+          {t("common.refresh")}
         </button>
       </div>
 
       {showOnbCallout && (
-        <div className="onb-callout" style={{ marginTop: 12 }}>
+        <div className="admin-onb-callout" style={{ marginTop: 16 }}>
           <div style={{ fontWeight: 900, marginBottom: 4 }}>{t("admin.step1Title")}</div>
-          <div className="muted" style={{ fontSize: 13 }}>
-            {t("admin.templatesDesc")}
-          </div>
+          <div className="muted" style={{ fontSize: 13 }}>{t("admin.templatesDesc")}</div>
           <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
             Tip: Start with 2–5 fixed expenses and 2–5 variable ones.
           </div>
         </div>
       )}
 
-      <form onSubmit={create} className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "end", marginTop: 10 }}>
-        <div style={{ minWidth: 180 }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.type")}</div>
-          <select className="select" value={expenseType} onChange={(e) => setExpenseType(e.target.value as any)} style={{ height: 42 }}>
-            <option value="FIXED">FIXED</option>
-            <option value="VARIABLE">VARIABLE</option>
-          </select>
-        </div>
-
-        <div style={{ minWidth: 220 }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.category")}</div>
-          <select className="select" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} style={{ height: 42 }}>
-            {(expenseType === "FIXED" ? catsByType.fixed : catsByType.variable).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-            {(expenseType === "FIXED" ? catsByType.fixed : catsByType.variable).length === 0 && (
-              <option value="" disabled>
-                {t("admin.noCategoriesOfThisType")}
-              </option>
-            )}
-          </select>
-        </div>
-
-        <div style={{ minWidth: 260, flex: 1 }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.description")}</div>
-          <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Rent" />
-        </div>
-
-        <div style={{ minWidth: 200 }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.defaultAmountUsd")}</div>
-          <input
-            className="input"
-            type="number"
-            value={defaultAmountUsd}
-            onChange={(e) => setDefaultAmountUsd(e.target.value)}
-            placeholder={t("admin.optionalPlaceholder")}
-          />
-        </div>
-
-        <button className="btn primary" type="submit" style={{ height: 42 }}>
-          {t("admin.create")}
-        </button>
-      </form>
-
-      {err && <div style={{ marginTop: 12, color: "var(--danger)" }}>{err}</div>}
-      {info && <div style={{ marginTop: 12, color: "rgba(15,23,42,0.75)" }}>{info}</div>}
+      <div className="admin-inner-card" style={{ marginTop: 16 }}>
+        <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>{t("admin.create")} {t("admin.expenseTemplates").toLowerCase()}</div>
+        <form onSubmit={create} className="row" style={{ gap: 12, flexWrap: "wrap", alignItems: "end" }}>
+          <div style={{ minWidth: 140 }}>
+            <label className="admin-label">{t("admin.type")}</label>
+            <select className="select" value={expenseType} onChange={(e) => setExpenseType(e.target.value as any)} style={{ width: "100%", marginTop: 4, height: 40 }}>
+              <option value="FIXED">FIXED</option>
+              <option value="VARIABLE">VARIABLE</option>
+            </select>
+          </div>
+          <div style={{ minWidth: 180 }}>
+            <label className="admin-label">{t("admin.category")}</label>
+            <select className="select" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} style={{ width: "100%", marginTop: 4, height: 40 }}>
+              {(expenseType === "FIXED" ? catsByType.fixed : catsByType.variable).map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+              {(expenseType === "FIXED" ? catsByType.fixed : catsByType.variable).length === 0 && (
+                <option value="" disabled>{t("admin.noCategoriesOfThisType")}</option>
+              )}
+            </select>
+          </div>
+          <div style={{ flex: "1 1 200px", minWidth: 200 }}>
+            <label className="admin-label">{t("admin.description")}</label>
+            <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Rent" style={{ width: "100%", marginTop: 4 }} />
+          </div>
+          <div style={{ minWidth: 120 }}>
+            <label className="admin-label">{t("admin.defaultAmountUsd")}</label>
+            <input className="input" type="number" value={defaultAmountUsd} onChange={(e) => setDefaultAmountUsd(e.target.value)} placeholder={t("admin.optionalPlaceholder")} style={{ width: "100%", marginTop: 4, height: 40 }} />
+          </div>
+          <button className="btn primary" type="submit" style={{ height: 40 }}>{t("admin.create")}</button>
+        </form>
+        {err && <div className="admin-message admin-message--error" style={{ marginTop: 10 }}>{err}</div>}
+        {info && <div className="admin-message admin-message--info" style={{ marginTop: 10 }}>{info}</div>}
+      </div>
 
       {editing && (
-        <div className="card" style={{ marginTop: 12, padding: 12, background: "rgba(15,23,42,0.03)" }}>
-          <div style={{ fontWeight: 800, marginBottom: 8 }}>{t("admin.editTemplate")}</div>
-
-          <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "end" }}>
-            <div style={{ minWidth: 180 }}>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.type")}</div>
-              <select
-                className="select"
-                value={editExpenseType}
-                onChange={(e) => setEditExpenseType(e.target.value as any)}
-                style={{ height: 42 }}
-              >
+        <div className="admin-edit-card" style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>{t("admin.editTemplate")}</div>
+          <div className="row" style={{ gap: 12, flexWrap: "wrap", alignItems: "end" }}>
+            <div style={{ minWidth: 140 }}>
+              <label className="admin-label">{t("admin.type")}</label>
+              <select className="select" value={editExpenseType} onChange={(e) => setEditExpenseType(e.target.value as any)} style={{ width: "100%", marginTop: 4, height: 40 }}>
                 <option value="FIXED">FIXED</option>
                 <option value="VARIABLE">VARIABLE</option>
               </select>
             </div>
-
-            <div style={{ minWidth: 220 }}>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.category")}</div>
-              <select className="select" value={editCategoryId} onChange={(e) => setEditCategoryId(e.target.value)} style={{ height: 42 }}>
+            <div style={{ minWidth: 180 }}>
+              <label className="admin-label">{t("admin.category")}</label>
+              <select className="select" value={editCategoryId} onChange={(e) => setEditCategoryId(e.target.value)} style={{ width: "100%", marginTop: 4, height: 40 }}>
                 {(editExpenseType === "FIXED" ? catsByType.fixed : catsByType.variable).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
-
-            <div style={{ minWidth: 260, flex: 1 }}>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.description")}</div>
-              <input className="input" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+            <div style={{ flex: "1 1 200px", minWidth: 200 }}>
+              <label className="admin-label">{t("admin.description")}</label>
+              <input className="input" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} style={{ width: "100%", marginTop: 4 }} />
             </div>
-
-            <div style={{ minWidth: 200 }}>
-              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.defaultAmountUsd")}</div>
-              <input
-                className="input"
-                type="number"
-                value={editDefaultAmountUsd}
-                onChange={(e) => setEditDefaultAmountUsd(e.target.value)}
-                placeholder={t("admin.optionalPlaceholder")}
-              />
+            <div style={{ minWidth: 120 }}>
+              <label className="admin-label">{t("admin.defaultAmountUsd")}</label>
+              <input className="input" type="number" value={editDefaultAmountUsd} onChange={(e) => setEditDefaultAmountUsd(e.target.value)} placeholder={t("admin.optionalPlaceholder")} style={{ width: "100%", marginTop: 4, height: 40 }} />
             </div>
-
-            <button className="btn primary" type="button" onClick={saveEdit} style={{ height: 42 }}>
-              {t("common.save")}
-            </button>
-
-            <button className="btn" type="button" onClick={cancelEdit} style={{ height: 42 }}>
-              {t("common.cancel")}
-            </button>
+            <button className="btn primary" type="button" onClick={saveEdit} style={{ height: 40 }}>{t("common.save")}</button>
+            <button className="btn" type="button" onClick={cancelEdit} style={{ height: 40 }}>{t("common.cancel")}</button>
           </div>
-
-          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-            {t("admin.templateNote")}
-          </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>{t("admin.templateNote")}</div>
         </div>
       )}
 
-      <div style={{ overflowX: "auto", marginTop: 12 }}>
-        <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
-          {t("admin.templateFixedVariable", { fixed: fixedRows.length, variable: variableRows.length })}
+      <div style={{ marginTop: 20 }}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div className="muted" style={{ fontSize: 12 }}>{t("admin.templateFixedVariable", { fixed: fixedRows.length, variable: variableRows.length })}</div>
         </div>
-
-        <table className="table compact">
-          <thead>
-            <tr>
-              <th style={{ width: 110 }}>{t("expenses.type")}</th>
-              <th style={{ width: 220 }}>{t("expenses.category")}</th>
-              <th>{t("expenses.description")}</th>
-              <th className="right" style={{ width: 180 }}>{t("admin.defaultUsd")}</th>
-              <th className="right" style={{ width: 220 }}>{t("expenses.actions")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
-                <td className="muted">{row.expenseType}</td>
-                <td>{row.category?.name ?? row.categoryId}</td>
-                <td>{row.description}</td>
-                <td className="right">{row.defaultAmountUsd == null ? <span className="muted">—</span> : usd0.format(row.defaultAmountUsd)}</td>
-                <td className="right">
-                  <div className="row" style={{ justifyContent: "flex-end", gap: 10 }}>
-                    <button className="btn" type="button" onClick={() => startEdit(row)} style={{ height: 34 }}>
-                      {t("admin.edit")}
-                    </button>
-                    <button className="btn danger" type="button" onClick={() => del(row.id)} style={{ height: 34 }}>
-                      {t("common.delete")}
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
+        <div className="admin-table-wrap">
+          <table className="table admin-table">
+            <thead>
               <tr>
-                <td colSpan={5} className="muted">{t("admin.noTemplatesYet")}</td>
+                <th style={{ width: 110 }}>{t("expenses.type")}</th>
+                <th style={{ width: 220 }}>{t("expenses.category")}</th>
+                <th>{t("expenses.description")}</th>
+                <th className="right" style={{ width: 180 }}>{t("admin.defaultUsd")}</th>
+                <th className="right" style={{ width: 220 }}>{t("expenses.actions")}</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td className="muted">{row.expenseType}</td>
+                  <td>{row.category?.name ?? row.categoryId}</td>
+                  <td>{row.description}</td>
+                  <td className="right">{row.defaultAmountUsd == null ? <span className="muted">—</span> : usd0.format(row.defaultAmountUsd)}</td>
+                  <td className="right">
+                    <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+                      <button className="btn" type="button" onClick={() => startEdit(row)} style={{ height: 32 }}>{t("admin.edit")}</button>
+                      <button className="btn danger" type="button" onClick={() => del(row.id)} style={{ height: 32 }}>{t("common.delete")}</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="muted" style={{ padding: 24, textAlign: "center" }}>{t("admin.noTemplatesYet")}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
+    </div>
+  );
+}
 
-      <style>{`
-        .table.compact th, .table.compact td { padding: 6px 8px; }
-        .onb-callout{
-          border: 1px solid rgba(15,23,42,0.10);
-          background: rgba(15,23,42,0.03);
-          border-radius: 14px;
-          padding: 12px 14px;
-        }
-      `}</style>
+/* ---------------------------------------------------------
+   Recent activity (super admin): users + verification codes
+--------------------------------------------------------- */
+
+type RecentUser = { id: string; email: string; role: string; createdAt: string };
+type RecentCode = {
+  id: string;
+  email: string;
+  purpose: string;
+  createdAt: string;
+  expiresAt: string;
+  usedAt: string | null;
+  attempts: number;
+  status: "used" | "expired" | "pending";
+};
+type RecentActivityResp = {
+  recentUsers: RecentUser[];
+  recentVerificationCodes: RecentCode[];
+  note: string;
+};
+
+function RecentActivityCard() {
+  const { t } = useTranslation();
+  const [data, setData] = useState<RecentActivityResp | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function load() {
+    setLoading(true);
+    setErr("");
+    try {
+      const r = await api<RecentActivityResp>("/admin/recent-activity");
+      setData(r);
+    } catch (e: any) {
+      setErr(e?.message ?? t("common.error"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const formatDate = (s: string) => new Date(s).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
+
+  return (
+    <div className="card">
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
+        <div>
+          <div style={{ fontWeight: 900 }}>{t("admin.recentActivityTitle")}</div>
+          <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{t("admin.recentActivityDesc")}</div>
+        </div>
+        <button className="btn" type="button" onClick={load} disabled={loading}>
+          {loading ? t("common.loading") : t("common.refresh")}
+        </button>
+      </div>
+      {err && <div style={{ marginTop: 12, color: "var(--danger)" }}>{err}</div>}
+      {data && (
+        <>
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>{t("admin.recentUsers")}</div>
+            <div className="admin-table-wrap">
+              <table className="table admin-table">
+                <thead>
+                  <tr>
+                    <th>{t("admin.email")}</th>
+                    <th style={{ width: 120 }}>{t("admin.role")}</th>
+                    <th style={{ width: 180 }}>{t("admin.created")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.recentUsers.map((u) => (
+                    <tr key={u.id}>
+                      <td>{u.email}</td>
+                      <td className="muted">{u.role}</td>
+                      <td className="muted" style={{ fontSize: 12 }}>{formatDate(u.createdAt)}</td>
+                    </tr>
+                  ))}
+                  {data.recentUsers.length === 0 && (
+                    <tr><td colSpan={3} className="muted" style={{ padding: 16, textAlign: "center" }}>{t("admin.noUsers")}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>{t("admin.recentVerificationCodes")}</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>{data.note}</div>
+            <div className="admin-table-wrap">
+              <table className="table admin-table">
+                <thead>
+                  <tr>
+                    <th>{t("admin.email")}</th>
+                    <th style={{ width: 100 }}>{t("admin.purpose")}</th>
+                    <th style={{ width: 160 }}>{t("admin.requested")}</th>
+                    <th style={{ width: 160 }}>{t("admin.expires")}</th>
+                    <th style={{ width: 100 }}>{t("admin.status")}</th>
+                    <th style={{ width: 120 }}>{t("admin.usedAt")}</th>
+                    <th style={{ width: 80 }}>{t("admin.attempts")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.recentVerificationCodes.map((c) => (
+                    <tr key={c.id}>
+                      <td>{c.email}</td>
+                      <td className="muted">{c.purpose}</td>
+                      <td className="muted" style={{ fontSize: 12 }}>{formatDate(c.createdAt)}</td>
+                      <td className="muted" style={{ fontSize: 12 }}>{formatDate(c.expiresAt)}</td>
+                      <td>
+                        <span style={{
+                          fontWeight: 600,
+                          color: c.status === "used" ? "var(--muted)" : c.status === "expired" ? "var(--muted)" : "var(--text)",
+                        }}>
+                          {c.status === "used" ? t("admin.codeUsed") : c.status === "expired" ? t("admin.codeExpired") : t("admin.codePending")}
+                        </span>
+                      </td>
+                      <td className="muted" style={{ fontSize: 12 }}>{c.usedAt ? formatDate(c.usedAt) : "—"}</td>
+                      <td>{c.attempts}</td>
+                    </tr>
+                  ))}
+                  {data.recentVerificationCodes.length === 0 && (
+                    <tr><td colSpan={7} className="muted" style={{ padding: 16, textAlign: "center" }}>{t("admin.noVerificationCodes")}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -722,6 +799,9 @@ export default function AdminPage() {
   const [meError, setMeError] = useState<string>("");
 
   const isSuperAdmin = meResp?.role === "SUPER_ADMIN";
+
+  type AdminTab = "account" | "categories" | "templates" | "monthClose" | "users";
+  const [activeTab, setActiveTab] = useState<AdminTab>("categories");
 
   /**
    * 🔧 Fix: when user clicks "Start with step 1" we navigate to /admin,
@@ -973,8 +1053,16 @@ export default function AdminPage() {
     nav("/", { replace: false });
   }
 
+  const tabs: { id: AdminTab; label: string }[] = [
+    { id: "categories", label: t("admin.tabCategories") },
+    { id: "templates", label: t("admin.tabTemplates") },
+    { id: "monthClose", label: t("admin.tabMonthClose") },
+    { id: "account", label: t("admin.tabAccount") },
+    ...(isSuperAdmin ? [{ id: "users" as const, label: t("admin.tabUsers") }] : []),
+  ];
+
   return (
-    <div className="grid">
+    <div className="grid admin-page">
       {/* ✅ Onboarding banner (Step 1) */}
       {onboardingActive && (
         <div className="card" style={{ border: "1px solid rgba(15,23,42,0.10)", background: "rgba(15,23,42,0.02)" }}>
@@ -997,7 +1085,7 @@ export default function AdminPage() {
             </div>
 
             <div className="row" style={{ gap: 10, alignItems: "center" }}>
-              <button className="btn" type="button" onClick={goTemplates} style={{ height: 40 }}>
+              <button className="btn" type="button" onClick={() => { setActiveTab("templates"); goTemplates(); }} style={{ height: 40 }}>
                 {t("admin.goToTemplates")}
               </button>
               <button className="btn primary" type="button" onClick={markStep1Done} style={{ height: 40 }}>
@@ -1011,55 +1099,105 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ===== Categories: Add ===== */}
+      {/* Tab navigation */}
+      <div className="card admin-tabs" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="muted" style={{ fontSize: 12, padding: "10px 16px 6px", fontWeight: 600 }}>
+          {t("admin.tabsHint")}
+        </div>
+        <div className="row" style={{ gap: 0, flexWrap: "wrap", padding: "0 12px 0 8px" }}>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={"admin-tab " + (activeTab === tab.id ? "admin-tab--active" : "")}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <style>{`
+        .admin-tabs { border: 1px solid var(--border); }
+        .admin-tab {
+          appearance: none;
+          background: none;
+          border: none;
+          border-bottom: 3px solid transparent;
+          color: var(--muted);
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 600;
+          padding: 12px 16px;
+          margin-bottom: -1px;
+          transition: color 0.15s, border-color 0.15s;
+        }
+        .admin-tab:hover { color: var(--text); }
+        .admin-tab--active {
+          color: var(--text);
+          border-bottom-color: var(--text);
+        }
+      `}</style>
+
+      {/* ===== Tab: Account ===== */}
+      {activeTab === "account" && (
       <div className="card">
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+        <div style={{ fontWeight: 900 }}>{t("admin.tabAccount")}</div>
+        <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{t("admin.accountIntro")}</div>
+        <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+          {meResp ? `${t("admin.signedInAs")}: ${meResp.email} (${meResp.role})` : t("admin.loadingUser")}
+        </div>
+        {meError && <div style={{ marginTop: 10, color: "var(--danger)" }}>{meError}</div>}
+        <ChangePasswordCard />
+      </div>
+      )}
+
+      {/* ===== Tab: Categories (add + list in one card) ===== */}
+      {activeTab === "categories" && (
+      <div className="card admin-card-categories">
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
           <div>
-            <div style={{ fontWeight: 900 }}>{t("admin.categories")}</div>
-            <div className="muted" style={{ fontSize: 12 }}>{t("admin.categoriesDesc")}</div>
+            <div style={{ fontWeight: 900 }}>{t("admin.tabCategories")}</div>
+            <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{t("admin.categoriesIntro")}</div>
           </div>
           <button className="btn" type="button" onClick={loadAll}>
             {t("common.refresh")}
           </button>
         </div>
 
-        <div style={{ marginTop: 12, fontWeight: 800 }}>{t("admin.addCategory")}</div>
-
-        <form onSubmit={createCategory} className="row" style={{ alignItems: "end", flexWrap: "wrap", gap: 10, marginTop: 8 }}>
-          <div style={{ flex: 1, minWidth: 260 }}>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.name")}</div>
-            <input className="input" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Supermarket" />
-          </div>
-
-          <div style={{ minWidth: 180 }}>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.type")}</div>
-            <select className="select" value={newType} onChange={(e) => setNewType(e.target.value as any)} style={{ height: 42 }}>
-              <option value="VARIABLE">VARIABLE</option>
-              <option value="FIXED">FIXED</option>
-            </select>
-          </div>
-
-          <button className="btn primary" type="submit" style={{ height: 42 }}>
-            {t("common.add")}
-          </button>
-        </form>
-
-        {catError && <div style={{ marginTop: 12, color: "var(--danger)" }}>{catError}</div>}
-        {catInfo && <div style={{ marginTop: 12, color: "rgba(15,23,42,0.75)" }}>{catInfo}</div>}
-      </div>
-
-      {/* ===== Categories: List ===== */}
-      <div className="card">
-        <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
-          <div>
-            <div style={{ fontWeight: 800 }}>{t("admin.yourCategories")}</div>
-            <div className="muted" style={{ fontSize: 12 }}>{t("admin.yourCategoriesSub")}</div>
-          </div>
-          <div className="muted" style={{ fontSize: 12 }}>{categories.length} items</div>
+        <div className="admin-inner-card" style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>{t("admin.addCategory")}</div>
+          <form onSubmit={createCategory} className="row" style={{ alignItems: "end", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ flex: "1 1 200px", minWidth: 200 }}>
+              <label className="admin-label">{t("admin.name")}</label>
+              <input className="input" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Supermarket" style={{ width: "100%", marginTop: 4 }} />
+            </div>
+            <div style={{ minWidth: 160 }}>
+              <label className="admin-label">{t("admin.type")}</label>
+              <select className="select" value={newType} onChange={(e) => setNewType(e.target.value as any)} style={{ width: "100%", marginTop: 4, height: 40 }}>
+                <option value="VARIABLE">VARIABLE</option>
+                <option value="FIXED">FIXED</option>
+              </select>
+            </div>
+            <button className="btn primary" type="submit" style={{ height: 40 }}>
+              {t("common.add")}
+            </button>
+          </form>
+          {catError && <div className="admin-message admin-message--error" style={{ marginTop: 10 }}>{catError}</div>}
+          {catInfo && <div className="admin-message admin-message--info" style={{ marginTop: 10 }}>{catInfo}</div>}
         </div>
 
-        <div style={{ overflowX: "auto" }}>
-          <table className="table compact">
+        <div style={{ marginTop: 20 }}>
+          <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 14 }}>{t("admin.yourCategories")}</div>
+              <div className="muted" style={{ fontSize: 12 }}>{t("admin.yourCategoriesSub")}</div>
+            </div>
+            <span className="muted" style={{ fontSize: 12 }}>{t("admin.categoryCount", { count: categories.length })}</span>
+          </div>
+
+          <div className="admin-table-wrap">
+          <table className="table admin-table">
             <thead>
               <tr>
                 <th>{t("admin.name")}</th>
@@ -1127,25 +1265,23 @@ export default function AdminPage() {
 
               {categories.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="muted">{t("admin.noCategoriesYet")}</td>
+                  <td colSpan={3} className="muted" style={{ padding: 24, textAlign: "center" }}>{t("admin.noCategoriesYet")}</td>
                 </tr>
               )}
             </tbody>
           </table>
+          </div>
         </div>
-
-        <style>{`
-          .table.compact th, .table.compact td { padding: 6px 8px; }
-          .input.compact { padding: 6px 8px; border-radius: 10px; }
-        `}</style>
       </div>
+      )}
 
-      {/* ===== Month Close ===== */}
+      {/* ===== Tab: Month Close ===== */}
+      {activeTab === "monthClose" && (
       <div className="card">
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 }}>
           <div>
-            <div style={{ fontWeight: 900 }}>{t("admin.monthClose")}</div>
-            <div className="muted" style={{ fontSize: 12 }}>{t("admin.lockMonthSnapshot")}</div>
+            <div style={{ fontWeight: 900 }}>{t("admin.tabMonthClose")}</div>
+            <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{t("admin.monthCloseIntro")}</div>
           </div>
         </div>
 
@@ -1207,8 +1343,9 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+      )}
 
-      {/* Modal: Cierre de mes (preview) — solo localhost */}
+      {/* Modal: Cierre de mes (preview) */}
       {closePreviewOpen && closePreviewData && (
         <div
           role="dialog"
@@ -1256,24 +1393,79 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ===== User admin ===== */}
+      {/* ===== Tab: Users (super admin only) ===== */}
+      {activeTab === "users" && isSuperAdmin && (
+      <>
       <div className="card">
-        <div style={{ fontWeight: 900 }}>User admin</div>
-
-        <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
-          {meResp ? `${t("admin.signedInAs")}: ${meResp.email} (${meResp.role})` : t("admin.loadingUser")}
-        </div>
-
-        {meError && <div style={{ marginTop: 10, color: "var(--danger)" }}>{meError}</div>}
-
-        <ChangePasswordCard />
-        {isSuperAdmin && <UsersAdminCard />}
+        <UsersAdminCard />
       </div>
+      <RecentActivityCard />
+      </>
+      )}
 
-      {/* ===== Expense templates ===== */}
+      {/* ===== Tab: Templates ===== */}
+      {activeTab === "templates" && (
       <div className="card">
         <ExpenseTemplatesAdminCard categories={categories} onboardingActive={onboardingActive} onScrollTargetRef={templatesRef} />
       </div>
+      )}
+
+      <style>{`
+        .admin-page .admin-inner-card {
+          background: rgba(15,23,42,0.03);
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          padding: 14px 16px;
+        }
+        .admin-page .admin-label {
+          display: block;
+          font-size: 12px;
+          color: var(--muted);
+          margin-bottom: 2px;
+        }
+        .admin-page .admin-edit-card {
+          background: rgba(15,23,42,0.02);
+          border: 1px solid var(--border);
+          border-left: 3px solid var(--text);
+          border-radius: 12px;
+          padding: 14px 16px;
+        }
+        .admin-page .admin-table-wrap {
+          overflow-x: auto;
+          border-radius: 10px;
+          border: 1px solid var(--border);
+        }
+        .admin-page .admin-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .admin-page .admin-table th,
+        .admin-page .admin-table td {
+          padding: 10px 12px;
+          font-size: 13px;
+          border-bottom: 1px solid var(--border);
+        }
+        .admin-page .admin-table th {
+          background: rgba(15,23,42,0.04);
+          font-weight: 700;
+          text-align: left;
+        }
+        .admin-page .admin-table th.right { text-align: right; }
+        .admin-page .admin-table tbody tr:hover {
+          background: rgba(15,23,42,0.02);
+        }
+        .admin-page .admin-table tbody tr:last-child td { border-bottom: none; }
+        .admin-page .admin-message--error { color: var(--danger); font-size: 13px; }
+        .admin-page .admin-message--info { color: rgba(15,23,42,0.75); font-size: 13px; }
+        .admin-page .admin-onb-callout {
+          border: 1px solid rgba(15,23,42,0.10);
+          background: rgba(15,23,42,0.03);
+          border-radius: 12px;
+          padding: 12px 14px;
+        }
+        .admin-page .admin-table .input.compact,
+        .admin-page .admin-table .select { padding: 6px 8px; border-radius: 8px; font-size: 12px; }
+      `}</style>
     </div>
   );
 }
