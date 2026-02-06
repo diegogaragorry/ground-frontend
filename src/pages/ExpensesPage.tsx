@@ -4,10 +4,11 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
+import { getCategoryDisplayName, getExpenseTypeLabel } from "../utils/categoryI18n";
 
 type ExpenseType = "FIXED" | "VARIABLE";
 
-type Category = { id: string; name: string; expenseType: ExpenseType };
+type Category = { id: string; name: string; expenseType: ExpenseType; nameKey?: string | null };
 
 type Expense = {
   id: string;
@@ -561,8 +562,8 @@ export default function ExpensesPage() {
               disabled={createMonthClosed}
               onChange={(e) => setExpenseTypeCreate(e.target.value as ExpenseType)}
             >
-              <option value="FIXED">FIXED</option>
-              <option value="VARIABLE">VARIABLE</option>
+              <option value="FIXED">{t("expenses.typeFixed")}</option>
+              <option value="VARIABLE">{t("expenses.typeVariable")}</option>
             </select>
           </div>
 
@@ -618,13 +619,13 @@ export default function ExpensesPage() {
             <select className="select" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={createMonthClosed}>
               {(categoriesByType[expenseTypeCreate] ?? []).map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}
+                  {getCategoryDisplayName(c, t)}
                 </option>
               ))}
             </select>
             {categoryId && (
               <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-                {t("expenses.enforcedType")}: <b>{categoryTypeOf(categoryId) ?? expenseTypeCreate}</b>
+                {t("expenses.enforcedType")}: <b>{getExpenseTypeLabel(categoryTypeOf(categoryId) ?? expenseTypeCreate, t)}</b>
               </div>
             )}
           </div>
@@ -778,7 +779,7 @@ export default function ExpensesPage() {
                           .sort((a, b) => a.name.localeCompare(b.name))
                           .map((c) => (
                             <option key={c.id} value={c.id}>
-                              {c.name} ({c.expenseType})
+                              {getCategoryDisplayName(c, t)} ({getExpenseTypeLabel(c.expenseType, t)})
                             </option>
                           ))}
                       </select>
@@ -948,7 +949,7 @@ function RealExpensesTable(props: {
                 </td>
 
                 <td>
-                  <Badge>{e.expenseType}</Badge>
+                  <Badge>{getExpenseTypeLabel(e.expenseType, t)}</Badge>
                 </td>
 
                 <td>
@@ -985,7 +986,7 @@ function RealExpensesTable(props: {
                   >
                     {categoriesSorted.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name} ({c.expenseType})
+                        {getCategoryDisplayName(c, t)} ({getExpenseTypeLabel(c.expenseType, t)})
                       </option>
                     ))}
                   </select>

@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
+import { getCategoryDisplayName, getExpenseTypeLabel, getTemplateDescriptionDisplay } from "../utils/categoryI18n";
 
 type ExpenseType = "FIXED" | "VARIABLE";
-type Category = { id: string; name: string; expenseType: ExpenseType };
+type Category = { id: string; name: string; expenseType: ExpenseType; nameKey?: string | null };
 
 type MonthCloseRow = {
   id: string;
@@ -37,10 +38,11 @@ type ExpenseTemplateRow = {
   expenseType: ExpenseType;
   categoryId: string;
   description: string;
+  descriptionKey?: string | null;
   defaultAmountUsd: number | null;
   createdAt: string;
   updatedAt: string;
-  category?: { id: string; name: string; expenseType?: ExpenseType };
+  category?: { id: string; name: string; expenseType?: ExpenseType; nameKey?: string | null };
 };
 
 const usd0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
@@ -544,15 +546,15 @@ function ExpenseTemplatesAdminCard({
           <div style={{ minWidth: 140 }}>
             <label className="admin-label">{t("admin.type")}</label>
             <select className="select" value={expenseType} onChange={(e) => setExpenseType(e.target.value as any)} style={{ width: "100%", marginTop: 4, height: 40 }}>
-              <option value="FIXED">FIXED</option>
-              <option value="VARIABLE">VARIABLE</option>
+              <option value="FIXED">{t("expenses.typeFixed")}</option>
+              <option value="VARIABLE">{t("expenses.typeVariable")}</option>
             </select>
           </div>
           <div style={{ minWidth: 180 }}>
             <label className="admin-label">{t("admin.category")}</label>
             <select className="select" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} style={{ width: "100%", marginTop: 4, height: 40 }}>
               {(expenseType === "FIXED" ? catsByType.fixed : catsByType.variable).map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id}>{getCategoryDisplayName(c, t)}</option>
               ))}
               {(expenseType === "FIXED" ? catsByType.fixed : catsByType.variable).length === 0 && (
                 <option value="" disabled>{t("admin.noCategoriesOfThisType")}</option>
@@ -561,7 +563,7 @@ function ExpenseTemplatesAdminCard({
           </div>
           <div style={{ flex: "1 1 200px", minWidth: 200 }}>
             <label className="admin-label">{t("admin.description")}</label>
-            <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Rent" style={{ width: "100%", marginTop: 4 }} />
+            <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("admin.descriptionPlaceholder")} style={{ width: "100%", marginTop: 4 }} />
           </div>
           <div style={{ minWidth: 120 }}>
             <label className="admin-label">{t("admin.defaultAmountUsd")}</label>
@@ -580,15 +582,15 @@ function ExpenseTemplatesAdminCard({
             <div style={{ minWidth: 140 }}>
               <label className="admin-label">{t("admin.type")}</label>
               <select className="select" value={editExpenseType} onChange={(e) => setEditExpenseType(e.target.value as any)} style={{ width: "100%", marginTop: 4, height: 40 }}>
-                <option value="FIXED">FIXED</option>
-                <option value="VARIABLE">VARIABLE</option>
+                <option value="FIXED">{t("expenses.typeFixed")}</option>
+                <option value="VARIABLE">{t("expenses.typeVariable")}</option>
               </select>
             </div>
             <div style={{ minWidth: 180 }}>
               <label className="admin-label">{t("admin.category")}</label>
               <select className="select" value={editCategoryId} onChange={(e) => setEditCategoryId(e.target.value)} style={{ width: "100%", marginTop: 4, height: 40 }}>
                 {(editExpenseType === "FIXED" ? catsByType.fixed : catsByType.variable).map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
+                  <option key={c.id} value={c.id}>{getCategoryDisplayName(c, t)}</option>
                 ))}
               </select>
             </div>
@@ -625,9 +627,9 @@ function ExpenseTemplatesAdminCard({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.id}>
-                  <td className="muted">{row.expenseType}</td>
-                  <td>{row.category?.name ?? row.categoryId}</td>
-                  <td>{row.description}</td>
+                  <td className="muted">{getExpenseTypeLabel(row.expenseType, t)}</td>
+                  <td>{row.category ? getCategoryDisplayName(row.category, t) : row.categoryId}</td>
+                  <td>{getTemplateDescriptionDisplay(row, t)}</td>
                   <td className="right">{row.defaultAmountUsd == null ? <span className="muted">—</span> : usd0.format(row.defaultAmountUsd)}</td>
                   <td className="right">
                     <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
@@ -1069,10 +1071,10 @@ export default function AdminPage() {
     try {
       await api(`/monthCloses/reopen`, { method: "POST", body: JSON.stringify({ year: mcYear, month: mcMonth }) });
       await loadMonthCloses(mcYear);
-      setMcInfo(`Month ${m2(mcMonth)}/${mcYear} reopened.`);
-      showSuccess("Month reopened.");
+      setMcInfo(t("admin.monthReopenedInfo", { month: m2(mcMonth), year: mcYear }));
+      showSuccess(t("admin.monthReopenedSuccess"));
     } catch (err: any) {
-      setMcError(err?.message ?? "Error reopening month");
+      setMcError(err?.message ?? t("admin.reopenMonthError"));
     }
   }
 
@@ -1207,13 +1209,13 @@ export default function AdminPage() {
           <form onSubmit={createCategory} className="row" style={{ alignItems: "end", flexWrap: "wrap", gap: 12 }}>
             <div style={{ flex: "1 1 200px", minWidth: 200 }}>
               <label className="admin-label">{t("admin.name")}</label>
-              <input className="input" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Supermarket" style={{ width: "100%", marginTop: 4 }} />
+              <input className="input" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={t("admin.categoryNamePlaceholder")} style={{ width: "100%", marginTop: 4 }} />
             </div>
             <div style={{ minWidth: 160 }}>
               <label className="admin-label">{t("admin.type")}</label>
               <select className="select" value={newType} onChange={(e) => setNewType(e.target.value as any)} style={{ width: "100%", marginTop: 4, height: 40 }}>
-                <option value="VARIABLE">VARIABLE</option>
-                <option value="FIXED">FIXED</option>
+                <option value="VARIABLE">{t("expenses.typeVariable")}</option>
+                <option value="FIXED">{t("expenses.typeFixed")}</option>
               </select>
             </div>
             <button className="btn primary" type="submit" style={{ height: 40 }}>
@@ -1260,18 +1262,18 @@ export default function AdminPage() {
                           }}
                         />
                       ) : (
-                        c.name
+                        getCategoryDisplayName(c, t)
                       )}
                     </td>
 
                     <td>
                       {isEditing ? (
                         <select className="select" value={editType} onChange={(e) => setEditType(e.target.value as any)} style={{ height: 34 }}>
-                          <option value="VARIABLE">VARIABLE</option>
-                          <option value="FIXED">FIXED</option>
+                          <option value="VARIABLE">{t("expenses.typeVariable")}</option>
+                          <option value="FIXED">{t("expenses.typeFixed")}</option>
                         </select>
                       ) : (
-                        <span className="muted">{c.expenseType}</span>
+                        <span className="muted">{getExpenseTypeLabel(c.expenseType, t)}</span>
                       )}
                     </td>
 
@@ -1338,9 +1340,9 @@ export default function AdminPage() {
           </div>
 
           <div className="muted" style={{ fontSize: 12 }}>
-            Status:{" "}
+            {t("admin.status")}:{" "}
             <span style={{ fontWeight: 850, color: isSelectedClosed ? "var(--text)" : "var(--muted)" }}>
-              {isSelectedClosed ? "Closed" : "Open"}
+              {isSelectedClosed ? t("common.closed") : t("common.open")}
             </span>
           </div>
 

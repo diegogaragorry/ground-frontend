@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
+import { getCategoryDisplayName } from "../utils/categoryI18n";
 
 type Expense = {
   id: string;
@@ -11,7 +12,7 @@ type Expense = {
   amountUsd: number;
   currencyId: string;
   date: string;
-  category: { id: string; name: string };
+  category: { id: string; name: string; nameKey?: string | null; expenseType?: string };
 };
 
 type SummaryRow = {
@@ -374,7 +375,7 @@ export default function DashboardPage() {
                   <div className="rowLeft">
                     <div className="rowTitleEllipsis">{e.description}</div>
                     <div className="rowSub">
-                      <span className="badge">{e.category?.name ?? "—"}</span>
+                      <span className="badge">{e.category ? getCategoryDisplayName(e.category, t) : "—"}</span>
                       <span className="muted">•</span>
                       <span className="muted">{e.date?.slice(0, 10)}</span>
                     </div>
