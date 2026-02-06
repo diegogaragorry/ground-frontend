@@ -391,15 +391,17 @@ a:focus-visible,
   to { transform: rotate(360deg); }
 }
 
-/* Drawer (mobile) */
+/* Drawer (mobile): overlay oscuro + panel lateral a la izquierda */
 .drawerOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: grid;
-  place-items: start;
-  z-index: 50;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.45);
   animation: fadeIn 0.2s ease-out;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: flex-start;
 }
 
 @keyframes fadeIn {
@@ -407,14 +409,25 @@ a:focus-visible,
   to { opacity: 1; }
 }
 
+/* Panel lateral: solo ~300px, el resto es overlay para cerrar al tocar */
 .drawer {
-  width: min(320px, 85vw);
+  width: min(300px, 82vw);
+  max-width: 300px;
   height: 100vh;
+  flex-shrink: 0;
   background: var(--panel);
   border-right: 1px solid var(--border);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  animation: slideIn 0.25s ease-out;
+  animation: slideIn 0.22s ease-out;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Área a la derecha del panel: tocar cierra el drawer */
+.drawerOverlay .drawer-backdrop {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
 }
 
 @keyframes slideIn {
@@ -705,10 +718,27 @@ a:focus-visible,
   }
 }
 
-/* Responsive */
+/* Responsive: en mobile solo contenido principal, sidebar oculto (se abre por drawer) */
 @media (max-width: 900px) {
-  .container { grid-template-columns: 1fr; }
-  .sidebar { display: none; }
+  .container {
+    grid-template-columns: 1fr;
+    grid-template-areas: "main";
+  }
+  /* Ocultar solo el sidebar del layout (el que está como hijo directo). El del drawer sigue visible. */
+  .container > .sidebar {
+    display: none !important;
+    position: absolute !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    pointer-events: none !important;
+  }
+  .container > .main {
+    grid-area: main;
+    width: 100%;
+    max-width: 100%;
+  }
   .main { padding: 12px 14px; }
 }
 

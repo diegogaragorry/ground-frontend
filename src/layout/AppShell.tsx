@@ -203,6 +203,8 @@ export function useAppShell() {
    Shell layout
 ========================= */
 
+const MOBILE_BREAKPOINT = 900;
+
 export function AppShell(props: { children: React.ReactNode }) {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error("AppShell must be used within <AppShellProvider />");
@@ -211,7 +213,17 @@ export function AppShell(props: { children: React.ReactNode }) {
   const loc = useLocation();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches
+  );
   const ymValue = ymToInputValue(ctx.year, ctx.month);
+
+  React.useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
+    const handler = () => setIsMobile(mql.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
 
   React.useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -261,13 +273,20 @@ export function AppShell(props: { children: React.ReactNode }) {
 
   return (
     <div className="container">
-      <Sidebar />
+      {/* En desktop: sidebar fijo. En mobile: no se renderiza aquí, solo dentro del drawer. */}
+      {!isMobile && <Sidebar />}
 
       {drawerOpen && (
-        <div className="drawerOverlay" onClick={() => setDrawerOpen(false)}>
+        <div className="drawerOverlay" role="dialog" aria-modal="true" aria-label="Menú">
           <div className="drawer" onClick={(e) => e.stopPropagation()}>
             <Sidebar onNavigateClick={() => setDrawerOpen(false)} />
           </div>
+          <div
+            className="drawer-backdrop"
+            onClick={() => setDrawerOpen(false)}
+            onKeyDown={(e) => e.key === "Escape" && setDrawerOpen(false)}
+            aria-hidden
+          />
         </div>
       )}
 
