@@ -41,6 +41,7 @@ export default function LoginPage() {
   const [forgotCode, setForgotCode] = useState("");
   const [forgotNewPassword, setForgotNewPassword] = useState("");
   const [forgotSuccess, setForgotSuccess] = useState(false);
+  const [forgotInfo, setForgotInfo] = useState("");
 
   useEffect(() => {
     const t = localStorage.getItem("token");
@@ -69,11 +70,17 @@ export default function LoginPage() {
     if (!em) return setError("Email is required");
     setLoading(true);
     try {
-      await api("/auth/forgot-password/request-code", {
+      const res = await api<{ ok?: boolean; alreadySent?: boolean }>("/auth/forgot-password/request-code", {
         method: "POST",
         body: JSON.stringify({ email: em }),
       });
       setForgotStep("code");
+      if (res.alreadySent) {
+        setError("");
+        setForgotInfo("A code was already sent. Check your inbox (and spam).");
+      } else {
+        setForgotInfo("");
+      }
     } catch (err: any) {
       setError(err?.message ?? "Failed to send code");
     } finally {
@@ -111,6 +118,7 @@ export default function LoginPage() {
     setForgotCode("");
     setForgotNewPassword("");
     setForgotSuccess(false);
+    setForgotInfo("");
     setError("");
   }
 
@@ -191,6 +199,11 @@ export default function LoginPage() {
                 <p className="muted" style={{ marginBottom: 20, fontSize: 13 }}>
                   {t("login.resetEmailNote")}
                 </p>
+                {forgotInfo && (
+                  <div className="toast-success" style={{ marginBottom: 16 }}>
+                    {forgotInfo}
+                  </div>
+                )}
                 <form onSubmit={onForgotReset} className="login-form">
                   <div>
                     <label className="label">{t("login.code")}</label>

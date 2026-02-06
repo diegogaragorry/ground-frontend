@@ -36,12 +36,14 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await api<{ ok: boolean }>("/auth/register/request-code", {
+      const res = await api<{ ok: boolean; alreadySent?: boolean }>("/auth/register/request-code", {
         method: "POST",
         body: JSON.stringify({ email: em }),
       });
       setStep("verify");
-      setInfo("We sent you a 6-digit code. It may take a few minutes to arrive. Check your inbox (and spam).");
+      setInfo(res.alreadySent
+        ? "A code was already sent. Check your inbox (and spam)."
+        : "We sent you a 6-digit code. It may take a few minutes to arrive. Check your inbox (and spam).");
     } catch (err: any) {
       setError(err?.message ?? "Error sending code");
     } finally {
@@ -88,11 +90,13 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
-      await api<{ ok: boolean }>("/auth/register/request-code", {
+      const res = await api<{ ok: boolean; alreadySent?: boolean }>("/auth/register/request-code", {
         method: "POST",
         body: JSON.stringify({ email: em }),
       });
-      setInfo("New code sent. It may take a few minutes to arrive.");
+      setInfo(res.alreadySent
+        ? "A code was already sent. Check your inbox (and spam)."
+        : "New code sent. It may take a few minutes to arrive.");
     } catch (err: any) {
       setError(err?.message ?? "Error resending code");
     } finally {
