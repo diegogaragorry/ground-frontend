@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { api } from "../api";
@@ -212,6 +213,7 @@ export function AppShell(props: { children: React.ReactNode }) {
   const nav = useNavigate();
   const loc = useLocation();
 
+  const { t } = useTranslation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" && window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches
@@ -298,28 +300,32 @@ export function AppShell(props: { children: React.ReactNode }) {
             </div>
           )}
           <Topbar
-            title={ctx.header.title}
-            subtitle={ctx.header.subtitle}
+            title={isMobile ? t("common.menu") : ctx.header.title}
+            subtitle={isMobile ? undefined : ctx.header.subtitle}
             onOpenMenu={() => setDrawerOpen(true)}
+            isMobileFixed={isMobile}
             right={
-              <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                <span className="muted" style={{ fontSize: 12 }}>
-                  Month
-                </span>
-                <input
-                  className="input"
-                  type="month"
-                  value={ymValue}
-                  onChange={(e) => {
-                    const v = inputValueToYm(e.target.value);
-                    if (!v) return;
-                    ctx.setYearMonth(v);
-                  }}
-                  style={{ width: 132, minWidth: 0 }}
-                />
-              </div>
+              !isMobile ? (
+                <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    Month
+                  </span>
+                  <input
+                    className="input"
+                    type="month"
+                    value={ymValue}
+                    onChange={(e) => {
+                      const v = inputValueToYm(e.target.value);
+                      if (!v) return;
+                      ctx.setYearMonth(v);
+                    }}
+                    style={{ width: 132, minWidth: 0 }}
+                  />
+                </div>
+              ) : undefined
             }
           />
+          {isMobile && <div className="topbar-spacer" aria-hidden />}
 
           {/* ✅ Onboarding wizard en overlay full-screen para no distraer con el dashboard */}
           {showWelcomePanel && (

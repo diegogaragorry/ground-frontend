@@ -153,6 +153,23 @@ h1 {
   }
 }
 
+/* Mobile: barra "Menú" fija arriba */
+.topbar-fixed-mobile {
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+}
+
+.topbar-spacer {
+  height: 56px;
+  flex-shrink: 0;
+}
+
 /* Toast éxito (mensaje bajo el topbar) */
 .toast-success {
   padding: 10px 14px;
@@ -423,11 +440,12 @@ a:focus-visible,
   box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
 }
 
-/* Área a la derecha del panel: tocar cierra el drawer */
+/* Área a la derecha del panel: mismo fondo oscuro que el overlay, tocar cierra */
 .drawerOverlay .drawer-backdrop {
   flex: 1;
   min-width: 0;
   cursor: pointer;
+  background: rgba(0, 0, 0, 0.45);
 }
 
 @keyframes slideIn {

@@ -1,25 +1,29 @@
 import React from "react";
 
-export function Topbar(props: {
+export type TopbarProps = {
   title: string;
   subtitle?: string;
   onOpenMenu?: () => void;
+  isMobileFixed?: boolean;
   right?: React.ReactNode;
-}) {
+};
+
+export function Topbar(props: TopbarProps) {
+  const { title, subtitle, onOpenMenu, isMobileFixed, right } = props;
   return (
-    <div className="topbar">
+    <div className={isMobileFixed ? "topbar topbar-fixed-mobile" : "topbar"}>
       <div>
         <div className="h1" style={{ margin: 0 }}>
-          {props.title}
+          {title}
         </div>
-        {props.subtitle && <div className="muted">{props.subtitle}</div>}
+        {subtitle && <div className="muted">{subtitle}</div>}
       </div>
 
       <div className="row" style={{ gap: 12, alignItems: "center" }}>
-        {props.right}
+        {right}
         <button
           className="btn mobile-menu-btn"
-          onClick={props.onOpenMenu}
+          onClick={onOpenMenu}
           id="mobileMenuBtn"
           type="button"
           aria-label="Menu"

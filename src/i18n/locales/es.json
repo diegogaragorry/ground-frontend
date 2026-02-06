@@ -64,6 +64,7 @@
     "logout": "Salir"
   },
   "common": {
+    "menu": "Menú",
     "refresh": "Actualizar",
     "loading": "Cargando…",
     "save": "Guardar",
