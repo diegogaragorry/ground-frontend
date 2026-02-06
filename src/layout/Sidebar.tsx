@@ -46,14 +46,17 @@ export function Sidebar(props: SidebarProps) {
         <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
           {t("sidebar.dashboard")}
         </NavLink>
+        <NavLink to="/income" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
+          {t("sidebar.income")}
+        </NavLink>
         <NavLink to="/expenses" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
           {t("sidebar.expenses")}
         </NavLink>
-        <NavLink to="/budgets" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
-          {t("sidebar.budgets")}
-        </NavLink>
         <NavLink to="/investments" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
           {t("sidebar.investments")}
+        </NavLink>
+        <NavLink to="/budgets" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
+          {t("sidebar.budgets")}
         </NavLink>
         <NavLink to="/admin" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
           {t("sidebar.admin")}

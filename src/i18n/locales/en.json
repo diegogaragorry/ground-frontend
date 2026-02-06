@@ -58,6 +58,7 @@
   "sidebar": {
     "dashboard": "Dashboard",
     "expenses": "Expenses",
+    "income": "Income",
     "budgets": "Budgets",
     "investments": "Investments",
     "admin": "Admin",
@@ -186,6 +187,16 @@
     "allDraftsConfirmed": "All drafts confirmed.",
     "errorConfirmingDrafts": "Error confirming drafts",
     "usd": "USD"
+  },
+  "income": {
+    "title": "Income",
+    "subtitle": "Nominal, extraordinary income & taxes — {{year}}",
+    "intro": "Set nominal income per month (e.g. from onboarding), extraordinary income and taxes. Total is used in Budget.",
+    "nominal": "Nominal income",
+    "extraordinary": "Extraordinary income",
+    "taxes": "Taxes",
+    "total": "Total income",
+    "budgetNote": "Total income = nominal + extraordinary − taxes. This value is shown in Budget."
   },
   "budgets": {
     "title": "Budget",

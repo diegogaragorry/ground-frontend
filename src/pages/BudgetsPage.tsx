@@ -28,7 +28,7 @@ const usd0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0, minimu
 const m2 = (m: number) => String(m).padStart(2, "0");
 const months12 = Array.from({ length: 12 }, (_, i) => i + 1);
 
-type DraftMap = Record<number, { income?: string; other?: string }>;
+type DraftMap = Record<number, { other?: string }>;
 
 function sanitizeNumber(raw: string) {
   const cleaned = raw.trim().replace(/[^\d.,-]/g, "").replace(/,/g, "");
@@ -88,7 +88,7 @@ export default function BudgetsPage() {
 
   const [drafts, setDrafts] = useState<DraftMap>({});
 
-  function setDraft(month: number, patch: { income?: string; other?: string }) {
+  function setDraft(month: number, patch: { other?: string }) {
     setDrafts((prev) => ({ ...prev, [month]: { ...(prev[month] ?? {}), ...patch } }));
   }
   function clearDraft(month: number) {
@@ -169,15 +169,6 @@ export default function BudgetsPage() {
     }
     return t;
   }, [months]);
-
-  async function saveIncome(month: number, value: number) {
-    if (!Number.isFinite(value)) return;
-    await api(`/income`, {
-      method: "POST",
-      body: JSON.stringify({ year, month, amountUsd: value }),
-    });
-    await load();
-  }
 
   async function saveOtherExpenses(month: number, value: number) {
     if (!Number.isFinite(value)) return;
@@ -262,38 +253,12 @@ export default function BudgetsPage() {
             </thead>
 
             <tbody>
-              {/* Income */}
+              {/* Income (read-only; edited in Ingresos tab) */}
               <tr>
                 <td style={{ fontWeight: 750 }}>{t("budgets.income")}</td>
                 {months.map((m) => (
                   <td key={`inc-${m.month}`} className="right" title={m.source}>
-                    {m.isClosed ? (
-                      usd0.format(m.incomeUsd)
-                    ) : (
-                      <input
-                        className="input compact"
-                        value={drafts[m.month]?.income ?? String(Math.round(m.incomeUsd ?? 0))}
-                        style={{ width: 70, textAlign: "right" }}
-                        onChange={(e) => setDraft(m.month, { income: e.target.value })}
-                        onBlur={async () => {
-                          const raw = (drafts[m.month]?.income ?? "").trim();
-                          if (!raw) return;
-
-                          const n = sanitizeNumber(raw);
-                          if (n == null) return;
-
-                          try {
-                            await saveIncome(m.month, n);
-                            clearDraft(m.month);
-                          } catch (err: any) {
-                            setError(err?.message ?? t("budgets.errorSavingIncome"));
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                        }}
-                      />
-                    )}
+                    {usd0.format(m.incomeUsd)}
                   </td>
                 ))}
                 <td className="right" style={{ fontWeight: 850 }}>

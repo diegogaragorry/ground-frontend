@@ -58,6 +58,7 @@
   "sidebar": {
     "dashboard": "Dashboard",
     "expenses": "Gastos",
+    "income": "Ingresos",
     "budgets": "Presupuestos",
     "investments": "Inversiones",
     "admin": "Admin",
@@ -186,6 +187,16 @@
     "allDraftsConfirmed": "Todos los borradores confirmados.",
     "errorConfirmingDrafts": "Error al confirmar borradores",
     "usd": "USD"
+  },
+  "income": {
+    "title": "Ingresos",
+    "subtitle": "Ingresos nominales, extraordinarios e impuestos — {{year}}",
+    "intro": "Definí ingresos nominales por mes (ej. del wizard), ingresos extraordinarios e impuestos. El total se usa en Presupuestos.",
+    "nominal": "Ingresos nominales",
+    "extraordinary": "Ingresos extraordinarios",
+    "taxes": "Impuestos",
+    "total": "Ingresos totales",
+    "budgetNote": "Ingresos totales = nominales + extraordinarios − impuestos. Este valor se muestra en Presupuestos."
   },
   "budgets": {
     "title": "Presupuesto",

@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom
 import { AppShell, AppShellProvider } from "./layout/AppShell";
 
 import ExpensesPage from "./pages/ExpensesPage";
+import IncomePage from "./pages/IncomePage";
 import DashboardPage from "./pages/DashboardPage";
 import InvestmentsPage from "./pages/InvestmentsPage";
 import BudgetsPage from "./pages/BudgetsPage";
@@ -43,6 +44,7 @@ export default function App() {
         >
           <Route index element={<DashboardPage />} />
           <Route path="expenses" element={<ExpensesPage />} />
+          <Route path="income" element={<IncomePage />} />
           <Route path="investments" element={<InvestmentsPage />} />
           <Route path="budgets" element={<BudgetsPage />} />
           <Route path="admin" element={<AdminPage />} />
