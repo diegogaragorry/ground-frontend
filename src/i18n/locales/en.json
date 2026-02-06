@@ -396,7 +396,11 @@
     "expires": "Expires",
     "usedAt": "Used at",
     "attempts": "Attempts",
-    "status": "Status"
+    "status": "Status",
+    "recentLogins": "Last 20 app logins",
+    "loggedAt": "Date & time",
+    "ip": "IP",
+    "noLogins": "No logins recorded yet."
   },
   "onboarding": {
     "welcome": "Welcome to Ground",

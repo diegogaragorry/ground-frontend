@@ -665,9 +665,18 @@ type RecentCode = {
   attempts: number;
   status: "used" | "expired" | "pending";
 };
+type RecentLogin = {
+  id: string;
+  userId: string;
+  email: string;
+  loggedAt: string;
+  ip: string | null;
+  userAgent: string | null;
+};
 type RecentActivityResp = {
   recentUsers: RecentUser[];
   recentVerificationCodes: RecentCode[];
+  recentLogins?: RecentLogin[];
   note: string;
 };
 
@@ -778,6 +787,34 @@ function RecentActivityCard() {
               </table>
             </div>
           </div>
+          {(data.recentLogins?.length ?? 0) >= 0 && (
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>{t("admin.recentLogins")}</div>
+            <div className="admin-table-wrap">
+              <table className="table admin-table">
+                <thead>
+                  <tr>
+                    <th>{t("admin.email")}</th>
+                    <th style={{ width: 180 }}>{t("admin.loggedAt")}</th>
+                    <th style={{ width: 140 }}>{t("admin.ip")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data.recentLogins ?? []).map((l) => (
+                    <tr key={l.id}>
+                      <td>{l.email}</td>
+                      <td className="muted" style={{ fontSize: 12 }}>{formatDate(l.loggedAt)}</td>
+                      <td className="muted" style={{ fontSize: 12 }}>{l.ip ?? "—"}</td>
+                    </tr>
+                  ))}
+                  {(data.recentLogins ?? []).length === 0 && (
+                    <tr><td colSpan={3} className="muted" style={{ padding: 16, textAlign: "center" }}>{t("admin.noLogins")}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          )}
         </>
       )}
     </div>

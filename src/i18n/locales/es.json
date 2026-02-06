@@ -396,7 +396,11 @@
     "expires": "Expira",
     "usedAt": "Usado en",
     "attempts": "Intentos",
-    "status": "Estado"
+    "status": "Estado",
+    "recentLogins": "Últimos 20 ingresos a la app",
+    "loggedAt": "Fecha y hora",
+    "ip": "IP",
+    "noLogins": "Aún no hay ingresos registrados."
   },
   "onboarding": {
     "welcome": "Bienvenido a Ground",
