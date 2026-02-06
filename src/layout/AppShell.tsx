@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { api } from "../api";
+import { OnboardingWizard } from "../onboarding/OnboardingWizard";
+import { OnboardingTour } from "../onboarding/OnboardingTour";
 
 /* =========================
    Types
@@ -69,107 +70,6 @@ function isOnboardingRouteStep(pathname: string): OnboardingStep | null {
 }
 
 /* =========================
-   UI: Welcome checklist (ONLY welcome step)
-========================= */
-
-function OnboardingPanel(props: {
-  onStart: () => void;
-  onDone: () => void;
-  onSkip: () => void;
-}) {
-  const { t } = useTranslation();
-  const { onStart, onDone, onSkip } = props;
-
-  const items: Array<{ titleKey: string; subKey: string }> = [
-    { titleKey: "onboarding.step1Title", subKey: "onboarding.step1Sub" },
-    { titleKey: "onboarding.step2Title", subKey: "onboarding.step2Sub" },
-    { titleKey: "onboarding.step3Title", subKey: "onboarding.step3Sub" },
-    { titleKey: "onboarding.step4Title", subKey: "onboarding.step4Sub" },
-    { titleKey: "onboarding.step5Title", subKey: "onboarding.step5Sub" },
-  ];
-
-  return (
-    <div className="card" style={{ padding: 16 }}>
-      <div style={{ display: "grid", gap: 10 }}>
-        <div style={{ fontSize: 18, fontWeight: 950, lineHeight: 1.1 }}>{t("onboarding.welcome")}</div>
-        <div className="muted" style={{ fontSize: 13, lineHeight: 1.35 }}>
-          {t("onboarding.tagline")}
-        </div>
-
-        <div style={{ marginTop: 6, padding: 12, borderRadius: 14, border: "1px solid var(--border)" }}>
-          <div style={{ fontWeight: 850, marginBottom: 10 }}>{t("onboarding.checklist")}</div>
-
-          {items.map((it, idx) => (
-            <div key={idx} className="ob-item">
-              <div className="ob-left">
-                <div className="ob-title">{t(it.titleKey)}</div>
-                <div className="muted ob-sub">{t(it.subKey)}</div>
-              </div>
-
-              {/* only a hint here; real navigation happens when you start */}
-              <span className="muted" style={{ fontSize: 12 }}>
-                →
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* CTA row */}
-        <div className="ob-cta">
-          <button className="btn primary ob-start" type="button" onClick={onStart}>
-            {t("onboarding.startWithStep1")}
-          </button>
-
-          <div className="row ob-right" style={{ gap: 10 }}>
-            <button className="btn" type="button" onClick={onSkip} title={t("onboarding.hideForNow")}>
-              {t("onboarding.notNow")}
-            </button>
-            <button className="btn" type="button" onClick={onDone} title={t("onboarding.skipToDashboard")}>
-              {t("onboarding.skipToDashboard")}
-            </button>
-          </div>
-        </div>
-
-        <style>{`
-          .ob-item{
-            display:flex;
-            justify-content:space-between;
-            gap:12px;
-            align-items:center;
-            padding:10px 0;
-            border-bottom:1px solid rgba(0,0,0,0.06);
-          }
-          .ob-item:last-child{ border-bottom:none; }
-          .ob-left{ min-width:0; }
-          .ob-title{ font-weight:850; font-size:13px; }
-          .ob-sub{ font-size:12px; margin-top:2px; }
-
-          .ob-cta{
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            gap:12px;
-            flex-wrap:wrap;
-          }
-          .ob-start{
-            height: 40px;
-            padding: 10px 14px;
-            font-weight: 850;
-          }
-
-          /* Make Start CTA dominant on narrow screens */
-          @media (max-width: 700px){
-            .ob-cta{ align-items: stretch; }
-            .ob-start{ width: 100%; }
-            .ob-right{ width: 100%; justify-content: flex-end; }
-          }
-        `}</style>
-      </div>
-    </div>
-  );
-}
-
-/* =========================
    Context
 ========================= */
 
@@ -189,6 +89,9 @@ type AppShellCtx = {
   onboardingStep: OnboardingStep;
   setOnboardingStep: (s: OnboardingStep) => void;
   reopenOnboarding: () => void;
+
+  onboardingTourStep: number | null;
+  setOnboardingTourStep: (s: number | null) => void;
 
   toast: Toast;
   showSuccess: (text: string) => void;
@@ -214,6 +117,7 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
   const [meLoaded, setMeLoaded] = useState(false);
 
   const [onboardingStep, _setOnboardingStep] = useState<OnboardingStep>("welcome");
+  const [onboardingTourStep, setOnboardingTourStep] = useState<number | null>(null);
 
   const [toast, setToast] = useState<Toast>(null);
   const showSuccess = React.useCallback((text: string) => {
@@ -265,6 +169,8 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
     onboardingStep,
     setOnboardingStep,
     reopenOnboarding,
+    onboardingTourStep,
+    setOnboardingTourStep,
     toast,
     showSuccess,
   };
@@ -315,6 +221,16 @@ export function AppShell(props: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Force onboarding to welcome when ?resetOnboarding=1 (e.g. for testing)
+  React.useEffect(() => {
+    if (!ctx.meLoaded || !ctx.me) return;
+    const params = new URLSearchParams(loc.search);
+    if (params.get("resetOnboarding") === "1") {
+      ctx.reopenOnboarding();
+      nav("/", { replace: true });
+    }
+  }, [ctx.meLoaded, ctx.me, loc.search, nav, ctx]);
+
   // Keep step aligned with navigation (only after welcome has started)
   React.useEffect(() => {
     if (!ctx.me) return;
@@ -336,24 +252,11 @@ export function AppShell(props: { children: React.ReactNode }) {
   // ✅ Show Welcome card ONLY on dashboard and ONLY when step === welcome
   const showWelcomePanel = ctx.meLoaded && !!ctx.me && ctx.onboardingStep === "welcome" && loc.pathname === "/";
 
-  function startStep1() {
-    if (!ctx || !ctx.me) return;
-    ctx.setOnboardingStep("admin");
-    nav("/admin", { replace: false });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
   function skipSetup() {
     if (!ctx || !ctx.me) return;
     ctx.setOnboardingStep("done");
     nav("/", { replace: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function notNow() {
-    // hide for now but keep ability to resume later via "Setup guide"
-    if (!ctx || !ctx.me) return;
-    ctx.setOnboardingStep("done");
   }
 
   return (
@@ -399,12 +302,57 @@ export function AppShell(props: { children: React.ReactNode }) {
             }
           />
 
-          {/* ✅ Welcome panel only here */}
+          {/* ✅ Onboarding wizard en overlay full-screen para no distraer con el dashboard */}
           {showWelcomePanel && (
-            <OnboardingPanel
-              onStart={startStep1}
-              onDone={skipSetup}
-              onSkip={notNow}
+            <div
+              className="onboarding-overlay"
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 9999,
+                background: "var(--overlay-bg, rgba(0,0,0,0.5))",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 20,
+                overflow: "auto",
+              }}
+            >
+              <OnboardingWizard
+                onComplete={() => {
+                  if (!ctx?.me) return;
+                  ctx.setOnboardingStep("expenses");
+                  ctx.setOnboardingTourStep(0);
+                  nav("/expenses", { replace: false });
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                onSkip={skipSetup}
+              />
+            </div>
+          )}
+
+          {/* Tour con tooltips después del wizard */}
+          {ctx.onboardingTourStep !== null && (
+            <OnboardingTour
+              step={ctx.onboardingTourStep}
+              onNext={() => {
+                const s = ctx.onboardingTourStep ?? 0;
+                if (s === 0) {
+                  ctx.setOnboardingTourStep(1);
+                  nav("/investments", { replace: false });
+                } else if (s === 1) {
+                  ctx.setOnboardingTourStep(2);
+                  nav("/budgets", { replace: false });
+                } else if (s === 2) {
+                  ctx.setOnboardingTourStep(3);
+                  nav("/", { replace: false });
+                } else {
+                  ctx.setOnboardingTourStep(null);
+                  ctx.setOnboardingStep("done");
+                }
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
+              onClose={() => ctx.setOnboardingTourStep(null)}
             />
           )}
 
