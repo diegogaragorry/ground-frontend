@@ -906,23 +906,20 @@ export default function AdminPage() {
     setClosePreviewData(null);
     setClosePreviewOpen(false);
     try {
-      const isLocalhost = typeof window !== "undefined" && window.location.hostname === "localhost";
-      if (isLocalhost) {
-        try {
-          const preview = await api<ClosePreviewResp>(`/monthCloses/preview`, {
-            method: "POST",
-            body: JSON.stringify({ year: mcYear, month: mcMonth }),
-          });
-          if (preview?.message != null) {
-            setClosePreviewData(preview);
-            setClosePreviewOpen(true);
-            return;
-          }
-        } catch (previewErr: any) {
-          // 403 = preview solo en localhost; o fallo de red → cerrar sin modal
-          await doCloseMonth();
+      try {
+        const preview = await api<ClosePreviewResp>(`/monthCloses/preview`, {
+          method: "POST",
+          body: JSON.stringify({ year: mcYear, month: mcMonth }),
+        });
+        if (preview?.message != null) {
+          setClosePreviewData(preview);
+          setClosePreviewOpen(true);
           return;
         }
+      } catch (previewErr: any) {
+        // 403 o error → cerrar sin modal (comportamiento anterior)
+        await doCloseMonth();
+        return;
       }
       await doCloseMonth();
     } catch (err: any) {
