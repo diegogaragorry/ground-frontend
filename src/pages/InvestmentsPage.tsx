@@ -336,23 +336,6 @@ export default function InvestmentsPage() {
     });
   }, [portfolioNetWorthByMonthUsd, portfolios, snapshots]);
 
-  const totalMonthlyVariation = useMemo(() => {
-    const nw = totalNetWorthByMonthUsd;
-
-    const projectedNextJanPortfolio = portfolios.reduce((acc, inv) => {
-      const decCap = capitalUsdPortfolio(inv, snapshots[inv.id] ?? [], 12);
-      return acc + decCap * monthlyFactor(inv);
-    }, 0);
-
-    const accountsDec = accountsNetWorthByMonthUsd[11] ?? 0;
-    const projectedNextJanTotal = accountsDec + projectedNextJanPortfolio;
-
-    return months.map((m, i) => {
-      if (m < 12) return (nw[i + 1] ?? 0) - (nw[i] ?? 0);
-      return projectedNextJanTotal - (nw[11] ?? 0);
-    });
-  }, [totalNetWorthByMonthUsd, portfolios, snapshots, accountsNetWorthByMonthUsd]);
-
   // MOVEMENTS FLOWS (PORTFOLIO, USD ONLY)
   const flows = useMemo(() => {
     const series = months.map(() => 0);
