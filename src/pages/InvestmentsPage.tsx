@@ -140,7 +140,16 @@ export default function InvestmentsPage() {
 
   async function loadMonthCloses() {
     const r = await api<MonthClosesResp>(`/monthCloses?year=${year}`);
-    setClosedMonths(new Set((r.rows ?? []).map((x) => x.month)));
+    const rPrev = await api<MonthClosesResp>(`/monthCloses?year=${year - 1}`);
+    const set = new Set<number>();
+    for (const row of r.rows ?? []) {
+      set.add(row.month);
+      if (row.month < 12) set.add(row.month + 1);
+    }
+    for (const row of rPrev.rows ?? []) {
+      if (row.month === 12) set.add(1);
+    }
+    setClosedMonths(set);
   }
 
   async function load() {
@@ -528,6 +537,7 @@ export default function InvestmentsPage() {
           <div>
             <div style={{ fontWeight: 900 }}>{t("investments.summaryUsd")}</div>
             <div className="muted" style={{ fontSize: 12 }}>{t("investments.year")}: {year}</div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{t("investments.summaryIntro")}</div>
           </div>
           <button className="btn" type="button" onClick={load}>{t("common.refresh")}</button>
         </div>
@@ -663,13 +673,18 @@ export default function InvestmentsPage() {
           <table className="table">
             <thead>
               <tr>
-                <th style={{ ...thStyle, ...stickyHead }}>{t("investments.fund")}</th>
-                <th style={thStyle}>{t("investments.cur")}</th>
-                <th style={thStyle} className="right" title={t("investments.annualReturnTitle")}>{t("investments.targetReturn")}</th>
-                <th style={thStyle}>{t("investments.yieldFrom")}</th>
+                <th style={{ ...thStyle, ...stickyHead, textAlign: "center" }}>{t("investments.fund")}</th>
+                <th style={{ ...thStyle, textAlign: "center" }}>{t("investments.cur")}</th>
+                <th style={{ ...thStyle, textAlign: "center" }} title={t("investments.annualReturnTitle")}>{t("investments.targetReturn")}</th>
+                <th style={{ ...thStyle, textAlign: "center" }}>{t("investments.yieldFrom")}</th>
                 {months.map((m) => (
-                  <th key={`p-h-${m}`} className="right" style={thStyle}>{monthLabel(m)}</th>
+                  <th key={`p-h-${m}`} style={{ ...thStyle, textAlign: "center" }} title={t("investments.valueAtStartOfMonth")}>{monthLabel(m)}</th>
                 ))}
+              </tr>
+              <tr>
+                <th colSpan={4 + months.length} className="muted" style={{ ...thStyle, fontSize: 10, borderTop: "none", paddingTop: 0, fontWeight: 500, textAlign: "center" }}>
+                  {t("investments.valueAtStartOfMonth")}
+                </th>
               </tr>
             </thead>
 
@@ -680,30 +695,33 @@ export default function InvestmentsPage() {
 
                 return (
                   <tr key={inv.id}>
-                    <td style={{ ...tdStyle, ...stickyCell, fontWeight: 700 }}>{inv.name}</td>
-                    <td style={tdStyle}>{inv.currencyId}</td>
+                    <td style={{ ...tdStyle, ...stickyCell, fontWeight: 700, textAlign: "center", verticalAlign: "middle" }}>{inv.name}</td>
+                    <td style={{ ...tdStyle, textAlign: "center", verticalAlign: "middle" }}>{inv.currencyId}</td>
 
-                    <td style={{ ...tdStyle }} className="right">
-                      <input
-                        className="input"
-                        style={{ width: 90, height: 28, fontSize: 11, padding: "4px 6px", textAlign: "right" }}
-                        title={t("investments.usePercentOrDecimal")}
-                        defaultValue={displayReturnPct(inv)}
-                        onBlur={(e) => {
-                          const raw = (e.target as HTMLInputElement).value;
-                          if (!raw.trim()) return;
-                          saveTargetReturn(inv, raw);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                        }}
-                      />
+                    <td style={{ ...tdStyle, textAlign: "center", verticalAlign: "middle" }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
+                        <input
+                          className="input"
+                          style={{ width: 52, height: 28, fontSize: 11, padding: "4px 6px", textAlign: "right" }}
+                          title={t("investments.usePercentOrDecimal")}
+                          defaultValue={displayReturnPct(inv)}
+                          onBlur={(e) => {
+                            const raw = (e.target as HTMLInputElement).value;
+                            if (!raw.trim()) return;
+                            saveTargetReturn(inv, raw);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                          }}
+                        />
+                        <span style={{ fontSize: 11, color: "var(--muted)" }}>%</span>
+                      </span>
                     </td>
 
-                    <td style={tdStyle}>
+                    <td style={{ ...tdStyle, textAlign: "center", verticalAlign: "middle" }}>
                       <select
                         className="select"
-                        style={{ height: 28, fontSize: 11, padding: "4px 6px" }}
+                        style={{ height: 28, fontSize: 11, padding: "4px 6px", margin: 0 }}
                         value={inv.yieldStartMonth ?? 1}
                         onChange={(e) =>
                           api(`/investments/${inv.id}`, {
@@ -725,7 +743,7 @@ export default function InvestmentsPage() {
                       const locked = isClosed(m);
 
                       return (
-                        <td key={`p-${inv.id}-${m}`} className="right" style={tdStyle}>
+                        <td key={`p-${inv.id}-${m}`} style={{ ...tdStyle, textAlign: "center", verticalAlign: "middle" }}>
                           <input
                             className="input"
                             style={{ ...inputStyle, opacity: locked ? 0.6 : hasReal ? 1 : 0.75 }}
@@ -751,7 +769,7 @@ export default function InvestmentsPage() {
 
               {portfolios.length === 0 && !loading && (
                 <tr>
-                  <td colSpan={4 + months.length} className="muted" style={tdStyle}>
+                  <td colSpan={4 + months.length} className="muted" style={{ ...tdStyle, textAlign: "center" }}>
                     {t("investments.noPortfolioYet")}
                   </td>
                 </tr>
@@ -766,36 +784,36 @@ export default function InvestmentsPage() {
               <tr>
                 <th style={{ ...thStyle, width: 190 }}></th>
                 {months.map((m) => (
-                  <th key={`ps-h-${m}`} className="right" style={thStyle}>{monthLabel(m)}</th>
+                  <th key={`ps-h-${m}`} style={{ ...thStyle, textAlign: "center" }}>{monthLabel(m)}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.netWorthPortfolio")}</td>
+                <td style={{ ...tdStyle, fontWeight: 800, textAlign: "left" }}>{t("investments.netWorthPortfolio")}</td>
                 {months.map((m, i) => (
-                  <td key={`ps-nw-${m}`} className="right" style={tdStyle}>{usd0.format(portfolioNetWorthByMonthUsd[i] ?? 0)}</td>
+                  <td key={`ps-nw-${m}`} style={{ ...tdStyle, textAlign: "center" }}>{usd0.format(portfolioNetWorthByMonthUsd[i] ?? 0)}</td>
                 ))}
               </tr>
 
               <tr>
-                <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.monthlyVariation")}</td>
+                <td style={{ ...tdStyle, fontWeight: 800, textAlign: "left" }}>{t("investments.monthlyVariation")}</td>
                 {months.map((m, i) => (
-                  <td key={`ps-var-${m}`} className="right" style={tdStyle}>{usd0.format(portfolioMonthlyVariation[i] ?? 0)}</td>
+                  <td key={`ps-var-${m}`} style={{ ...tdStyle, textAlign: "center" }}>{usd0.format(portfolioMonthlyVariation[i] ?? 0)}</td>
                 ))}
               </tr>
 
               <tr>
-                <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.netFlowsMovements")}</td>
+                <td style={{ ...tdStyle, fontWeight: 800, textAlign: "left" }}>{t("investments.netFlowsMovements")}</td>
                 {months.map((m, i) => (
-                  <td key={`ps-flow-${m}`} className="right" style={tdStyle}>{usd0.format(flows.series[i] ?? 0)}</td>
+                  <td key={`ps-flow-${m}`} style={{ ...tdStyle, textAlign: "center" }}>{usd0.format(flows.series[i] ?? 0)}</td>
                 ))}
               </tr>
 
               <tr>
-                <td style={{ ...tdStyle, fontWeight: 900 }}>{t("investments.realReturns")}</td>
+                <td style={{ ...tdStyle, fontWeight: 900, textAlign: "left" }}>{t("investments.realReturns")}</td>
                 {months.map((m, i) => (
-                  <td key={`ps-rr-${m}`} className="right" style={{ ...tdStyle, fontWeight: 900 }}>
+                  <td key={`ps-rr-${m}`} style={{ ...tdStyle, fontWeight: 900, textAlign: "center" }}>
                     {usd0.format(portfolioRealReturns[i] ?? 0)}
                   </td>
                 ))}
@@ -1010,8 +1028,13 @@ export default function InvestmentsPage() {
                 <th style={{ ...thStyle, ...stickyHead }}>{t("investments.account")}</th>
                 <th style={thStyle}>{t("investments.cur")}</th>
                 {months.map((m) => (
-                  <th key={`a-h-${m}`} className="right" style={thStyle}>{monthLabel(m)}</th>
+                  <th key={`a-h-${m}`} className="right" style={thStyle} title={t("investments.valueAtStartOfMonth")}>{monthLabel(m)}</th>
                 ))}
+              </tr>
+              <tr>
+                <th colSpan={2 + months.length} className="muted" style={{ ...thStyle, fontSize: 10, borderTop: "none", paddingTop: 0, fontWeight: 500, textAlign: "left" }}>
+                  {t("investments.valueAtStartOfMonth")}
+                </th>
               </tr>
             </thead>
 

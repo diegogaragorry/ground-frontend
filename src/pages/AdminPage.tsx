@@ -19,6 +19,16 @@ type MonthCloseRow = {
   closedAt: string;
 };
 
+type ClosePreviewResp = {
+  realBalanceUsd: number;
+  budgetBalanceUsd: number;
+  otherExpensesCurrent: number;
+  otherExpensesProposed: number;
+  netWorthStartUsd: number;
+  netWorthEndUsd: number;
+  message: string;
+};
+
 type MeResp = { id: string; email: string; role: "USER" | "SUPER_ADMIN" };
 type UserRow = { id: string; email: string; role: "USER" | "SUPER_ADMIN"; createdAt: string };
 
@@ -755,6 +765,8 @@ export default function AdminPage() {
   const [monthCloses, setMonthCloses] = useState<MonthCloseRow[]>([]);
   const [mcError, setMcError] = useState("");
   const [mcInfo, setMcInfo] = useState("");
+  const [closePreviewOpen, setClosePreviewOpen] = useState(false);
+  const [closePreviewData, setClosePreviewData] = useState<ClosePreviewResp | null>(null);
 
   const closedSet = useMemo(() => {
     const s = new Set<string>();
@@ -891,11 +903,47 @@ export default function AdminPage() {
   async function closeMonth() {
     setMcError("");
     setMcInfo("");
+    setClosePreviewData(null);
+    setClosePreviewOpen(false);
     try {
-      await api(`/monthCloses/close`, { method: "POST", body: JSON.stringify({ year: mcYear, month: mcMonth }) });
-      await loadMonthCloses(mcYear);
-      setMcInfo(`Month ${m2(mcMonth)}/${mcYear} closed.`);
-      showSuccess(t("admin.monthClosedSuccess"));
+      const isLocalhost = typeof window !== "undefined" && window.location.hostname === "localhost";
+      if (isLocalhost) {
+        try {
+          const preview = await api<ClosePreviewResp>(`/monthCloses/preview`, {
+            method: "POST",
+            body: JSON.stringify({ year: mcYear, month: mcMonth }),
+          });
+          if (preview?.message != null) {
+            setClosePreviewData(preview);
+            setClosePreviewOpen(true);
+            return;
+          }
+        } catch (previewErr: any) {
+          // 403 = preview solo en localhost; o fallo de red → cerrar sin modal
+          await doCloseMonth();
+          return;
+        }
+      }
+      await doCloseMonth();
+    } catch (err: any) {
+      setMcError(err?.message ?? "Error closing month");
+    }
+  }
+
+  async function doCloseMonth() {
+    await api(`/monthCloses/close`, { method: "POST", body: JSON.stringify({ year: mcYear, month: mcMonth }) });
+    await loadMonthCloses(mcYear);
+    setMcInfo(`Month ${m2(mcMonth)}/${mcYear} closed.`);
+    showSuccess(t("admin.monthClosedSuccess"));
+  }
+
+  async function confirmCloseMonth() {
+    if (!closePreviewData) return;
+    setMcError("");
+    try {
+      await doCloseMonth();
+      setClosePreviewOpen(false);
+      setClosePreviewData(null);
     } catch (err: any) {
       setMcError(err?.message ?? "Error closing month");
     }
@@ -1162,6 +1210,54 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {/* Modal: Cierre de mes (preview) — solo localhost */}
+      {closePreviewOpen && closePreviewData && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="close-preview-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={() => setClosePreviewOpen(false)}
+        >
+          <div
+            className="card"
+            id="close-preview-title"
+            style={{ maxWidth: 480, width: "100%" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontWeight: 900, marginBottom: 12 }}>Cierre de mes</div>
+            <p style={{ margin: "0 0 16px", fontSize: 14, lineHeight: 1.5 }}>
+              Estás cerrando el mes con un patrimonio real de <strong>{usd0.format(closePreviewData.netWorthEndUsd)} USD</strong>, habiéndolo
+              comenzado con <strong>{usd0.format(closePreviewData.netWorthStartUsd)} USD</strong>, lo que da un balance de{" "}
+              <strong>{usd0.format(closePreviewData.realBalanceUsd)} USD</strong> (patrimonio final − inicial).
+              <br /><br />
+              El balance calculado en Budget en base a tus ingresos y gastos da{" "}
+              <strong>{usd0.format(closePreviewData.budgetBalanceUsd)} USD</strong>, lo que tiene una diferencia de{" "}
+              <strong>{usd0.format(closePreviewData.realBalanceUsd - closePreviewData.budgetBalanceUsd)} USD</strong> con el balance real.
+              <br /><br />
+              Se ajustará &quot;Otros gastos&quot; del mes para que cierre. ¿Quieres avanzar?
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button type="button" className="btn" onClick={() => setClosePreviewOpen(false)}>
+                Cancelar
+              </button>
+              <button type="button" className="btn primary" onClick={confirmCloseMonth}>
+                Sí, avanzar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ===== User admin ===== */}
       <div className="card">
