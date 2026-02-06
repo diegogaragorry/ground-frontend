@@ -241,7 +241,7 @@ export default function DashboardPage() {
       <div className="dashTop">
         <div className="dashTopLeft">
           <span className={`chip ${isLocked ? "chipLocked" : ""}`} title={isLocked ? t("dashboard.monthClosed") : t("common.computed")}>
-            {isLocked ? t("common.locked") : t("common.open")} • {sourceBadge}
+            {isLocked ? t("common.locked") : t("common.open")} • {sourceBadge === "locked" ? t("common.locked") : t("common.computed")}
           </span>
         </div>
 
@@ -293,7 +293,7 @@ export default function DashboardPage() {
 
       {/* KPI GRID */}
       <div className="kpiGrid">
-        <div className="card kpi kpiMain">
+        <div className="card kpi kpiHighlight">
           <div className="kpiLabel">{t("dashboard.monthlyExpenses")}</div>
           <div className="kpiValue">{usd0.format(monthlyExpenses)}</div>
           <div className="kpiFoot muted">
@@ -307,7 +307,7 @@ export default function DashboardPage() {
           <div className="kpiFoot muted">{t("dashboard.fromBudgets")}</div>
         </div>
 
-        <div className="card kpi">
+        <div className="card kpi kpiHighlight">
           <div className="kpiLabel">{t("dashboard.monthlySavings")}</div>
           <div className="kpiValue">{usd0.format(monthBalance)}</div>
           <div className="kpiFoot muted">{t("dashboard.incomeMinusExpenses")}</div>
@@ -517,9 +517,12 @@ export default function DashboardPage() {
             0 1px 1px rgba(15,23,42,0.02),
             0 10px 26px rgba(15,23,42,0.05);
         }
-        .kpiMain{
-          border-color: rgba(15,23,42,0.14);
-          background: rgba(15,23,42,0.02);
+        .kpiHighlight{
+          background: #fff;
+          border: 1px solid rgba(15,23,42,0.22);
+          box-shadow:
+            0 2px 4px rgba(15,23,42,0.06),
+            0 14px 32px rgba(15,23,42,0.10);
         }
         .kpiLabel{
           font-size: 13px;
@@ -549,7 +552,7 @@ export default function DashboardPage() {
           display:grid;
           grid-template-columns: 1.2fr 0.8fr;
           gap: 12px;
-          align-items:start;
+          align-items: stretch;
         }
         @media (max-width: 1100px){
           .dashGrid{
@@ -560,6 +563,26 @@ export default function DashboardPage() {
         .col{
           display:grid;
           gap: 12px;
+        }
+        .dashGrid > .col:first-child{
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .dashGrid > .col:first-child .sectionHead{
+          flex-shrink: 0;
+        }
+        .dashGrid > .col:first-child .card.list{
+          flex: 1;
+          min-height: 200px;
+          display: flex;
+          flex-direction: column;
+        }
+        .dashGrid > .col:first-child .card.list .cardHead{
+          flex-shrink: 0;
+        }
+        .dashGrid > .col:first-child .card.list > .muted{
+          flex: 1;
         }
 
         .sectionHead{
@@ -674,8 +697,11 @@ export default function DashboardPage() {
             0 10px 26px rgba(15,23,42,0.05);
         }
         .yearHighlight{
-          border-color: rgba(15,23,42,0.14);
-          background: rgba(15,23,42,0.02);
+          background: #fff;
+          border: 1px solid rgba(15,23,42,0.22);
+          box-shadow:
+            0 2px 4px rgba(15,23,42,0.06),
+            0 14px 32px rgba(15,23,42,0.10);
         }
       `}</style>
     </div>

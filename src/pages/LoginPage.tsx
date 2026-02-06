@@ -57,7 +57,7 @@ export default function LoginPage() {
       localStorage.setItem("token", token);
       nav("/", { replace: true });
     } catch (e: any) {
-      setError(e?.message ?? "Invalid credentials");
+      setError(e?.message ?? t("login.invalidCredentials"));
     } finally {
       setLoading(false);
     }
@@ -67,7 +67,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     const em = forgotEmail.trim().toLowerCase();
-    if (!em) return setError("Email is required");
+    if (!em) return setError(t("login.emailRequired"));
     setLoading(true);
     try {
       const res = await api<{ ok?: boolean; alreadySent?: boolean }>("/auth/forgot-password/request-code", {
@@ -82,7 +82,7 @@ export default function LoginPage() {
         setForgotInfo("");
       }
     } catch (err: any) {
-      setError(err?.message ?? "Failed to send code");
+      setError(err?.message ?? t("login.failedToSendCode"));
     } finally {
       setLoading(false);
     }
@@ -92,8 +92,8 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     const em = forgotEmail.trim().toLowerCase();
-    if (!em || !forgotCode.trim()) return setError("Email and code are required");
-    if (forgotNewPassword.length < 8) return setError("Password must be at least 8 characters");
+    if (!em || !forgotCode.trim()) return setError(t("login.emailAndCodeRequired"));
+    if (forgotNewPassword.length < 8) return setError(t("login.passwordMinLength"));
     setLoading(true);
     try {
       await api("/auth/forgot-password/verify", {
@@ -106,7 +106,7 @@ export default function LoginPage() {
       });
       setForgotSuccess(true);
     } catch (err: any) {
-      setError(err?.message ?? "Failed to reset password");
+      setError(err?.message ?? t("login.failedToResetPassword"));
     } finally {
       setLoading(false);
     }

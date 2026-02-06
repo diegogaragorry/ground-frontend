@@ -34,7 +34,13 @@
     "useDifferentEmail": "Usar otro email",
     "placeholderEmail": "tu@ejemplo.com",
     "placeholderPassword": "••••••••",
-    "placeholderCode": "000000"
+    "placeholderCode": "000000",
+    "invalidCredentials": "Credenciales inválidas",
+    "emailRequired": "El email es obligatorio",
+    "emailAndCodeRequired": "El email y el código son obligatorios",
+    "failedToSendCode": "Error al enviar el código",
+    "passwordMinLength": "La contraseña debe tener al menos 8 caracteres",
+    "failedToResetPassword": "Error al restablecer la contraseña"
   },
   "register": {
     "title": "Crear tu cuenta",
@@ -56,7 +62,7 @@
     "placeholderCode": "6 dígitos"
   },
   "sidebar": {
-    "dashboard": "Dashboard",
+    "dashboard": "Panel",
     "expenses": "Gastos",
     "income": "Ingresos",
     "budgets": "Presupuestos",
@@ -83,10 +89,11 @@
     "locked": "Bloqueado",
     "mobileWarningTitle": "Experiencia diseñada para desktop",
     "mobileWarningMessage": "La experiencia actual de Ground fue diseñada para desktop. Futuras versiones serán más amigables para móviles, pero por ahora recomendamos usar Ground en una computadora.",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "errorSaving": "Error al guardar"
   },
   "dashboard": {
-    "title": "Dashboard",
+    "title": "Panel",
     "subtitle": "Resumen mensual y proyección anual (USD)",
     "setupGuide": "Guía de configuración",
     "reopenOnboarding": "Reabrir guía de configuración",
@@ -292,7 +299,12 @@
     "netWorthPortfolio": "Patrimonio (portfolio)",
     "monthlyVariation": "Variación mensual",
     "netFlowsMovements": "Flujos netos (movimientos)",
-    "realReturns": "Rendimientos reales"
+    "realReturns": "Rendimientos reales",
+    "monthlySnapshots": "Snapshots mensuales",
+    "capitalPerMonthLocked": "Capital por mes (bloqueado cuando está cerrado)",
+    "monthLabel": "Mes",
+    "capitalWithCurrency": "Capital ({{currency}})",
+    "defaultBankAccountName": "Cuenta bancaria"
   },
   "admin": {
     "title": "Admin",
@@ -400,7 +412,16 @@
     "recentLogins": "Últimos 20 ingresos a la app",
     "loggedAt": "Fecha y hora",
     "ip": "IP",
-    "noLogins": "Aún no hay ingresos registrados."
+    "noLogins": "Aún no hay ingresos registrados.",
+    "closePreviewConcept": "Concepto",
+    "closePreviewValue": "Valor",
+    "categoryHasExpensesError": "Esta categoría tiene gastos vinculados. Eliminá o reasigná esos gastos primero.",
+    "closeMonthTitle": "Cierre de mes",
+    "closeMonthCancel": "Cancelar",
+    "closeMonthConfirm": "Sí, avanzar",
+    "closeMonthPreviewP1": "Estás cerrando el mes con un patrimonio real de <1>{{netWorthEndUsd}} USD</1>, habiéndolo comenzado con <1>{{netWorthStartUsd}} USD</1>, lo que da un balance de <1>{{realBalanceUsd}} USD</1> (patrimonio final − inicial).",
+    "closeMonthPreviewP2": "El balance calculado en {{budgetTitle}} en base a tus ingresos y gastos da <1>{{budgetBalanceUsd}} USD</1>, lo que tiene una diferencia de <1>{{differenceUsd}} USD</1> con el balance real.",
+    "closeMonthPreviewP3": "Se ajustará \"Otros gastos\" del mes para que cierre. ¿Querés avanzar?"
   },
   "onboarding": {
     "welcome": "Bienvenido a Ground",

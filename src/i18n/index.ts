@@ -23,13 +23,20 @@ i18n.use(initReactI18next).init({
   interpolation: { escapeValue: false },
 });
 
-i18n.on("languageChanged", (lng) => {
+function applyLanguage(lng: string) {
   try {
     localStorage.setItem(STORAGE_KEY, lng);
   } catch {
     // ignore
   }
-});
+  if (typeof document !== "undefined" && document.documentElement) {
+    document.documentElement.lang = lng;
+  }
+}
+
+i18n.on("languageChanged", applyLanguage);
+// Aplicar lang al cargar (p. ej. para que input type="month" muestre los meses en el idioma correcto)
+applyLanguage(i18n.language);
 
 export default i18n;
 export { STORAGE_KEY };

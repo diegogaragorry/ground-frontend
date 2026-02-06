@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { api } from "../api";
 
 type SnapshotMonth = {
@@ -24,6 +25,7 @@ type SnapshotsResponse = {
 const usd0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
 export function InvestmentSnapshotsPanel({ investment }: { investment: Investment }) {
+  const { t } = useTranslation();
   const yearNow = new Date().getFullYear();
   const [year, setYear] = useState(yearNow);
   const [data, setData] = useState<SnapshotsResponse | null>(null);
@@ -73,9 +75,9 @@ export function InvestmentSnapshotsPanel({ investment }: { investment: Investmen
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
         <div>
-          <div style={{ fontWeight: 800 }}>Monthly snapshots</div>
+          <div style={{ fontWeight: 800 }}>{t("investments.monthlySnapshots")}</div>
           <div className="muted" style={{ fontSize: 12 }}>
-            Capital per month (locked when closed)
+            {t("investments.capitalPerMonthLocked")}
           </div>
         </div>
 
@@ -89,20 +91,20 @@ export function InvestmentSnapshotsPanel({ investment }: { investment: Investmen
       </div>
 
       {error && <div style={{ color: "var(--danger)" }}>{error}</div>}
-      {loading && <div className="muted">Loading…</div>}
+      {loading && <div className="muted">{t("common.loading")}</div>}
 
       {data && (
         <table className="table">
           <thead>
             <tr>
-              <th>Month</th>
+              <th>{t("investments.monthLabel")}</th>
               <th className="right">
-                Capital ({investment.currencyId})
+                {t("investments.capitalWithCurrency", { currency: investment.currencyId })}
               </th>
               {investment.currencyId === "UYU" && (
                 <th className="right">USD/UYU</th>
               )}
-              <th className="right">USD</th>
+              <th className="right">{t("expenses.usd")}</th>
               <th />
             </tr>
           </thead>
@@ -136,6 +138,7 @@ function SnapshotRow({
   onSave: (m: number, c: number, r?: number) => void;
   onClose: (m: number) => void;
 }) {
+  const { t } = useTranslation();
   const [capital, setCapital] = useState<number | "">(month.closingCapital ?? "");
   const [rate, setRate] = useState<number | "">(month.usdUyuRate ?? "");
 
@@ -188,17 +191,17 @@ function SnapshotRow({
                 )
               }
             >
-              Save
+              {t("common.save")}
             </button>
             <button
               className="btn primary"
               onClick={() => onClose(month.month)}
             >
-              Close
+              {t("admin.close")}
             </button>
           </>
         ) : (
-          <span className="muted">Closed</span>
+          <span className="muted">{t("common.closed")}</span>
         )}
       </td>
     </tr>

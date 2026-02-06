@@ -33,16 +33,6 @@ function ymNow(): YearMonth {
   return { year: d.getFullYear(), month: d.getMonth() + 1 };
 }
 
-function ymToInputValue(year: number, month: number) {
-  return `${year}-${String(month).padStart(2, "0")}`; // YYYY-MM
-}
-
-function inputValueToYm(v: string): YearMonth | null {
-  const [y, m] = v.split("-").map((x) => Number(x));
-  if (!Number.isInteger(y) || !Number.isInteger(m) || m < 1 || m > 12) return null;
-  return { year: y, month: m };
-}
-
 /* =========================
    Onboarding (per user)
 ========================= */
@@ -220,7 +210,7 @@ export function AppShell(props: { children: React.ReactNode }) {
   const nav = useNavigate();
   const loc = useLocation();
 
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" && window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches
@@ -229,7 +219,20 @@ export function AppShell(props: { children: React.ReactNode }) {
     if (typeof window === "undefined") return true;
     return localStorage.getItem("ground:mobile-warning-dismissed") === "1";
   });
-  const ymValue = ymToInputValue(ctx.year, ctx.month);
+
+  const locale = i18n.language?.startsWith("es") ? "es" : "en";
+  const monthNames = React.useMemo(() => {
+    const fmt = new Intl.DateTimeFormat(locale, { month: "long" });
+    return Array.from({ length: 12 }, (_, i) => {
+      const name = fmt.format(new Date(2000, i, 1));
+      const label = name.charAt(0).toUpperCase() + name.slice(1);
+      return { value: i + 1, label };
+    });
+  }, [locale]);
+  const years = React.useMemo(() => {
+    const y = new Date().getFullYear();
+    return Array.from({ length: 5 }, (_, i) => y - 2 + i);
+  }, []);
 
   React.useEffect(() => {
     const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
@@ -319,19 +322,34 @@ export function AppShell(props: { children: React.ReactNode }) {
               !isMobile ? (
                 <div className="row" style={{ gap: 8, alignItems: "center" }}>
                   <span className="muted" style={{ fontSize: 12 }}>
-                    Month
+                    {t("common.month")}
                   </span>
-                  <input
+                  <select
                     className="input"
-                    type="month"
-                    value={ymValue}
-                    onChange={(e) => {
-                      const v = inputValueToYm(e.target.value);
-                      if (!v) return;
-                      ctx.setYearMonth(v);
-                    }}
-                    style={{ width: 132, minWidth: 0 }}
-                  />
+                    value={ctx.month}
+                    onChange={(e) => ctx.setYearMonth({ year: ctx.year, month: Number(e.target.value) })}
+                    style={{ width: 120, minWidth: 0 }}
+                    aria-label={t("common.month")}
+                  >
+                    {monthNames.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="input"
+                    value={ctx.year}
+                    onChange={(e) => ctx.setYearMonth({ year: Number(e.target.value), month: ctx.month })}
+                    style={{ width: 96, minWidth: 0 }}
+                    aria-label={t("admin.year")}
+                  >
+                    {years.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               ) : undefined
             }

@@ -34,7 +34,13 @@
     "useDifferentEmail": "Use a different email",
     "placeholderEmail": "you@example.com",
     "placeholderPassword": "••••••••",
-    "placeholderCode": "000000"
+    "placeholderCode": "000000",
+    "invalidCredentials": "Invalid credentials",
+    "emailRequired": "Email is required",
+    "emailAndCodeRequired": "Email and code are required",
+    "failedToSendCode": "Failed to send code",
+    "passwordMinLength": "Password must be at least 8 characters",
+    "failedToResetPassword": "Failed to reset password"
   },
   "register": {
     "title": "Create your account",
@@ -83,7 +89,8 @@
     "locked": "Locked",
     "mobileWarningTitle": "Desktop-optimized experience",
     "mobileWarningMessage": "Ground's current experience was designed for desktop. Future versions will be more mobile-friendly, but for now we recommend using Ground on a computer.",
-    "close": "Close"
+    "close": "Close",
+    "errorSaving": "Error saving"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -292,7 +299,12 @@
     "netWorthPortfolio": "Net worth (portfolio)",
     "monthlyVariation": "Monthly variation",
     "netFlowsMovements": "Net flows (movements)",
-    "realReturns": "Real returns"
+    "realReturns": "Real returns",
+    "monthlySnapshots": "Monthly snapshots",
+    "capitalPerMonthLocked": "Capital per month (locked when closed)",
+    "monthLabel": "Month",
+    "capitalWithCurrency": "Capital ({{currency}})",
+    "defaultBankAccountName": "Bank account"
   },
   "admin": {
     "title": "Admin",
@@ -400,7 +412,16 @@
     "recentLogins": "Last 20 app logins",
     "loggedAt": "Date & time",
     "ip": "IP",
-    "noLogins": "No logins recorded yet."
+    "noLogins": "No logins recorded yet.",
+    "closePreviewConcept": "Metric",
+    "closePreviewValue": "Value",
+    "categoryHasExpensesError": "This category has expenses linked. Remove or reassign those expenses first.",
+    "closeMonthTitle": "Close month",
+    "closeMonthCancel": "Cancel",
+    "closeMonthConfirm": "Yes, proceed",
+    "closeMonthPreviewP1": "You are closing the month with a real net worth of <1>{{netWorthEndUsd}} USD</1>, having started with <1>{{netWorthStartUsd}} USD</1>, which gives a balance of <1>{{realBalanceUsd}} USD</1> (end − start net worth).",
+    "closeMonthPreviewP2": "The balance calculated in {{budgetTitle}} based on your income and expenses is <1>{{budgetBalanceUsd}} USD</1>, which differs by <1>{{differenceUsd}} USD</1> from the real balance.",
+    "closeMonthPreviewP3": "\"Other expenses\" for the month will be adjusted so it balances. Do you want to proceed?"
   },
   "onboarding": {
     "welcome": "Welcome to Ground",

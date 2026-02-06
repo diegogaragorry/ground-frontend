@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
 
@@ -1010,7 +1010,7 @@ export default function AdminPage() {
       const msg = err?.message ?? "Error";
       setCatError(
         msg.includes("Cannot delete")
-          ? "This category has expenses linked. Remove or reassign those expenses first."
+          ? t("admin.categoryHasExpensesError")
           : msg
       );
     }
@@ -1365,16 +1365,16 @@ export default function AdminPage() {
             <table className="table compact">
               <thead>
                 <tr>
-                  <th>Metric</th>
-                  <th className="right">Value</th>
+                  <th>{t("admin.closePreviewConcept")}</th>
+                  <th className="right">{t("admin.closePreviewValue")}</th>
                 </tr>
               </thead>
               <tbody>
-                <tr><td>Income</td><td className="right">{usd0.format(selectedClose.incomeUsd)}</td></tr>
-                <tr><td>Expenses</td><td className="right">{usd0.format(selectedClose.expensesUsd)}</td></tr>
-                <tr><td>Investment earnings</td><td className="right">{usd0.format(selectedClose.investmentEarningsUsd)}</td></tr>
-                <tr><td>Balance</td><td className="right">{usd0.format(selectedClose.balanceUsd)}</td></tr>
-                <tr><td>Total net worth (start)</td><td className="right">{usd0.format(selectedClose.netWorthStartUsd)}</td></tr>
+                <tr><td>{t("budgets.income")}</td><td className="right">{usd0.format(selectedClose.incomeUsd)}</td></tr>
+                <tr><td>{t("budgets.expensesCol")}</td><td className="right">{usd0.format(selectedClose.expensesUsd)}</td></tr>
+                <tr><td>{t("budgets.investmentEarnings")}</td><td className="right">{usd0.format(selectedClose.investmentEarningsUsd)}</td></tr>
+                <tr><td>{t("budgets.balance")}</td><td className="right">{usd0.format(selectedClose.balanceUsd)}</td></tr>
+                <tr><td>{t("budgets.netWorthStart")}</td><td className="right">{usd0.format(selectedClose.netWorthStartUsd)}</td></tr>
               </tbody>
             </table>
           </div>
@@ -1406,24 +1406,36 @@ export default function AdminPage() {
             style={{ maxWidth: 480, width: "100%" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontWeight: 900, marginBottom: 12 }}>Cierre de mes</div>
-            <p style={{ margin: "0 0 16px", fontSize: 14, lineHeight: 1.5 }}>
-              Estás cerrando el mes con un patrimonio real de <strong>{usd0.format(closePreviewData.netWorthEndUsd)} USD</strong>, habiéndolo
-              comenzado con <strong>{usd0.format(closePreviewData.netWorthStartUsd)} USD</strong>, lo que da un balance de{" "}
-              <strong>{usd0.format(closePreviewData.realBalanceUsd)} USD</strong> (patrimonio final − inicial).
+            <div style={{ fontWeight: 900, marginBottom: 12 }}>{t("admin.closeMonthTitle")}</div>
+            <div style={{ margin: "0 0 16px", fontSize: 14, lineHeight: 1.5 }}>
+              <Trans
+                i18nKey="admin.closeMonthPreviewP1"
+                values={{
+                  netWorthEndUsd: usd0.format(closePreviewData.netWorthEndUsd),
+                  netWorthStartUsd: usd0.format(closePreviewData.netWorthStartUsd),
+                  realBalanceUsd: usd0.format(closePreviewData.realBalanceUsd),
+                }}
+                components={{ 1: <strong /> }}
+              />
               <br /><br />
-              El balance calculado en Budget en base a tus ingresos y gastos da{" "}
-              <strong>{usd0.format(closePreviewData.budgetBalanceUsd)} USD</strong>, lo que tiene una diferencia de{" "}
-              <strong>{usd0.format(closePreviewData.realBalanceUsd - closePreviewData.budgetBalanceUsd)} USD</strong> con el balance real.
+              <Trans
+                i18nKey="admin.closeMonthPreviewP2"
+                values={{
+                  budgetTitle: t("budgets.title"),
+                  budgetBalanceUsd: usd0.format(closePreviewData.budgetBalanceUsd),
+                  differenceUsd: usd0.format(closePreviewData.realBalanceUsd - closePreviewData.budgetBalanceUsd),
+                }}
+                components={{ 1: <strong /> }}
+              />
               <br /><br />
-              Se ajustará &quot;Otros gastos&quot; del mes para que cierre. ¿Quieres avanzar?
-            </p>
+              {t("admin.closeMonthPreviewP3")}
+            </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
               <button type="button" className="btn" onClick={() => setClosePreviewOpen(false)}>
-                Cancelar
+                {t("admin.closeMonthCancel")}
               </button>
               <button type="button" className="btn primary" onClick={confirmCloseMonth}>
-                Sí, avanzar
+                {t("admin.closeMonthConfirm")}
               </button>
             </div>
           </div>

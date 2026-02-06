@@ -122,7 +122,7 @@ export function OnboardingWizard(props: {
       if (housingFees) await createTemplate(housingId, "Building Fees", parseUsd(housingFeesUsd));
       setStep(2);
     } catch (e: any) {
-      setError(e?.message ?? "Error saving");
+      setError(e?.message ?? t("common.errorSaving"));
     } finally {
       setLoading(false);
     }
@@ -138,7 +138,7 @@ export function OnboardingWizard(props: {
       if (transportTaxi) await createTemplate(transportId, "Ride Sharing / Taxis", parseUsd(transportTaxiUsd));
       setStep(3);
     } catch (e: any) {
-      setError(e?.message ?? "Error saving");
+      setError(e?.message ?? t("common.errorSaving"));
     } finally {
       setLoading(false);
     }
@@ -164,7 +164,7 @@ export function OnboardingWizard(props: {
       }
       setStep(4);
     } catch (e: any) {
-      setError(e?.message ?? "Error saving");
+      setError(e?.message ?? t("common.errorSaving"));
     } finally {
       setLoading(false);
     }
@@ -191,7 +191,7 @@ export function OnboardingWizard(props: {
       }
       setStep(5);
     } catch (e: any) {
-      setError(e?.message ?? "Error saving");
+      setError(e?.message ?? t("common.errorSaving"));
     } finally {
       setLoading(false);
     }
@@ -215,7 +215,7 @@ export function OnboardingWizard(props: {
       if (recEvents && diningCat) await createTemplate(diningCat.id, "Events & Concerts", parseUsd(recUsd.events));
       setStep(6);
     } catch (e: any) {
-      setError(e?.message ?? "Error saving");
+      setError(e?.message ?? t("common.errorSaving"));
     } finally {
       setLoading(false);
     }
@@ -242,7 +242,7 @@ export function OnboardingWizard(props: {
           const created = await api<{ id: string }>("/investments", {
             method: "POST",
             body: JSON.stringify({
-              name: "Bank account",
+              name: t("investments.defaultBankAccountName"),
               type: "ACCOUNT",
               currencyId: "USD",
               targetAnnualReturn: 0,
@@ -285,7 +285,7 @@ export function OnboardingWizard(props: {
       }
       setStep(7);
     } catch (e: any) {
-      setError(e?.message ?? "Error saving");
+      setError(e?.message ?? t("common.errorSaving"));
     } finally {
       setLoading(false);
     }
