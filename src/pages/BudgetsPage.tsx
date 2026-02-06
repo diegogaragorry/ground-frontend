@@ -180,7 +180,7 @@ export default function BudgetsPage() {
   }
 
   async function saveOtherExpenses(month: number, value: number) {
-    if (!Number.isFinite(value) || value < 0) return;
+    if (!Number.isFinite(value)) return;
     await api(`/budgets/other-expenses/${year}/${month}`, {
       method: "PUT",
       body: JSON.stringify({ otherExpensesUsd: value }),
