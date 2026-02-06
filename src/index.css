@@ -170,6 +170,24 @@ h1 {
   flex-shrink: 0;
 }
 
+/* Mensaje de advertencia mobile */
+.mobile-warning {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  background: #fef2f2;
+  border: 2px solid rgba(220, 38, 38, 0.3);
+  border-radius: 12px;
+  margin-bottom: 8px;
+}
+
+@media (min-width: 901px) {
+  .mobile-warning {
+    display: none;
+  }
+}
+
 /* Toast éxito (mensaje bajo el topbar) */
 .toast-success {
   padding: 10px 14px;
@@ -408,17 +426,23 @@ a:focus-visible,
   to { transform: rotate(360deg); }
 }
 
-/* Drawer (mobile): overlay oscuro + panel lateral a la izquierda */
+/* Drawer (mobile): overlay oscuro que cubre TODO, sin franjas blancas */
 .drawerOverlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
   z-index: 1000;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.5);
   animation: fadeIn 0.2s ease-out;
   display: flex;
   flex-direction: row;
   align-items: stretch;
   justify-content: flex-start;
+  overflow: hidden;
 }
 
 @keyframes fadeIn {
@@ -445,7 +469,9 @@ a:focus-visible,
   flex: 1;
   min-width: 0;
   cursor: pointer;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.5);
+  /* Asegurar que cubra todo el espacio restante sin mostrar fondo blanco */
+  position: relative;
 }
 
 @keyframes slideIn {

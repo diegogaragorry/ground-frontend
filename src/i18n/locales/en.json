@@ -79,7 +79,10 @@
     "open": "Open",
     "closed": "Closed",
     "computed": "Computed",
-    "locked": "Locked"
+    "locked": "Locked",
+    "mobileWarningTitle": "Desktop-optimized experience",
+    "mobileWarningMessage": "Ground's current experience was designed for desktop. Future versions will be more mobile-friendly, but for now we recommend using Ground on a computer.",
+    "close": "Close"
   },
   "dashboard": {
     "title": "Dashboard",

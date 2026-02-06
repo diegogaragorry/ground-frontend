@@ -218,6 +218,10 @@ export function AppShell(props: { children: React.ReactNode }) {
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" && window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches
   );
+  const [mobileWarningDismissed, setMobileWarningDismissed] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("ground:mobile-warning-dismissed") === "1";
+  });
   const ymValue = ymToInputValue(ctx.year, ctx.month);
 
   React.useEffect(() => {
@@ -299,8 +303,41 @@ export function AppShell(props: { children: React.ReactNode }) {
               {ctx.toast.text}
             </div>
           )}
+          {isMobile && ctx.meLoaded && ctx.me && !mobileWarningDismissed && (
+            <div className="mobile-warning" role="alert">
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 900, marginBottom: 6, color: "var(--danger)" }}>
+                  {t("common.mobileWarningTitle")}
+                </div>
+                <div style={{ fontSize: 13, lineHeight: 1.4, color: "rgba(220, 38, 38, 0.9)" }}>
+                  {t("common.mobileWarningMessage")}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.setItem("ground:mobile-warning-dismissed", "1");
+                  setMobileWarningDismissed(true);
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--danger)",
+                  cursor: "pointer",
+                  padding: "4px 8px",
+                  fontSize: 20,
+                  lineHeight: 1,
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}
+                aria-label={t("common.close")}
+              >
+                ×
+              </button>
+            </div>
+          )}
           <Topbar
-            title={isMobile ? t("common.menu") : ctx.header.title}
+            title={isMobile ? t("brand.name") : ctx.header.title}
             subtitle={isMobile ? undefined : ctx.header.subtitle}
             onOpenMenu={() => setDrawerOpen(true)}
             isMobileFixed={isMobile}
