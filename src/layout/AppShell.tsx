@@ -19,6 +19,7 @@ type Me = {
   id: string;
   email: string;
   role: "USER" | "SUPER_ADMIN";
+  forceOnboardingNextLogin?: boolean;
 };
 
 type OnboardingStep = "welcome" | "admin" | "expenses" | "investments" | "budget" | "dashboard" | "done";
@@ -135,7 +136,13 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
     api<Me>("/auth/me")
       .then((r) => {
         setMe(r);
-        const step = readOnboarding(r.id);
+        let step = readOnboarding(r.id);
+        const forceFromServer = r.forceOnboardingNextLogin === true || (r as Record<string, unknown>).forceOnboardingNextLogin === true;
+        if (forceFromServer) {
+          step = "welcome";
+          writeOnboarding(r.id, "welcome");
+          api("/auth/me", { method: "PATCH", body: JSON.stringify({ forceOnboardingNextLogin: false }) }).catch(() => {});
+        }
         _setOnboardingStep(step);
       })
       .catch(() => {
@@ -239,11 +246,11 @@ export function AppShell(props: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // Force onboarding to welcome when ?resetOnboarding=1 (e.g. for testing)
+  // Force onboarding: ?resetOnboarding=1 o ?forceOnboarding=1 (p. ej. para testing o si el backend no devolvió el flag)
   React.useEffect(() => {
     if (!ctx.meLoaded || !ctx.me) return;
     const params = new URLSearchParams(loc.search);
-    if (params.get("resetOnboarding") === "1") {
+    if (params.get("resetOnboarding") === "1" || params.get("forceOnboarding") === "1") {
       ctx.reopenOnboarding();
       nav("/", { replace: true });
     }

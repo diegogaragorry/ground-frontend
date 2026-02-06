@@ -569,13 +569,6 @@ export default function InvestmentsPage() {
               </tr>
 
               <tr>
-                <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.monthlyVariationTotal")}</td>
-                {months.map((m, i) => (
-                  <td key={`sum-var-total-${m}`} className="right" style={tdStyle}>{usd0.format(totalMonthlyVariation[i] ?? 0)}</td>
-                ))}
-              </tr>
-
-              <tr>
                 <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.realReturnsPortfolioLabel")}</td>
                 {months.map((m, i) => (
                   <td key={`sum-rr-${m}`} className="right" style={tdStyle}>{usd0.format(portfolioRealReturns[i] ?? 0)}</td>
@@ -604,7 +597,7 @@ export default function InvestmentsPage() {
               className="input"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g., Urraburu"
+              placeholder={t("investments.namePlaceholder")}
               style={{ height: 32, fontSize: 12, padding: "6px 10px", width: "100%" }}
             />
           </div>
