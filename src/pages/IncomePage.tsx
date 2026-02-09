@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
+import { getFxDefault } from "../utils/fx";
 
 type IncomeRow = {
   month: number;
@@ -45,6 +46,8 @@ export default function IncomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [drafts, setDrafts] = useState<DraftMap>({});
+  const [incomeCurrency, setIncomeCurrency] = useState<"UYU" | "USD">("USD");
+  const [incomeRate, setIncomeRate] = useState<number>(() => getFxDefault());
 
   useEffect(() => {
     setHeader({ title: t("income.title"), subtitle: t("income.subtitle", { year }) });
@@ -106,6 +109,17 @@ export default function IncomePage() {
     setDrafts((prev) => ({ ...prev, [month]: { ...(prev[month] ?? {}), ...patch } }));
   }
 
+  function toDisplay(usd: number): number {
+    if (incomeCurrency === "USD") return usd;
+    const r = incomeRate && Number.isFinite(incomeRate) ? incomeRate : 1;
+    return usd * r;
+  }
+  function toUsd(displayed: number): number {
+    if (incomeCurrency === "USD") return displayed;
+    const r = incomeRate && Number.isFinite(incomeRate) && incomeRate > 0 ? incomeRate : 1;
+    return displayed / r;
+  }
+
   async function saveCell(month: number, field: "nominalUsd" | "extraordinaryUsd" | "taxesUsd", value: number) {
     const row = byMonth.get(month);
     if (!row) return;
@@ -130,20 +144,21 @@ export default function IncomePage() {
   function renderCell(
     month: number,
     field: "nominalUsd" | "extraordinaryUsd" | "taxesUsd",
-    displayValue: number,
+    valueUsd: number,
     allowNegative: boolean
   ) {
     const isClosed = closedSet.has(month);
+    const displayVal = toDisplay(valueUsd);
     if (isClosed) {
       return (
         <span key={`${month}-${field}`} className="muted" title={t("common.closed")} style={{ display: "inline-block", width: 72, textAlign: "right" }}>
-          {usd0.format(displayValue)}
+          {usd0.format(displayVal)}
         </span>
       );
     }
     const draftKey = fieldToDraftKey[field];
     const draft = drafts[month]?.[draftKey];
-    const raw = draft ?? String(Math.round(displayValue));
+    const raw = draft ?? String(Math.round(displayVal));
     return (
       <input
         key={`${month}-${field}`}
@@ -156,7 +171,8 @@ export default function IncomePage() {
           const n = sanitizeNumber(raw);
           if (n === null) return;
           if (!allowNegative && n < 0) return;
-          await saveCell(month, field, n);
+          const usdToSave = toUsd(n);
+          await saveCell(month, field, usdToSave);
           setDrafts((prev) => {
             const next = { ...prev };
             if (next[month]) {
@@ -183,9 +199,35 @@ export default function IncomePage() {
             <div style={{ fontWeight: 900, fontSize: 18 }}>{t("income.title")}</div>
             <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{t("income.intro")}</div>
           </div>
-          <button type="button" className="btn" onClick={load} disabled={loading}>
-            {loading ? t("common.loading") : t("common.refresh")}
-          </button>
+          <div className="row" style={{ alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span className="muted" style={{ fontSize: 12 }}>{t("income.currencyLabel")}</span>
+            <select
+              className="select"
+              value={incomeCurrency}
+              onChange={(e) => setIncomeCurrency(e.target.value as "UYU" | "USD")}
+              style={{ width: 72, height: 36 }}
+            >
+              <option value="USD">USD</option>
+              <option value="UYU">UYU</option>
+            </select>
+            {incomeCurrency === "UYU" && (
+              <>
+                <span className="muted" style={{ fontSize: 12 }}>{t("income.rateLabel")}</span>
+                <input
+                  type="number"
+                  className="input"
+                  value={incomeRate}
+                  onChange={(e) => setIncomeRate(Number(e.target.value) || 0)}
+                  min={0}
+                  step={0.01}
+                  style={{ width: 80, height: 36 }}
+                />
+              </>
+            )}
+            <button type="button" className="btn" onClick={load} disabled={loading}>
+              {loading ? t("common.loading") : t("common.refresh")}
+            </button>
+          </div>
         </div>
 
         {error && <div style={{ marginTop: 12, color: "var(--danger)" }}>{error}</div>}
@@ -212,7 +254,7 @@ export default function IncomePage() {
                     {renderCell(m, "nominalUsd", byMonth.get(m)!.nominalUsd, false)}
                   </td>
                 ))}
-                <td className="right" style={{ fontWeight: 800 }}>{usd0.format(totals.nominal)}</td>
+                <td className="right" style={{ fontWeight: 800 }}>{usd0.format(toDisplay(totals.nominal))}</td>
               </tr>
               {/* Ingresos extraordinarios */}
               <tr>
@@ -222,7 +264,7 @@ export default function IncomePage() {
                     {renderCell(m, "extraordinaryUsd", byMonth.get(m)!.extraordinaryUsd, true)}
                   </td>
                 ))}
-                <td className="right" style={{ fontWeight: 800 }}>{usd0.format(totals.extraordinary)}</td>
+                <td className="right" style={{ fontWeight: 800 }}>{usd0.format(toDisplay(totals.extraordinary))}</td>
               </tr>
               {/* Taxes */}
               <tr>
@@ -232,17 +274,17 @@ export default function IncomePage() {
                     {renderCell(m, "taxesUsd", byMonth.get(m)!.taxesUsd, true)}
                   </td>
                 ))}
-                <td className="right" style={{ fontWeight: 800 }}>{usd0.format(totals.taxes)}</td>
+                <td className="right" style={{ fontWeight: 800 }}>{usd0.format(toDisplay(totals.taxes))}</td>
               </tr>
               {/* Ingresos totales (read-only) */}
               <tr>
                 <td style={{ fontWeight: 900 }}>{t("income.total")}</td>
                 {months12.map((m) => (
                   <td key={`tot-${m}`} className="right" style={{ fontWeight: 800 }}>
-                    {usd0.format(byMonth.get(m)!.totalUsd)}
+                    {usd0.format(toDisplay(byMonth.get(m)!.totalUsd))}
                   </td>
                 ))}
-                <td className="right" style={{ fontWeight: 900 }}>{usd0.format(totals.total)}</td>
+                <td className="right" style={{ fontWeight: 900 }}>{usd0.format(toDisplay(totals.total))}</td>
               </tr>
             </tbody>
           </table>

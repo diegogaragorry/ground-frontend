@@ -49,6 +49,7 @@ const DESCRIPTION_KEY_BY_DESC_AND_TYPE: Record<string, string> = {
   "Pharmacy|VARIABLE": "pharmacy",
   "Personal Care|VARIABLE": "personal_care",
   "Medical / Dental|VARIABLE": "medical_dental",
+  "Psychologist|VARIABLE": "psychologist",
   "Holiday Gifts|VARIABLE": "holiday_gifts",
   "Donations / Raffles|VARIABLE": "donations_raffles",
   "Others|VARIABLE": "others",

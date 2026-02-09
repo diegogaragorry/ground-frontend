@@ -4,6 +4,7 @@ import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
 import { getCategoryDisplayName, getExpenseTypeLabel, getTemplateDescriptionDisplay } from "../utils/categoryI18n";
+import { getFxDefault } from "../utils/fx";
 
 type ExpenseType = "FIXED" | "VARIABLE";
 type Category = { id: string; name: string; expenseType: ExpenseType; nameKey?: string | null };
@@ -40,6 +41,7 @@ type ExpenseTemplateRow = {
   description: string;
   descriptionKey?: string | null;
   defaultAmountUsd: number | null;
+  defaultCurrencyId?: string | null;
   showInExpenses?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -379,12 +381,16 @@ function ExpenseTemplatesAdminCard({
   const [categoryId, setCategoryId] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [defaultAmountUsd, setDefaultAmountUsd] = useState<string>("");
+  const [createDefaultCurrencyId, setCreateDefaultCurrencyId] = useState<"UYU" | "USD">("USD");
+  const [createUsdUyuRate, setCreateUsdUyuRate] = useState<number>(() => getFxDefault());
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editExpenseType, setEditExpenseType] = useState<ExpenseType>("VARIABLE");
   const [editCategoryId, setEditCategoryId] = useState<string>("");
   const [editDescription, setEditDescription] = useState<string>("");
   const [editDefaultAmountUsd, setEditDefaultAmountUsd] = useState<string>("");
+  const [editDefaultCurrencyId, setEditDefaultCurrencyId] = useState<"UYU" | "USD">("USD");
+  const [editUsdUyuRate, setEditUsdUyuRate] = useState<number>(getFxDefault());
   const [savingId, setSavingId] = useState<string | null>(null);
 
   const catsByType = useMemo(() => {
@@ -422,6 +428,18 @@ function ExpenseTemplatesAdminCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expenseType]);
 
+  function computeDefaultAmountUsd(
+    amountStr: string,
+    currencyId: "UYU" | "USD",
+    usdUyuRate: number
+  ): number | null {
+    const amt = editNumberOrNull(amountStr);
+    if (amt == null) return null;
+    if (currencyId === "USD") return amt;
+    if (!Number.isFinite(usdUyuRate) || usdUyuRate <= 0) return null;
+    return amt / usdUyuRate;
+  }
+
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setErr("");
@@ -431,7 +449,12 @@ function ExpenseTemplatesAdminCard({
     if (!desc) return setErr(t("admin.descriptionRequired"));
     if (!categoryId) return setErr(t("admin.categoryRequired"));
 
-    const amt = editNumberOrNull(defaultAmountUsd);
+    const amountStr = defaultAmountUsd.trim();
+    const defaultAmountUsdValue = amountStr
+      ? computeDefaultAmountUsd(amountStr, createDefaultCurrencyId, createUsdUyuRate)
+      : null;
+    if (amountStr && defaultAmountUsdValue == null)
+      return setErr(createDefaultCurrencyId === "UYU" ? t("expenses.fx") : t("common.error"));
 
     try {
       await api("/admin/expenseTemplates", {
@@ -440,7 +463,8 @@ function ExpenseTemplatesAdminCard({
           expenseType,
           categoryId,
           description: desc,
-          defaultAmountUsd: amt,
+          defaultAmountUsd: defaultAmountUsdValue,
+          defaultCurrencyId: createDefaultCurrencyId,
         }),
       });
 
@@ -459,7 +483,17 @@ function ExpenseTemplatesAdminCard({
     setEditExpenseType(row.expenseType);
     setEditCategoryId(row.categoryId);
     setEditDescription(getTemplateDescriptionDisplay(row, t));
-    setEditDefaultAmountUsd(row.defaultAmountUsd == null ? "" : String(Math.round(row.defaultAmountUsd)));
+    const cur = (row.defaultCurrencyId ?? "USD") as "UYU" | "USD";
+    setEditDefaultCurrencyId(cur);
+    const rate = getFxDefault();
+    setEditUsdUyuRate(rate);
+    const amt =
+      row.defaultAmountUsd == null
+        ? ""
+        : cur === "UYU"
+          ? String(Math.round(row.defaultAmountUsd * rate))
+          : String(Math.round(row.defaultAmountUsd));
+    setEditDefaultAmountUsd(amt);
     setErr("");
     setInfo("");
   }
@@ -489,7 +523,14 @@ function ExpenseTemplatesAdminCard({
     const row = rows.find((r) => r.id === id);
     const displayedTranslated = row ? getTemplateDescriptionDisplay(row, t) : "";
     const descToSend = row && desc === displayedTranslated ? row.description : desc;
-    const amt = editNumberOrNull(editDefaultAmountUsd);
+    const amountUsdValue = editDefaultAmountUsd.trim()
+      ? computeDefaultAmountUsd(editDefaultAmountUsd, editDefaultCurrencyId, editUsdUyuRate)
+      : null;
+    if (editDefaultAmountUsd.trim() && amountUsdValue == null) {
+      setErr(editDefaultCurrencyId === "UYU" ? t("expenses.fx") : t("common.error"));
+      setSavingId(null);
+      return;
+    }
 
     try {
       await api(`/admin/expenseTemplates/${id}`, {
@@ -498,7 +539,8 @@ function ExpenseTemplatesAdminCard({
           expenseType: editExpenseType,
           categoryId: editCategoryId,
           description: descToSend,
-          defaultAmountUsd: amt,
+          defaultAmountUsd: amountUsdValue,
+          defaultCurrencyId: editDefaultCurrencyId,
         }),
       });
       setEditingId(null);
@@ -589,11 +631,22 @@ function ExpenseTemplatesAdminCard({
             getTemplateDescriptionDisplay(row, t)
           )}
         </td>
-        <td className="right" style={{ width: 120 }}>
+        <td className="right" style={{ minWidth: 248, width: 248 }}>
           {isEditing ? (
-            <input className="input" type="number" value={editDefaultAmountUsd} onChange={(e) => setEditDefaultAmountUsd(e.target.value)} style={{ width: 90, height: 32, textAlign: "right" }} />
+            <div className="row" style={{ gap: 6, alignItems: "center", flexWrap: "nowrap" }}>
+              <select className="select" value={editDefaultCurrencyId} onChange={(e) => setEditDefaultCurrencyId(e.target.value as "UYU" | "USD")} style={{ width: 56, height: 32, flexShrink: 0 }}>
+                <option value="UYU">UYU</option>
+                <option value="USD">USD</option>
+              </select>
+              <input className="input" type="number" value={editDefaultAmountUsd} onChange={(e) => setEditDefaultAmountUsd(e.target.value)} style={{ width: 82, height: 32, textAlign: "right", flexShrink: 0 }} />
+              {editDefaultCurrencyId === "UYU" && (
+                <input className="input" type="number" step="0.001" value={editUsdUyuRate} onChange={(e) => setEditUsdUyuRate(Number(e.target.value))} style={{ width: 72, height: 32, flexShrink: 0 }} title={t("expenses.fx")} />
+              )}
+            </div>
           ) : (
-            row.defaultAmountUsd == null ? <span className="muted">—</span> : usd0.format(row.defaultAmountUsd)
+            row.defaultAmountUsd == null ? <span className="muted">—</span> : (
+              <span>{usd0.format(row.defaultAmountUsd)} USD</span>
+            )
           )}
         </td>
         <td className="right" style={{ minWidth: showAddButton || showRemoveButton ? 260 : 200, width: showAddButton || showRemoveButton ? 260 : 200 }}>
@@ -640,7 +693,7 @@ function ExpenseTemplatesAdminCard({
           <div style={{ fontWeight: 900, marginBottom: 4 }}>{t("admin.step1Title")}</div>
           <div className="muted" style={{ fontSize: 13 }}>{t("admin.templatesDesc")}</div>
           <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
-            Tip: Start with 2–5 fixed expenses and 2–5 variable ones.
+            {t("admin.step1Tip")}
           </div>
         </div>
       )}
@@ -670,10 +723,23 @@ function ExpenseTemplatesAdminCard({
             <label className="admin-label">{t("admin.description")}</label>
             <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("admin.descriptionPlaceholder")} style={{ width: "100%", marginTop: 4 }} />
           </div>
+          <div style={{ minWidth: 80 }}>
+            <label className="admin-label">{t("expenses.curr")}</label>
+            <select className="select" value={createDefaultCurrencyId} onChange={(e) => setCreateDefaultCurrencyId(e.target.value as "UYU" | "USD")} style={{ width: "100%", marginTop: 4, height: 40 }}>
+              <option value="UYU">UYU</option>
+              <option value="USD">USD</option>
+            </select>
+          </div>
           <div style={{ minWidth: 120 }}>
             <label className="admin-label">{t("admin.defaultAmountUsd")}</label>
             <input className="input" type="number" value={defaultAmountUsd} onChange={(e) => setDefaultAmountUsd(e.target.value)} placeholder={t("admin.optionalPlaceholder")} style={{ width: "100%", marginTop: 4, height: 40 }} />
           </div>
+          {createDefaultCurrencyId === "UYU" && (
+            <div style={{ minWidth: 140 }}>
+              <label className="admin-label">{t("expenses.fx")}</label>
+              <input className="input" type="number" step="0.001" value={createUsdUyuRate} onChange={(e) => setCreateUsdUyuRate(Number(e.target.value))} style={{ width: "100%", marginTop: 4, height: 40 }} />
+            </div>
+          )}
           <button className="btn primary" type="submit" style={{ height: 40 }}>{t("admin.create")}</button>
         </form>
         {err && <div className="admin-message admin-message--error" style={{ marginTop: 10 }}>{err}</div>}

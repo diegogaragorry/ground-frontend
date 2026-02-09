@@ -1,5 +1,9 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useAppShell } from "./AppShell";
+
+/** Tour step → path to highlight (Expenses → Investments → Budget → Dashboard) */
+const TOUR_STEP_PATH: (string | null)[] = ["/expenses", "/investments", "/budgets", "/"];
 
 type SidebarProps = {
   /** Llamar al hacer click en un enlace de navegación (p. ej. cerrar drawer en móvil) */
@@ -9,7 +13,8 @@ type SidebarProps = {
 export function Sidebar(props: SidebarProps) {
   const nav = useNavigate();
   const { t, i18n } = useTranslation();
-  const { onNavigateClick } = props;
+  const { onNavigateClick, onboardingTourStep } = useAppShell();
+  const tourHighlightPath = onboardingTourStep != null ? TOUR_STEP_PATH[onboardingTourStep] ?? null : null;
 
   function logout() {
     localStorage.removeItem("token");
@@ -43,19 +48,24 @@ export function Sidebar(props: SidebarProps) {
       </div>
 
       <nav className="sidebar-nav">
-        <NavLink to="/" end className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
+        <NavLink
+          to="/"
+          end
+          className={({ isActive }) => [isActive && "active", tourHighlightPath === "/" && "tour-highlight"].filter(Boolean).join(" ") || ""}
+          onClick={onNavigateClick}
+        >
           {t("sidebar.dashboard")}
         </NavLink>
-        <NavLink to="/income" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
+        <NavLink to="/income" className={({ isActive }) => [isActive && "active"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
           {t("sidebar.income")}
         </NavLink>
-        <NavLink to="/expenses" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
+        <NavLink to="/expenses" className={({ isActive }) => [isActive && "active", tourHighlightPath === "/expenses" && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
           {t("sidebar.expenses")}
         </NavLink>
-        <NavLink to="/investments" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
+        <NavLink to="/investments" className={({ isActive }) => [isActive && "active", tourHighlightPath === "/investments" && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
           {t("sidebar.investments")}
         </NavLink>
-        <NavLink to="/budgets" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
+        <NavLink to="/budgets" className={({ isActive }) => [isActive && "active", tourHighlightPath === "/budgets" && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
           {t("sidebar.budgets")}
         </NavLink>
         <NavLink to="/admin" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
@@ -149,6 +159,16 @@ export function Sidebar(props: SidebarProps) {
           background: rgba(15, 23, 42, 0.08);
           color: var(--text);
           border: 1px solid var(--border);
+        }
+
+        .sidebar-nav a.tour-highlight {
+          background: rgba(59, 130, 246, 0.28);
+          color: var(--text);
+          border: 2px solid rgb(59, 130, 246);
+          box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+        }
+        .sidebar-nav a.tour-highlight:hover {
+          background: rgba(59, 130, 246, 0.35);
         }
 
         .sidebar-footer {

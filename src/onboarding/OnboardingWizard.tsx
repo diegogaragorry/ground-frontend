@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
+import { getFxDefault } from "../utils/fx";
 
 type ExpenseType = "FIXED" | "VARIABLE";
 type Category = { id: string; name: string; expenseType: ExpenseType };
@@ -23,13 +24,32 @@ export function OnboardingWizard(props: {
   const [categories, setCategories] = useState<Category[]>([]);
   const selectedTemplateIdsRef = useRef<string[]>([]);
 
+  // Moneda y tipo de cambio por ítem (key ej. "housing.rent", "transport.vehicle")
+  const [wizardItemCurrency, setWizardItemCurrency] = useState<Record<string, "UYU" | "USD">>({});
+  const [wizardItemRate, setWizardItemRate] = useState<Record<string, number>>({});
+
+  function getItemCurrency(key: string): "UYU" | "USD" {
+    return wizardItemCurrency[key] ?? "USD";
+  }
+  function setItemCurrency(key: string, v: "UYU" | "USD") {
+    setWizardItemCurrency((prev) => ({ ...prev, [key]: v }));
+  }
+  function getItemRate(key: string): number {
+    return wizardItemRate[key] ?? getFxDefault();
+  }
+  function setItemRate(key: string, v: number) {
+    setWizardItemRate((prev) => ({ ...prev, [key]: v }));
+  }
+
   // Housing
   const [housingRent, setHousingRent] = useState(false);
   const [housingMortgage, setHousingMortgage] = useState(false);
   const [housingFees, setHousingFees] = useState(false);
+  const [housingTaxes, setHousingTaxes] = useState(false);
   const [housingRentUsd, setHousingRentUsd] = useState("");
   const [housingMortgageUsd, setHousingMortgageUsd] = useState("");
   const [housingFeesUsd, setHousingFeesUsd] = useState("");
+  const [housingTaxesUsd, setHousingTaxesUsd] = useState("");
 
   // Transport
   const [transportVehicle, setTransportVehicle] = useState(false);
@@ -72,6 +92,8 @@ export function OnboardingWizard(props: {
   // Income
   const [incomeWork, setIncomeWork] = useState(false);
   const [incomeWorkUsd, setIncomeWorkUsd] = useState("");
+  const [incomeWorkType, setIncomeWorkType] = useState<"nominal" | "liquid">("liquid");
+  const [incomeWorkTaxes, setIncomeWorkTaxes] = useState("");
   const [incomeSavings, setIncomeSavings] = useState(false);
   const [incomeSavingsUsd, setIncomeSavingsUsd] = useState("");
   const [incomeInvestments, setIncomeInvestments] = useState(false);
@@ -101,20 +123,43 @@ export function OnboardingWizard(props: {
     return created.id;
   }
 
+  function toUsdAmount(amountStr: string, currencyId: "UYU" | "USD", usdUyuRate: number): number | null {
+    const n = parseUsd(amountStr);
+    if (n == null) return null;
+    if (currencyId === "USD") return n;
+    if (!Number.isFinite(usdUyuRate) || usdUyuRate <= 0) return null;
+    return n / usdUyuRate;
+  }
+
   async function createTemplate(
     categoryId: string,
     description: string,
-    amountUsd: number | null
+    amountUsd: number | null,
+    defaultCurrencyId: "UYU" | "USD"
   ): Promise<{ id: string } | undefined> {
     try {
       const template = await api<{ id: string }>("/admin/expenseTemplates", {
         method: "POST",
-        body: JSON.stringify({ categoryId, description, defaultAmountUsd: amountUsd }),
+        body: JSON.stringify({
+          categoryId,
+          description,
+          defaultAmountUsd: amountUsd,
+          defaultCurrencyId,
+        }),
       });
       if (template?.id) selectedTemplateIdsRef.current.push(template.id);
       return template;
     } catch (e: any) {
-      if (e?.message?.includes("409") || String(e?.message).toLowerCase().includes("unique")) return undefined;
+      if (e?.message?.includes("409") || String(e?.message).toLowerCase().includes("unique")) {
+        try {
+          const { rows } = await api<{ rows: Array<{ id: string; categoryId: string; description: string }> }>("/admin/expenseTemplates");
+          const existing = Array.isArray(rows) ? rows.find((r) => r.categoryId === categoryId && r.description === description) : null;
+          if (existing?.id && !selectedTemplateIdsRef.current.includes(existing.id)) selectedTemplateIdsRef.current.push(existing.id);
+        } catch {
+          // ignore
+        }
+        return undefined;
+      }
       throw e;
     }
   }
@@ -125,9 +170,22 @@ export function OnboardingWizard(props: {
     selectedTemplateIdsRef.current = [];
     try {
       const housingId = await ensureCategory("Housing", "FIXED");
-      if (housingRent) await createTemplate(housingId, "Rent", parseUsd(housingRentUsd));
-      if (housingMortgage) await createTemplate(housingId, "Mortgage", parseUsd(housingMortgageUsd));
-      if (housingFees) await createTemplate(housingId, "Building Fees", parseUsd(housingFeesUsd));
+      if (housingRent) {
+        const cur = getItemCurrency("housing.rent");
+        await createTemplate(housingId, "Rent", toUsdAmount(housingRentUsd, cur, getItemRate("housing.rent")), cur);
+      }
+      if (housingMortgage) {
+        const cur = getItemCurrency("housing.mortgage");
+        await createTemplate(housingId, "Mortgage", toUsdAmount(housingMortgageUsd, cur, getItemRate("housing.mortgage")), cur);
+      }
+      if (housingFees) {
+        const cur = getItemCurrency("housing.fees");
+        await createTemplate(housingId, "Building Fees", toUsdAmount(housingFeesUsd, cur, getItemRate("housing.fees")), cur);
+      }
+      if (housingTaxes) {
+        const cur = getItemCurrency("housing.taxes");
+        await createTemplate(housingId, "Property Taxes", toUsdAmount(housingTaxesUsd, cur, getItemRate("housing.taxes")), cur);
+      }
       setStep(2);
     } catch (e: any) {
       setError(e?.message ?? t("common.errorSaving"));
@@ -141,9 +199,18 @@ export function OnboardingWizard(props: {
     setLoading(true);
     try {
       const transportId = await ensureCategory("Transport", "VARIABLE");
-      if (transportVehicle) await createTemplate(transportId, "Fuel", parseUsd(transportVehicleUsd));
-      if (transportPublic) await createTemplate(transportId, "Public Transport", parseUsd(transportPublicUsd));
-      if (transportTaxi) await createTemplate(transportId, "Ride Sharing / Taxis", parseUsd(transportTaxiUsd));
+      if (transportVehicle) {
+        const cur = getItemCurrency("transport.vehicle");
+        await createTemplate(transportId, "Fuel", toUsdAmount(transportVehicleUsd, cur, getItemRate("transport.vehicle")), cur);
+      }
+      if (transportPublic) {
+        const cur = getItemCurrency("transport.public");
+        await createTemplate(transportId, "Public Transport", toUsdAmount(transportPublicUsd, cur, getItemRate("transport.public")), cur);
+      }
+      if (transportTaxi) {
+        const cur = getItemCurrency("transport.taxi");
+        await createTemplate(transportId, "Ride Sharing / Taxis", toUsdAmount(transportTaxiUsd, cur, getItemRate("transport.taxi")), cur);
+      }
       setStep(3);
     } catch (e: any) {
       setError(e?.message ?? t("common.errorSaving"));
@@ -159,16 +226,40 @@ export function OnboardingWizard(props: {
       const utilitiesCat = findCategory(categories, "Utilities", "FIXED");
       const connectivityCat = findCategory(categories, "Connectivity", "FIXED");
       if (utilitiesCat) {
-        if (svcElectricity) await createTemplate(utilitiesCat.id, "Electricity", parseUsd(svcUsd.electricity));
-        if (svcWater) await createTemplate(utilitiesCat.id, "Water", parseUsd(svcUsd.water));
-        if (svcGas) await createTemplate(utilitiesCat.id, "Gas", parseUsd(svcUsd.gas));
+        if (svcElectricity) {
+          const cur = getItemCurrency("svc.electricity");
+          await createTemplate(utilitiesCat.id, "Electricity", toUsdAmount(svcUsd.electricity ?? "", cur, getItemRate("svc.electricity")), cur);
+        }
+        if (svcWater) {
+          const cur = getItemCurrency("svc.water");
+          await createTemplate(utilitiesCat.id, "Water", toUsdAmount(svcUsd.water ?? "", cur, getItemRate("svc.water")), cur);
+        }
+        if (svcGas) {
+          const cur = getItemCurrency("svc.gas");
+          await createTemplate(utilitiesCat.id, "Gas", toUsdAmount(svcUsd.gas ?? "", cur, getItemRate("svc.gas")), cur);
+        }
       }
       if (connectivityCat) {
-        if (svcInternet) await createTemplate(connectivityCat.id, "Internet / Fiber", parseUsd(svcUsd.internet));
-        if (svcMobile) await createTemplate(connectivityCat.id, "Mobile Phone", parseUsd(svcUsd.mobile));
-        if (svcTV) await createTemplate(connectivityCat.id, "TV / Cable", parseUsd(svcUsd.tv));
-        if (svcStreaming) await createTemplate(connectivityCat.id, "Streaming Services", parseUsd(svcUsd.streaming));
-        if (svcOtherOnline) await createTemplate(connectivityCat.id, "Other online (Spotify, etc.)", parseUsd(svcUsd.otherOnline));
+        if (svcInternet) {
+          const cur = getItemCurrency("svc.internet");
+          await createTemplate(connectivityCat.id, "Internet / Fiber", toUsdAmount(svcUsd.internet ?? "", cur, getItemRate("svc.internet")), cur);
+        }
+        if (svcMobile) {
+          const cur = getItemCurrency("svc.mobile");
+          await createTemplate(connectivityCat.id, "Mobile Phone", toUsdAmount(svcUsd.mobile ?? "", cur, getItemRate("svc.mobile")), cur);
+        }
+        if (svcTV) {
+          const cur = getItemCurrency("svc.tv");
+          await createTemplate(connectivityCat.id, "TV / Cable", toUsdAmount(svcUsd.tv ?? "", cur, getItemRate("svc.tv")), cur);
+        }
+        if (svcStreaming) {
+          const cur = getItemCurrency("svc.streaming");
+          await createTemplate(connectivityCat.id, "Streaming Services", toUsdAmount(svcUsd.streaming ?? "", cur, getItemRate("svc.streaming")), cur);
+        }
+        if (svcOtherOnline) {
+          const cur = getItemCurrency("svc.otherOnline");
+          await createTemplate(connectivityCat.id, "Other online (Spotify, etc.)", toUsdAmount(svcUsd.otherOnline ?? "", cur, getItemRate("svc.otherOnline")), cur);
+        }
       }
       setStep(4);
     } catch (e: any) {
@@ -189,13 +280,28 @@ export function OnboardingWizard(props: {
     setLoading(true);
     try {
       if (healthCat) {
-        if (healthInsurance) await createTemplate(healthCat.id, "Private Health Insurance", parseUsd(healthUsd.insurance));
-        if (healthGym) await createTemplate(healthCat.id, "Gym Membership", parseUsd(healthUsd.gym));
+        if (healthInsurance) {
+          const cur = getItemCurrency("health.insurance");
+          await createTemplate(healthCat.id, "Private Health Insurance", toUsdAmount(healthUsd.insurance ?? "", cur, getItemRate("health.insurance")), cur);
+        }
+        if (healthGym) {
+          const cur = getItemCurrency("health.gym");
+          await createTemplate(healthCat.id, "Gym Membership", toUsdAmount(healthUsd.gym ?? "", cur, getItemRate("health.gym")), cur);
+        }
       }
       if (wellnessCat) {
-        if (healthPharmacy) await createTemplate(wellnessCat.id, "Pharmacy", parseUsd(healthUsd.pharmacy));
-        if (healthPersonal) await createTemplate(wellnessCat.id, "Personal Care", parseUsd(healthUsd.personal));
-        if (healthDental) await createTemplate(wellnessCat.id, "Medical / Dental", parseUsd(healthUsd.dental));
+        if (healthPharmacy) {
+          const cur = getItemCurrency("health.pharmacy");
+          await createTemplate(wellnessCat.id, "Pharmacy", toUsdAmount(healthUsd.pharmacy ?? "", cur, getItemRate("health.pharmacy")), cur);
+        }
+        if (healthPersonal) {
+          const cur = getItemCurrency("health.personal");
+          await createTemplate(wellnessCat.id, "Personal Care", toUsdAmount(healthUsd.personal ?? "", cur, getItemRate("health.personal")), cur);
+        }
+        if (healthDental) {
+          const cur = getItemCurrency("health.dental");
+          await createTemplate(wellnessCat.id, "Psychologist", toUsdAmount(healthUsd.dental ?? "", cur, getItemRate("health.dental")), cur);
+        }
       }
       setStep(5);
     } catch (e: any) {
@@ -213,14 +319,38 @@ export function OnboardingWizard(props: {
     setError("");
     setLoading(true);
     try {
-      if (recGroceries && foodCat) await createTemplate(foodCat.id, "Groceries", parseUsd(recUsd.groceries));
-      if (recGifts && giftsCat) await createTemplate(giftsCat.id, "Holiday Gifts", parseUsd(recUsd.gifts));
-      if (recDonations && giftsCat) await createTemplate(giftsCat.id, "Donations / Raffles", parseUsd(recUsd.donations));
-      if (recSports && sportsCat) await createTemplate(sportsCat.id, "Tenis, Surf, Football / Others", parseUsd(recUsd.sports));
-      if (recRestaurants && diningCat) await createTemplate(diningCat.id, "Restaurants", parseUsd(recUsd.restaurants));
-      if (recCafes && diningCat) await createTemplate(diningCat.id, "Coffee & Snacks", parseUsd(recUsd.cafes));
-      if (recDelivery && diningCat) await createTemplate(diningCat.id, "Delivery", parseUsd(recUsd.delivery));
-      if (recEvents && diningCat) await createTemplate(diningCat.id, "Events & Concerts", parseUsd(recUsd.events));
+      if (recGroceries && foodCat) {
+        const cur = getItemCurrency("rec.groceries");
+        await createTemplate(foodCat.id, "Groceries", toUsdAmount(recUsd.groceries ?? "", cur, getItemRate("rec.groceries")), cur);
+      }
+      if (recGifts && giftsCat) {
+        const cur = getItemCurrency("rec.gifts");
+        await createTemplate(giftsCat.id, "Holiday Gifts", toUsdAmount(recUsd.gifts ?? "", cur, getItemRate("rec.gifts")), cur);
+      }
+      if (recDonations && giftsCat) {
+        const cur = getItemCurrency("rec.donations");
+        await createTemplate(giftsCat.id, "Donations / Raffles", toUsdAmount(recUsd.donations ?? "", cur, getItemRate("rec.donations")), cur);
+      }
+      if (recSports && sportsCat) {
+        const cur = getItemCurrency("rec.sports");
+        await createTemplate(sportsCat.id, "Tenis, Surf, Football / Others", toUsdAmount(recUsd.sports ?? "", cur, getItemRate("rec.sports")), cur);
+      }
+      if (recRestaurants && diningCat) {
+        const cur = getItemCurrency("rec.restaurants");
+        await createTemplate(diningCat.id, "Restaurants", toUsdAmount(recUsd.restaurants ?? "", cur, getItemRate("rec.restaurants")), cur);
+      }
+      if (recCafes && diningCat) {
+        const cur = getItemCurrency("rec.cafes");
+        await createTemplate(diningCat.id, "Coffee & Snacks", toUsdAmount(recUsd.cafes ?? "", cur, getItemRate("rec.cafes")), cur);
+      }
+      if (recDelivery && diningCat) {
+        const cur = getItemCurrency("rec.delivery");
+        await createTemplate(diningCat.id, "Delivery", toUsdAmount(recUsd.delivery ?? "", cur, getItemRate("rec.delivery")), cur);
+      }
+      if (recEvents && diningCat) {
+        const cur = getItemCurrency("rec.events");
+        await createTemplate(diningCat.id, "Events & Concerts", toUsdAmount(recUsd.events ?? "", cur, getItemRate("rec.events")), cur);
+      }
       await api("/admin/expenseTemplates/set-visibility", {
         method: "POST",
         body: JSON.stringify({ visibleTemplateIds: selectedTemplateIdsRef.current }),
@@ -238,10 +368,21 @@ export function OnboardingWizard(props: {
     setLoading(true);
     const year = new Date().getFullYear();
     try {
-      if (incomeWork && Number.isFinite(Number(incomeWorkUsd))) {
-        const usd = Number(incomeWorkUsd);
-        for (let m = 1; m <= 12; m++) {
-          await api("/income", { method: "POST", body: JSON.stringify({ year, month: m, amountUsd: usd }) });
+      if (incomeWork) {
+        const workCur = getItemCurrency("income.work");
+        const workRate = getItemRate("income.work");
+        const nominalUsd = toUsdAmount(incomeWorkUsd, workCur, workRate);
+        if (nominalUsd !== null && nominalUsd >= 0) {
+          if (incomeWorkType === "nominal") {
+            const taxesUsd = toUsdAmount(incomeWorkTaxes, workCur, workRate) ?? 0;
+            for (let m = 1; m <= 12; m++) {
+              await api("/income", { method: "POST", body: JSON.stringify({ year, month: m, nominalUsd, taxesUsd }) });
+            }
+          } else {
+            for (let m = 1; m <= 12; m++) {
+              await api("/income", { method: "POST", body: JSON.stringify({ year, month: m, amountUsd: nominalUsd }) });
+            }
+          }
         }
       }
       let bankAccountId: string | null = null;
@@ -264,8 +405,10 @@ export function OnboardingWizard(props: {
           });
           bankAccountId = created.id;
         }
-        const savingsUsd = Number(incomeSavingsUsd);
-        if (bankAccountId && Number.isFinite(savingsUsd) && savingsUsd >= 0) {
+        const savingsCur = getItemCurrency("income.savings");
+        const savingsRate = getItemRate("income.savings");
+        const savingsUsd = toUsdAmount(incomeSavingsUsd, savingsCur, savingsRate);
+        if (bankAccountId && savingsUsd !== null && savingsUsd >= 0) {
           const month = new Date().getMonth() + 1;
           await api(`/investments/${bankAccountId}/snapshots/${year}/${month}`, {
             method: "PUT",
@@ -313,7 +456,8 @@ export function OnboardingWizard(props: {
   }
 
   return (
-    <div className="card" style={{ padding: 20, maxWidth: 560, width: "100%" }}>
+    <div className="card" style={{ padding: 20, maxWidth: 640, width: "100%" }}>
+      <style>{`.onboarding-amount-input::placeholder { font-size: 11px; }`}</style>
       {error && <div style={{ color: "var(--danger)", marginBottom: 12 }}>{error}</div>}
 
       {/* Step 0: Welcome */}
@@ -332,51 +476,32 @@ export function OnboardingWizard(props: {
           <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 6 }}>{t("onboarding.wizardHousingTitle")}</div>
           <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>{t("onboarding.wizardHousingSub")}</div>
           <div style={{ display: "grid", gap: 12 }}>
-            <label className="row" style={{ alignItems: "center", gap: 12, cursor: "pointer" }}>
-              <input type="checkbox" checked={housingRent} onChange={(e) => setHousingRent(e.target.checked)} />
-              <span>{t("onboarding.wizardHousingRent")}</span>
-              <span className="muted" style={{ fontSize: 12 }}>({t("onboarding.wizardHousingRentDesc")})</span>
-              {housingRent && (
-                <input
-                  type="number"
-                  className="input"
-                  placeholder={t("onboarding.wizardOptionalUsd")}
-                  value={housingRentUsd}
-                  onChange={(e) => setHousingRentUsd(e.target.value)}
-                  style={{ width: 240 }}
-                />
-              )}
-            </label>
-            <label className="row" style={{ alignItems: "center", gap: 12, cursor: "pointer" }}>
-              <input type="checkbox" checked={housingMortgage} onChange={(e) => setHousingMortgage(e.target.checked)} />
-              <span>{t("onboarding.wizardHousingMortgage")}</span>
-              <span className="muted" style={{ fontSize: 12 }}>({t("onboarding.wizardHousingMortgageDesc")})</span>
-              {housingMortgage && (
-                <input
-                  type="number"
-                  className="input"
-                  placeholder={t("onboarding.wizardOptionalUsd")}
-                  value={housingMortgageUsd}
-                  onChange={(e) => setHousingMortgageUsd(e.target.value)}
-                  style={{ width: 240 }}
-                />
-              )}
-            </label>
-            <label className="row" style={{ alignItems: "center", gap: 12, cursor: "pointer" }}>
-              <input type="checkbox" checked={housingFees} onChange={(e) => setHousingFees(e.target.checked)} />
-              <span>{t("onboarding.wizardHousingFees")}</span>
-              <span className="muted" style={{ fontSize: 12 }}>({t("onboarding.wizardHousingFeesDesc")})</span>
-              {housingFees && (
-                <input
-                  type="number"
-                  className="input"
-                  placeholder={t("onboarding.wizardOptionalUsd")}
-                  value={housingFeesUsd}
-                  onChange={(e) => setHousingFeesUsd(e.target.value)}
-                  style={{ width: 240 }}
-                />
-              )}
-            </label>
+            {[
+              { key: "housing.rent", checked: housingRent, set: setHousingRent, usd: housingRentUsd, setUsd: setHousingRentUsd, label: "wizardHousingRent" },
+              { key: "housing.mortgage", checked: housingMortgage, set: setHousingMortgage, usd: housingMortgageUsd, setUsd: setHousingMortgageUsd, label: "wizardHousingMortgage" },
+              { key: "housing.fees", checked: housingFees, set: setHousingFees, usd: housingFeesUsd, setUsd: setHousingFeesUsd, label: "wizardHousingFees" },
+              { key: "housing.taxes", checked: housingTaxes, set: setHousingTaxes, usd: housingTaxesUsd, setUsd: setHousingTaxesUsd, label: "wizardHousingTaxes" },
+            ].map(({ key, checked, set, usd, setUsd, label }) => (
+              <label key={key} className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
+                <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} />
+                <span>{t(`onboarding.${label}`)}</span>
+                {checked && (
+                  <>
+                    <select className="select" value={getItemCurrency(key)} onChange={(e) => setItemCurrency(key, e.target.value as "UYU" | "USD")} style={{ width: 64, height: 36, fontSize: 11 }}>
+                      <option value="UYU">UYU</option>
+                      <option value="USD">USD</option>
+                    </select>
+                    <input type="number" className="input onboarding-amount-input" placeholder={t("onboarding.wizardOptionalUsd")} value={usd} onChange={(e) => setUsd(e.target.value)} style={{ width: 130 }} />
+                    {getItemCurrency(key) === "UYU" && (
+                      <span className="row" style={{ alignItems: "center", gap: 4 }}>
+                        <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
+                        <input type="number" step="0.001" className="input" value={getItemRate(key)} onChange={(e) => setItemRate(key, Number(e.target.value))} style={{ width: 90 }} />
+                      </span>
+                    )}
+                  </>
+                )}
+              </label>
+            ))}
           </div>
         </>
       )}
@@ -388,26 +513,33 @@ export function OnboardingWizard(props: {
           <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>{t("onboarding.wizardTransportSub")}</div>
           <div style={{ display: "grid", gap: 10 }}>
             {[
-              { key: "vehicle", checked: transportVehicle, set: setTransportVehicle, usd: transportVehicleUsd, setUsd: setTransportVehicleUsd, labelKey: "wizardTransportVehicle" },
-              { key: "public", checked: transportPublic, set: setTransportPublic, usd: transportPublicUsd, setUsd: setTransportPublicUsd, labelKey: "wizardTransportPublic" },
-              { key: "taxi", checked: transportTaxi, set: setTransportTaxi, usd: transportTaxiUsd, setUsd: setTransportTaxiUsd, labelKey: "wizardTransportTaxi" },
+              { key: "transport.vehicle", checked: transportVehicle, set: setTransportVehicle, usd: transportVehicleUsd, setUsd: setTransportVehicleUsd, labelKey: "wizardTransportVehicle" },
+              { key: "transport.public", checked: transportPublic, set: setTransportPublic, usd: transportPublicUsd, setUsd: setTransportPublicUsd, labelKey: "wizardTransportPublic" },
+              { key: "transport.taxi", checked: transportTaxi, set: setTransportTaxi, usd: transportTaxiUsd, setUsd: setTransportTaxiUsd, labelKey: "wizardTransportTaxi" },
             ].map(({ key, checked, set, usd, setUsd, labelKey }) => (
-              <label key={key} className="row" style={{ alignItems: "center", gap: 12, cursor: "pointer" }}>
+              <label key={key} className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
                 <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} />
                 <span>{t(`onboarding.${labelKey}`)}</span>
                 {checked && (
-                  <input
-                    type="number"
-                    className="input"
-                    placeholder={t("onboarding.wizardOptionalUsd")}
-                    value={usd}
-                    onChange={(e) => setUsd(e.target.value)}
-                    style={{ width: 240 }}
-                  />
+                  <>
+                    <select className="select" value={getItemCurrency(key)} onChange={(e) => setItemCurrency(key, e.target.value as "UYU" | "USD")} style={{ width: 64, height: 36, fontSize: 11 }}>
+                      <option value="UYU">UYU</option>
+                      <option value="USD">USD</option>
+                    </select>
+                    <input type="number" className="input onboarding-amount-input" placeholder={t("onboarding.wizardOptionalUsd")} value={usd} onChange={(e) => setUsd(e.target.value)} style={{ width: 130 }} />
+                    {getItemCurrency(key) === "UYU" && (
+                      <span className="row" style={{ alignItems: "center", gap: 4 }}>
+                        <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
+                        <input type="number" step="0.001" className="input" value={getItemRate(key)} onChange={(e) => setItemRate(key, Number(e.target.value))} style={{ width: 90 }} />
+                      </span>
+                    )}
+                  </>
                 )}
               </label>
             ))}
-            <div className="muted" style={{ fontSize: 12 }}>{t("onboarding.wizardTransportFuelNote")}</div>
+            {transportVehicle && (
+              <div className="muted" style={{ fontSize: 12 }}>{t("onboarding.wizardTransportFuelNote", { category: t("categories.transport") })}</div>
+            )}
           </div>
         </>
       )}
@@ -427,22 +559,30 @@ export function OnboardingWizard(props: {
               { id: "tv", c: svcTV, setC: setSvcTV, label: "wizardServicesTV" },
               { id: "streaming", c: svcStreaming, setC: setSvcStreaming, label: "wizardServicesStreaming" },
               { id: "otherOnline", c: svcOtherOnline, setC: setSvcOtherOnline, label: "wizardServicesOtherOnline" },
-            ].map(({ id, c, setC, label }) => (
-              <label key={id} className="row" style={{ alignItems: "center", gap: 12, cursor: "pointer" }}>
-                <input type="checkbox" checked={c} onChange={(e) => setC(e.target.checked)} />
-                <span>{t(`onboarding.${label}`)}</span>
-                {c && (
-                  <input
-                    type="number"
-                    className="input"
-                    placeholder={t("onboarding.wizardOptionalUsd")}
-                    value={svcUsd[id] ?? ""}
-                    onChange={(e) => setSvcUsd((prev) => ({ ...prev, [id]: e.target.value }))}
-                    style={{ width: 240 }}
-                  />
-                )}
-              </label>
-            ))}
+            ].map(({ id, c, setC, label }) => {
+              const key = `svc.${id}`;
+              return (
+                <label key={id} className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
+                  <input type="checkbox" checked={c} onChange={(e) => setC(e.target.checked)} />
+                  <span>{t(`onboarding.${label}`)}</span>
+                  {c && (
+                    <>
+                      <select className="select" value={getItemCurrency(key)} onChange={(e) => setItemCurrency(key, e.target.value as "UYU" | "USD")} style={{ width: 64, height: 36, fontSize: 11 }}>
+                        <option value="UYU">UYU</option>
+                        <option value="USD">USD</option>
+                      </select>
+                      <input type="number" className="input onboarding-amount-input" placeholder={t("onboarding.wizardOptionalUsd")} value={svcUsd[id] ?? ""} onChange={(e) => setSvcUsd((prev) => ({ ...prev, [id]: e.target.value }))} style={{ width: 130 }} />
+                      {getItemCurrency(key) === "UYU" && (
+                        <span className="row" style={{ alignItems: "center", gap: 4 }}>
+                          <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
+                          <input type="number" step="0.001" className="input" value={getItemRate(key)} onChange={(e) => setItemRate(key, Number(e.target.value))} style={{ width: 90 }} />
+                        </span>
+                      )}
+                    </>
+                  )}
+                </label>
+              );
+            })}
           </div>
         </>
       )}
@@ -459,22 +599,30 @@ export function OnboardingWizard(props: {
               { id: "pharmacy", c: healthPharmacy, setC: setHealthPharmacy, label: "wizardHealthPharmacy" },
               { id: "personal", c: healthPersonal, setC: setHealthPersonal, label: "wizardHealthPersonal" },
               { id: "dental", c: healthDental, setC: setHealthDental, label: "wizardHealthDental" },
-            ].map(({ id, c, setC, label }) => (
-              <label key={id} className="row" style={{ alignItems: "center", gap: 12, cursor: "pointer" }}>
-                <input type="checkbox" checked={c} onChange={(e) => setC(e.target.checked)} />
-                <span>{t(`onboarding.${label}`)}</span>
-                {c && (
-                  <input
-                    type="number"
-                    className="input"
-                    placeholder={t("onboarding.wizardOptionalUsd")}
-                    value={healthUsd[id] ?? ""}
-                    onChange={(e) => setHealthUsd((prev) => ({ ...prev, [id]: e.target.value }))}
-                    style={{ width: 240 }}
-                  />
-                )}
-              </label>
-            ))}
+            ].map(({ id, c, setC, label }) => {
+              const key = `health.${id}`;
+              return (
+                <label key={id} className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
+                  <input type="checkbox" checked={c} onChange={(e) => setC(e.target.checked)} />
+                  <span>{t(`onboarding.${label}`)}</span>
+                  {c && (
+                    <>
+                      <select className="select" value={getItemCurrency(key)} onChange={(e) => setItemCurrency(key, e.target.value as "UYU" | "USD")} style={{ width: 64, height: 36, fontSize: 11 }}>
+                        <option value="UYU">UYU</option>
+                        <option value="USD">USD</option>
+                      </select>
+                      <input type="number" className="input onboarding-amount-input" placeholder={t("onboarding.wizardOptionalUsd")} value={healthUsd[id] ?? ""} onChange={(e) => setHealthUsd((prev) => ({ ...prev, [id]: e.target.value }))} style={{ width: 130 }} />
+                      {getItemCurrency(key) === "UYU" && (
+                        <span className="row" style={{ alignItems: "center", gap: 4 }}>
+                          <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
+                          <input type="number" step="0.001" className="input" value={getItemRate(key)} onChange={(e) => setItemRate(key, Number(e.target.value))} style={{ width: 90 }} />
+                        </span>
+                      )}
+                    </>
+                  )}
+                </label>
+              );
+            })}
           </div>
         </>
       )}
@@ -494,22 +642,30 @@ export function OnboardingWizard(props: {
               { id: "cafes", c: recCafes, set: setRecCafes, key: "wizardRecurrentCafes" },
               { id: "delivery", c: recDelivery, set: setRecDelivery, key: "wizardRecurrentDelivery" },
               { id: "events", c: recEvents, set: setRecEvents, key: "wizardRecurrentEvents" },
-            ].map(({ id, c, set, key }) => (
-              <label key={key} className="row" style={{ alignItems: "center", gap: 12, cursor: "pointer" }}>
-                <input type="checkbox" checked={c} onChange={(e) => set(e.target.checked)} />
-                <span>{t(`onboarding.${key}`)}</span>
-                {c && (
-                  <input
-                    type="number"
-                    className="input"
-                    placeholder={t("onboarding.wizardOptionalUsd")}
-                    value={recUsd[id] ?? ""}
-                    onChange={(e) => setRecUsd((prev) => ({ ...prev, [id]: e.target.value }))}
-                    style={{ width: 240 }}
-                  />
-                )}
-              </label>
-            ))}
+            ].map(({ id, c, set, key }) => {
+              const itemKey = `rec.${id}`;
+              return (
+                <label key={key} className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
+                  <input type="checkbox" checked={c} onChange={(e) => set(e.target.checked)} />
+                  <span>{t(`onboarding.${key}`)}</span>
+                  {c && (
+                    <>
+                      <select className="select" value={getItemCurrency(itemKey)} onChange={(e) => setItemCurrency(itemKey, e.target.value as "UYU" | "USD")} style={{ width: 64, height: 36, fontSize: 11 }}>
+                        <option value="UYU">UYU</option>
+                        <option value="USD">USD</option>
+                      </select>
+                      <input type="number" className="input onboarding-amount-input" placeholder={t("onboarding.wizardOptionalUsd")} value={recUsd[id] ?? ""} onChange={(e) => setRecUsd((prev) => ({ ...prev, [id]: e.target.value }))} style={{ width: 130 }} />
+                      {getItemCurrency(itemKey) === "UYU" && (
+                        <span className="row" style={{ alignItems: "center", gap: 4 }}>
+                          <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
+                          <input type="number" step="0.001" className="input" value={getItemRate(itemKey)} onChange={(e) => setItemRate(itemKey, Number(e.target.value))} style={{ width: 90 }} />
+                        </span>
+                      )}
+                    </>
+                  )}
+                </label>
+              );
+            })}
           </div>
         </>
       )}
@@ -520,32 +676,66 @@ export function OnboardingWizard(props: {
           <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 6 }}>{t("onboarding.wizardIncomeTitle")}</div>
           <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>{t("onboarding.wizardIncomeSub")}</div>
           <div style={{ display: "grid", gap: 14 }}>
-            <label className="row" style={{ alignItems: "center", gap: 10, cursor: "pointer" }}>
+            <label className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
               <input type="checkbox" checked={incomeWork} onChange={(e) => setIncomeWork(e.target.checked)} />
-              <span>{t("onboarding.wizardIncomeWork")}</span>
+              <span style={{ flexShrink: 0 }}>{t("onboarding.wizardIncomeWork")}</span>
               {incomeWork && (
-                <input
-                  type="number"
-                  className="input"
-                  placeholder={t("onboarding.wizardIncomeWorkPlaceholder")}
-                  value={incomeWorkUsd}
-                  onChange={(e) => setIncomeWorkUsd(e.target.value)}
-                  style={{ width: 240 }}
-                />
+                <>
+                  <select className="select" value={getItemCurrency("income.work")} onChange={(e) => setItemCurrency("income.work", e.target.value as "UYU" | "USD")} style={{ width: 56, height: 36, fontSize: 11 }}>
+                    <option value="UYU">UYU</option>
+                    <option value="USD">USD</option>
+                  </select>
+                  <input
+                    type="number"
+                    className="input onboarding-amount-input"
+                    placeholder={t("onboarding.wizardOptionalUsd")}
+                    value={incomeWorkUsd}
+                    onChange={(e) => setIncomeWorkUsd(e.target.value)}
+                    style={{ width: 100, minWidth: 80 }}
+                  />
+                  {getItemCurrency("income.work") === "UYU" && (
+                    <span className="row" style={{ alignItems: "center", gap: 4 }}>
+                      <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
+                      <input type="number" step="0.001" className="input" value={getItemRate("income.work")} onChange={(e) => setItemRate("income.work", Number(e.target.value))} style={{ width: 72, height: 36, fontSize: 11 }} min={0} />
+                    </span>
+                  )}
+                  <select className="select" value={incomeWorkType} onChange={(e) => setIncomeWorkType(e.target.value as "nominal" | "liquid")} style={{ width: 88, height: 36, fontSize: 11, textAlign: "center" }}>
+                    <option value="nominal">{t("onboarding.wizardIncomeWorkTypeNominal")}</option>
+                    <option value="liquid">{t("onboarding.wizardIncomeWorkTypeLiquid")}</option>
+                  </select>
+                  {incomeWorkType === "nominal" && (
+                    <span className="row" style={{ alignItems: "center", gap: 6, flexShrink: 0 }}>
+                      <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardIncomeWorkTaxes")}</span>
+                      <input type="number" className="input onboarding-amount-input" placeholder="0" value={incomeWorkTaxes} onChange={(e) => setIncomeWorkTaxes(e.target.value)} style={{ width: 80, fontSize: 11 }} min={0} />
+                    </span>
+                  )}
+                </>
               )}
             </label>
-            <label className="row" style={{ alignItems: "center", gap: 10, cursor: "pointer" }}>
+            <label className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
               <input type="checkbox" checked={incomeSavings} onChange={(e) => setIncomeSavings(e.target.checked)} />
               <span>{t("onboarding.wizardIncomeSavings")}</span>
               {incomeSavings && (
-                <input
-                  type="number"
-                  className="input"
-                  placeholder={t("onboarding.wizardIncomeSavingsPlaceholder")}
-                  value={incomeSavingsUsd}
-                  onChange={(e) => setIncomeSavingsUsd(e.target.value)}
-                  style={{ width: 240 }}
-                />
+                <>
+                  <select className="select" value={getItemCurrency("income.savings")} onChange={(e) => setItemCurrency("income.savings", e.target.value as "UYU" | "USD")} style={{ width: 56, height: 36, fontSize: 11 }}>
+                    <option value="UYU">UYU</option>
+                    <option value="USD">USD</option>
+                  </select>
+                  <input
+                    type="number"
+                    className="input onboarding-amount-input"
+                    placeholder={t("onboarding.wizardIncomeSavingsPlaceholder")}
+                    value={incomeSavingsUsd}
+                    onChange={(e) => setIncomeSavingsUsd(e.target.value)}
+                    style={{ width: 120, fontSize: 11 }}
+                  />
+                  {getItemCurrency("income.savings") === "UYU" && (
+                    <span className="row" style={{ alignItems: "center", gap: 4 }}>
+                      <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
+                      <input type="number" step="0.001" className="input" value={getItemRate("income.savings")} onChange={(e) => setItemRate("income.savings", Number(e.target.value))} style={{ width: 72, height: 36, fontSize: 11 }} min={0} />
+                    </span>
+                  )}
+                </>
               )}
             </label>
             <label className="row" style={{ alignItems: "center", gap: 10, cursor: "pointer" }}>
@@ -639,7 +829,7 @@ export function OnboardingWizard(props: {
           </button>
         )}
         {step === 1 && (
-          <button type="button" className="btn primary" onClick={saveHousing} disabled={loading || !(housingRent || housingMortgage || housingFees)}>
+          <button type="button" className="btn primary" onClick={saveHousing} disabled={loading}>
             {loading ? t("common.loading") : t("onboarding.wizardNext")}
           </button>
         )}

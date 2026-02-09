@@ -202,6 +202,7 @@ export function useAppShell() {
     onboardingStep: ctx.onboardingStep,
     setOnboardingStep: ctx.setOnboardingStep,
     reopenOnboarding: ctx.reopenOnboarding,
+    onboardingTourStep: ctx.onboardingTourStep,
     showSuccess: ctx.showSuccess,
   };
 }
@@ -416,6 +417,7 @@ export function AppShell(props: { children: React.ReactNode }) {
               }}
             >
               <OnboardingWizard
+                key={i18n.language}
                 onComplete={() => {
                   if (!ctx?.me) return;
                   ctx.setOnboardingStep("expenses");
@@ -432,6 +434,7 @@ export function AppShell(props: { children: React.ReactNode }) {
           {ctx.onboardingTourStep !== null && (
             <OnboardingTour
               step={ctx.onboardingTourStep}
+              leaveSidebarVisible={!isMobile}
               onNext={() => {
                 const s = ctx.onboardingTourStep ?? 0;
                 if (s === 0) {

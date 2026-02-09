@@ -5,6 +5,7 @@ import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
 import { getCategoryDisplayName, getExpenseTypeLabel, getTemplateDescriptionDisplay } from "../utils/categoryI18n";
+import { getFxDefault, setFxDefault } from "../utils/fx";
 
 type ExpenseType = "FIXED" | "VARIABLE";
 
@@ -73,17 +74,6 @@ function isoToYm(iso: string) {
 }
 
 const usd0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
-
-function getFxDefault(): number {
-  const raw = localStorage.getItem("usdUyuRateDefault");
-  const v = raw ? Number(raw) : NaN;
-  if (Number.isFinite(v) && v > 0) return v;
-  localStorage.setItem("usdUyuRateDefault", "37.983");
-  return 37.983;
-}
-function setFxDefault(v: number) {
-  if (Number.isFinite(v) && v > 0) localStorage.setItem("usdUyuRateDefault", String(v));
-}
 
 type Draft = {
   ym?: string; // YYYY-MM
