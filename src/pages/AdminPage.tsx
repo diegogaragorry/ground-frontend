@@ -40,6 +40,7 @@ type ExpenseTemplateRow = {
   description: string;
   descriptionKey?: string | null;
   defaultAmountUsd: number | null;
+  showInExpenses?: boolean;
   createdAt: string;
   updatedAt: string;
   category?: { id: string; name: string; expenseType?: ExpenseType; nameKey?: string | null };
@@ -376,14 +377,15 @@ function ExpenseTemplatesAdminCard({
 
   const [expenseType, setExpenseType] = useState<ExpenseType>("VARIABLE");
   const [categoryId, setCategoryId] = useState<string>("");
-  const [description, setDescription] = useState<string>("Rent");
+  const [description, setDescription] = useState<string>("");
   const [defaultAmountUsd, setDefaultAmountUsd] = useState<string>("");
 
-  const [editing, setEditing] = useState<ExpenseTemplateRow | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [editExpenseType, setEditExpenseType] = useState<ExpenseType>("VARIABLE");
   const [editCategoryId, setEditCategoryId] = useState<string>("");
   const [editDescription, setEditDescription] = useState<string>("");
   const [editDefaultAmountUsd, setEditDefaultAmountUsd] = useState<string>("");
+  const [savingId, setSavingId] = useState<string | null>(null);
 
   const catsByType = useMemo(() => {
     const fixed = categories.filter((c) => c.expenseType === "FIXED");
@@ -453,48 +455,74 @@ function ExpenseTemplatesAdminCard({
   }
 
   function startEdit(row: ExpenseTemplateRow) {
-    setEditing(row);
+    setEditingId(row.id);
     setEditExpenseType(row.expenseType);
     setEditCategoryId(row.categoryId);
-    setEditDescription(row.description);
+    setEditDescription(getTemplateDescriptionDisplay(row, t));
     setEditDefaultAmountUsd(row.defaultAmountUsd == null ? "" : String(Math.round(row.defaultAmountUsd)));
     setErr("");
     setInfo("");
   }
 
   function cancelEdit() {
-    setEditing(null);
+    setEditingId(null);
     setEditDefaultAmountUsd("");
   }
 
-  async function saveEdit() {
-    if (!editing) return;
+  async function saveEdit(id: string) {
     setErr("");
     setInfo("");
+    setSavingId(id);
 
     const desc = editDescription.trim();
-    if (!desc) return setErr(t("admin.descriptionRequired"));
-    if (!editCategoryId) return setErr(t("admin.categoryRequired"));
+    if (!desc) {
+      setErr(t("admin.descriptionRequired"));
+      setSavingId(null);
+      return;
+    }
+    if (!editCategoryId) {
+      setErr(t("admin.categoryRequired"));
+      setSavingId(null);
+      return;
+    }
 
+    const row = rows.find((r) => r.id === id);
+    const displayedTranslated = row ? getTemplateDescriptionDisplay(row, t) : "";
+    const descToSend = row && desc === displayedTranslated ? row.description : desc;
     const amt = editNumberOrNull(editDefaultAmountUsd);
 
     try {
-      await api(`/admin/expenseTemplates/${editing.id}`, {
+      await api(`/admin/expenseTemplates/${id}`, {
         method: "PUT",
         body: JSON.stringify({
           expenseType: editExpenseType,
           categoryId: editCategoryId,
-          description: desc,
+          description: descToSend,
           defaultAmountUsd: amt,
         }),
       });
-
-      setEditing(null);
+      setEditingId(null);
       await loadTemplates();
-      setInfo("Template updated (planned drafts synced for open months of current year).");
-      showSuccess("Template updated.");
+      showSuccess(t("admin.templateUpdated"));
     } catch (e: any) {
-      setErr(e?.message ?? "Error updating template");
+      setErr(e?.message ?? t("common.error"));
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function setShowInExpenses(id: string, visible: boolean) {
+    setErr("");
+    setInfo("");
+    try {
+      await api(`/admin/expenseTemplates/${id}`, {
+        method: "PUT",
+        body: JSON.stringify({ showInExpenses: visible }),
+      });
+      await loadTemplates();
+      showSuccess(visible ? t("admin.templateAddedToExpenses") : t("admin.templateRemovedFromExpenses"));
+    } catch (e: any) {
+      setErr(e?.message ?? t("common.error"));
     }
   }
 
@@ -513,10 +541,87 @@ function ExpenseTemplatesAdminCard({
     }
   }
 
-  const fixedRows = rows.filter((r) => r.expenseType === "FIXED");
-  const variableRows = rows.filter((r) => r.expenseType === "VARIABLE");
+  const visibleRows = rows.filter((r) => r.showInExpenses !== false);
+  const notVisibleRows = rows.filter((r) => r.showInExpenses === false);
+
+  const sortTemplates = (a: ExpenseTemplateRow, b: ExpenseTemplateRow) => {
+    if (a.expenseType !== b.expenseType) return a.expenseType.localeCompare(b.expenseType);
+    const catA = a.category?.name ?? "";
+    const catB = b.category?.name ?? "";
+    if (catA !== catB) return catA.localeCompare(catB, undefined, { sensitivity: "base" });
+    return (a.description ?? "").localeCompare(b.description ?? "", undefined, { sensitivity: "base" });
+  };
+  const visibleRowsSorted = useMemo(() => [...visibleRows].sort(sortTemplates), [visibleRows]);
+  const notVisibleRowsSorted = useMemo(() => [...notVisibleRows].sort(sortTemplates), [notVisibleRows]);
 
   const showOnbCallout = onboardingActive;
+
+  function renderTemplateRow(row: ExpenseTemplateRow, options: { showAddButton?: boolean; showRemoveButton?: boolean }) {
+    const { showAddButton = false, showRemoveButton = false } = options;
+    const isEditing = editingId === row.id;
+    return (
+      <tr key={row.id} style={isEditing ? { background: "rgba(15,23,42,0.03)" } : undefined}>
+        <td className="muted" style={{ width: 110 }}>
+          {isEditing ? (
+            <select className="select" value={editExpenseType} onChange={(e) => setEditExpenseType(e.target.value as any)} style={{ width: "100%", height: 32 }}>
+              <option value="FIXED">{t("expenses.typeFixed")}</option>
+              <option value="VARIABLE">{t("expenses.typeVariable")}</option>
+            </select>
+          ) : (
+            getExpenseTypeLabel(row.expenseType, t)
+          )}
+        </td>
+        <td style={{ width: 220 }}>
+          {isEditing ? (
+            <select className="select" value={editCategoryId} onChange={(e) => setEditCategoryId(e.target.value)} style={{ width: "100%", height: 32 }}>
+              {(editExpenseType === "FIXED" ? catsByType.fixed : catsByType.variable).map((c) => (
+                <option key={c.id} value={c.id}>{getCategoryDisplayName(c, t)}</option>
+              ))}
+            </select>
+          ) : (
+            row.category ? getCategoryDisplayName(row.category, t) : row.categoryId
+          )}
+        </td>
+        <td>
+          {isEditing ? (
+            <input className="input" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} style={{ width: "100%", height: 32 }} />
+          ) : (
+            getTemplateDescriptionDisplay(row, t)
+          )}
+        </td>
+        <td className="right" style={{ width: 120 }}>
+          {isEditing ? (
+            <input className="input" type="number" value={editDefaultAmountUsd} onChange={(e) => setEditDefaultAmountUsd(e.target.value)} style={{ width: 90, height: 32, textAlign: "right" }} />
+          ) : (
+            row.defaultAmountUsd == null ? <span className="muted">—</span> : usd0.format(row.defaultAmountUsd)
+          )}
+        </td>
+        <td className="right" style={{ minWidth: showAddButton || showRemoveButton ? 260 : 200, width: showAddButton || showRemoveButton ? 260 : 200 }}>
+          <div className="row" style={{ justifyContent: "flex-end", gap: 8, flexWrap: "nowrap", alignItems: "center" }}>
+            {isEditing ? (
+              <>
+                <button className="btn primary" type="button" onClick={() => saveEdit(row.id)} disabled={savingId === row.id} style={{ height: 32 }}>
+                  {savingId === row.id ? t("common.loading") : t("common.save")}
+                </button>
+                <button className="btn" type="button" onClick={cancelEdit} style={{ height: 32 }}>{t("common.cancel")}</button>
+              </>
+            ) : (
+              <>
+                <button className="btn" type="button" onClick={() => startEdit(row)} style={{ height: 32 }}>{t("admin.edit")}</button>
+                <button className="btn danger" type="button" onClick={() => del(row.id)} style={{ height: 32 }}>{t("common.delete")}</button>
+                {showAddButton && (
+                  <button className="btn primary" type="button" onClick={() => setShowInExpenses(row.id, true)} style={{ height: 32 }}>{t("admin.addToExpenses")}</button>
+                )}
+                {showRemoveButton && (
+                  <button className="btn" type="button" onClick={() => setShowInExpenses(row.id, false)} style={{ height: 32 }}>{t("admin.removeFromExpenses")}</button>
+                )}
+              </>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  }
 
   return (
     <div className="admin-card-templates" style={{ marginTop: 0 }} ref={onScrollTargetRef}>
@@ -575,79 +680,62 @@ function ExpenseTemplatesAdminCard({
         {info && <div className="admin-message admin-message--info" style={{ marginTop: 10 }}>{info}</div>}
       </div>
 
-      {editing && (
-        <div className="admin-edit-card" style={{ marginTop: 16 }}>
-          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10 }}>{t("admin.editTemplate")}</div>
-          <div className="row" style={{ gap: 12, flexWrap: "wrap", alignItems: "end" }}>
-            <div style={{ minWidth: 140 }}>
-              <label className="admin-label">{t("admin.type")}</label>
-              <select className="select" value={editExpenseType} onChange={(e) => setEditExpenseType(e.target.value as any)} style={{ width: "100%", marginTop: 4, height: 40 }}>
-                <option value="FIXED">{t("expenses.typeFixed")}</option>
-                <option value="VARIABLE">{t("expenses.typeVariable")}</option>
-              </select>
-            </div>
-            <div style={{ minWidth: 180 }}>
-              <label className="admin-label">{t("admin.category")}</label>
-              <select className="select" value={editCategoryId} onChange={(e) => setEditCategoryId(e.target.value)} style={{ width: "100%", marginTop: 4, height: 40 }}>
-                {(editExpenseType === "FIXED" ? catsByType.fixed : catsByType.variable).map((c) => (
-                  <option key={c.id} value={c.id}>{getCategoryDisplayName(c, t)}</option>
-                ))}
-              </select>
-            </div>
-            <div style={{ flex: "1 1 200px", minWidth: 200 }}>
-              <label className="admin-label">{t("admin.description")}</label>
-              <input className="input" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} style={{ width: "100%", marginTop: 4 }} />
-            </div>
-            <div style={{ minWidth: 120 }}>
-              <label className="admin-label">{t("admin.defaultAmountUsd")}</label>
-              <input className="input" type="number" value={editDefaultAmountUsd} onChange={(e) => setEditDefaultAmountUsd(e.target.value)} placeholder={t("admin.optionalPlaceholder")} style={{ width: "100%", marginTop: 4, height: 40 }} />
-            </div>
-            <button className="btn primary" type="button" onClick={saveEdit} style={{ height: 40 }}>{t("common.save")}</button>
-            <button className="btn" type="button" onClick={cancelEdit} style={{ height: 40 }}>{t("common.cancel")}</button>
-          </div>
-          <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>{t("admin.templateNote")}</div>
-        </div>
-      )}
-
       <div style={{ marginTop: 20 }}>
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div className="muted" style={{ fontSize: 12 }}>{t("admin.templateFixedVariable", { fixed: fixedRows.length, variable: variableRows.length })}</div>
-        </div>
-        <div className="admin-table-wrap">
-          <table className="table admin-table">
-            <thead>
-              <tr>
-                <th style={{ width: 110 }}>{t("expenses.type")}</th>
-                <th style={{ width: 220 }}>{t("expenses.category")}</th>
-                <th>{t("expenses.description")}</th>
-                <th className="right" style={{ width: 180 }}>{t("admin.defaultUsd")}</th>
-                <th className="right" style={{ width: 220 }}>{t("expenses.actions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <td className="muted">{getExpenseTypeLabel(row.expenseType, t)}</td>
-                  <td>{row.category ? getCategoryDisplayName(row.category, t) : row.categoryId}</td>
-                  <td>{getTemplateDescriptionDisplay(row, t)}</td>
-                  <td className="right">{row.defaultAmountUsd == null ? <span className="muted">—</span> : usd0.format(row.defaultAmountUsd)}</td>
-                  <td className="right">
-                    <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
-                      <button className="btn" type="button" onClick={() => startEdit(row)} style={{ height: 32 }}>{t("admin.edit")}</button>
-                      <button className="btn danger" type="button" onClick={() => del(row.id)} style={{ height: 32 }}>{t("common.delete")}</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
+        <div className="admin-inner-card" style={{ marginBottom: 16 }}>
+          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>{t("admin.templatesVisibleInExpenses")}</div>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>{t("admin.templateNote")}</div>
+          <div className="admin-table-wrap">
+            <table className="table admin-table">
+              <thead>
                 <tr>
-                  <td colSpan={5} className="muted" style={{ padding: 24, textAlign: "center" }}>{t("admin.noTemplatesYet")}</td>
+                  <th style={{ width: 110 }}>{t("expenses.type")}</th>
+                  <th style={{ width: 220 }}>{t("expenses.category")}</th>
+                  <th>{t("expenses.description")}</th>
+                  <th className="right" style={{ width: 120 }}>{t("admin.defaultUsd")}</th>
+                  <th className="right" style={{ width: 260, minWidth: 260 }}>{t("expenses.actions")}</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {visibleRowsSorted.map((row) => renderTemplateRow(row, { showRemoveButton: true }))}
+                {visibleRowsSorted.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="muted" style={{ padding: 24, textAlign: "center" }}>{t("admin.noTemplatesYet")}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="admin-inner-card">
+          <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>{t("admin.templatesNotVisible")}</div>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>{t("admin.templatesNotVisibleDesc")}</div>
+          <div className="admin-table-wrap">
+            <table className="table admin-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 110 }}>{t("expenses.type")}</th>
+                  <th style={{ width: 220 }}>{t("expenses.category")}</th>
+                  <th>{t("expenses.description")}</th>
+                  <th className="right" style={{ width: 120 }}>{t("admin.defaultUsd")}</th>
+                  <th className="right" style={{ width: 260, minWidth: 260 }}>{t("expenses.actions")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {notVisibleRowsSorted.map((row) => renderTemplateRow(row, { showAddButton: true }))}
+                {notVisibleRowsSorted.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="muted" style={{ padding: 24, textAlign: "center" }}>{t("admin.noTemplatesNotVisible")}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
+
+      {err && <div className="admin-message admin-message--error" style={{ marginTop: 12 }}>{err}</div>}
+      {info && <div className="admin-message admin-message--info" style={{ marginTop: 12 }}>{info}</div>}
     </div>
   );
 }

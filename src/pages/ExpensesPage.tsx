@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
-import { getCategoryDisplayName, getExpenseTypeLabel } from "../utils/categoryI18n";
+import { getCategoryDisplayName, getExpenseTypeLabel, getTemplateDescriptionDisplay } from "../utils/categoryI18n";
 
 type ExpenseType = "FIXED" | "VARIABLE";
 
@@ -756,7 +756,7 @@ export default function ExpensesPage() {
                 return (
                   <tr key={p.id} style={locked ? { opacity: 0.85 } : undefined}>
                     <td>
-                      <Badge>{enforcedType}</Badge>
+                      <Badge>{getExpenseTypeLabel(enforcedType, t)}</Badge>
                     </td>
 
                     <td>
@@ -788,14 +788,23 @@ export default function ExpensesPage() {
                     <td>
                       <input
                         className="input"
-                        value={d.description ?? p.description}
+                        value={getTemplateDescriptionDisplay(
+                          { description: d.description ?? p.description, expenseType: enforcedType },
+                          t
+                        )}
                         disabled={locked}
                         onChange={(e) => setPlannedDraft(p.id, { description: e.target.value })}
                         onBlur={(e) => {
                           if (locked) return;
                           const v = e.target.value.trim();
                           if (!v) return;
-                          patchPlanned(p.id, { description: v }).then(() => clearPlannedDraft(p.id));
+                          const canonical = p.description;
+                          const translatedCanonical = getTemplateDescriptionDisplay(
+                            { description: canonical, expenseType: enforcedType },
+                            t
+                          );
+                          const toSend = v === translatedCanonical ? canonical : v;
+                          patchPlanned(p.id, { description: toSend }).then(() => clearPlannedDraft(p.id));
                         }}
                       />
                     </td>
@@ -955,14 +964,23 @@ function RealExpensesTable(props: {
                 <td>
                   <input
                     className="input"
-                    value={d.description ?? e.description}
+                    value={getTemplateDescriptionDisplay(
+                      { description: d.description ?? e.description, expenseType: e.expenseType },
+                      t
+                    )}
                     disabled={locked}
                     onChange={(ev) => setDraft(e.id, { description: ev.target.value })}
                     onBlur={(ev) => {
                       if (locked) return;
                       const v = ev.target.value.trim();
                       if (!v) return;
-                      patchExpense(e.id, expMonth, { description: v }).then(() => clearDraft(e.id));
+                      const canonical = e.description;
+                      const translatedCanonical = getTemplateDescriptionDisplay(
+                        { description: canonical, expenseType: e.expenseType },
+                        t
+                      );
+                      const toSend = v === translatedCanonical ? canonical : v;
+                      patchExpense(e.id, expMonth, { description: toSend }).then(() => clearDraft(e.id));
                     }}
                     title={locked ? t("expenses.monthClosed") : undefined}
                   />

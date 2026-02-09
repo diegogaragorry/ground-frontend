@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
-import { getCategoryDisplayName } from "../utils/categoryI18n";
+import { getCategoryDisplayName, getTemplateDescriptionDisplay } from "../utils/categoryI18n";
 
 type Expense = {
   id: string;
@@ -12,12 +12,15 @@ type Expense = {
   amountUsd: number;
   currencyId: string;
   date: string;
+  expenseType?: string;
   category: { id: string; name: string; nameKey?: string | null; expenseType?: string };
 };
 
 type SummaryRow = {
   categoryId: string;
   categoryName: string;
+  nameKey?: string | null;
+  expenseType?: string | null;
   total: number;
 };
 
@@ -97,6 +100,85 @@ function clamp01(n: number) {
   return Math.max(0, Math.min(1, n));
 }
 
+const CATEGORY_CHART_PALETTE = [
+  "hsl(220, 70%, 50%)",
+  "hsl(160, 60%, 42%)",
+  "hsl(35, 90%, 48%)",
+  "hsl(340, 75%, 52%)",
+  "hsl(260, 60%, 55%)",
+  "hsl(190, 70%, 42%)",
+  "hsl(20, 85%, 52%)",
+  "hsl(280, 55%, 50%)",
+  "hsl(145, 50%, 40%)",
+  "hsl(200, 65%, 45%)",
+  "hsl(0, 60%, 50%)",
+  "hsl(50, 80%, 48%)",
+];
+
+function DonutChart({
+  items,
+}: {
+  items: Array<{ categoryId: string; label: string; percentage: number }>;
+}) {
+  const cx = 70;
+  const cy = 70;
+  const r = 50;
+  const strokeWidth = 26;
+  const circumference = 2 * Math.PI * r;
+
+  let offset = 0;
+  const segments = items.map((item, i) => {
+    const len = (item.percentage / 100) * circumference;
+    const seg = {
+      key: item.categoryId,
+      color: CATEGORY_CHART_PALETTE[i % CATEGORY_CHART_PALETTE.length],
+      label: item.label.length > 10 ? item.label.slice(0, 9) + "…" : item.label,
+      pct: item.percentage.toFixed(0),
+      dashArray: `${len} ${circumference}`,
+      dashOffset: -offset,
+    };
+    offset += len;
+    return seg;
+  });
+
+  return (
+    <div className="donutChartWrap">
+      <svg
+        className="donutChartSvg"
+        viewBox="4 4 132 132"
+        preserveAspectRatio="xMidYMid meet"
+        aria-hidden
+      >
+        <g transform={`rotate(-90 ${cx} ${cy})`}>
+          {segments.map((s) => (
+            <circle
+              key={s.key}
+              cx={cx}
+              cy={cy}
+              r={r}
+              fill="none"
+              stroke={s.color}
+              strokeWidth={strokeWidth}
+              strokeDasharray={s.dashArray}
+              strokeDashoffset={s.dashOffset}
+              strokeLinecap="butt"
+            />
+          ))}
+        </g>
+      </svg>
+      <div className="donutLegend">
+        {segments.map((s) => (
+          <div key={s.key} className="donutLegendItem">
+            <span className="donutLegendDot" style={{ background: s.color }} />
+            <span className="donutLegendLabel">{s.label}</span>
+            <span className="donutLegendPct">{s.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { setHeader, reopenOnboarding, onboardingStep, setOnboardingStep, meLoaded, me } = useAppShell();
   const { year, month } = useAppYearMonth();
@@ -169,12 +251,11 @@ export default function DashboardPage() {
 
   const monthlyExpenses = useMemo(() => expenses.reduce((a, e) => a + (e.amountUsd ?? 0), 0), [expenses]);
 
-  // ✅ back to 3 so it fits without scroll
   const topCategories = useMemo(
     () =>
       [...(summary?.totalsByCategoryAndCurrency ?? [])]
         .sort((a, b) => (b.total ?? 0) - (a.total ?? 0))
-        .slice(0, 3),
+        .slice(0, 4),
     [summary]
   );
 
@@ -188,6 +269,35 @@ export default function DashboardPage() {
 
   const maxTopCat = useMemo(() => Math.max(0, ...topCategories.map((x) => x.total ?? 0)), [topCategories]);
   const maxTopExp = useMemo(() => Math.max(0, ...topExpenses.map((x) => x.amountUsd ?? 0)), [topExpenses]);
+
+  // Todas las categorías del mes con porcentaje para la torta (máx. 7: top 6 + "Otras")
+  const categoriesForPie = useMemo(() => {
+    const rows = summary?.totalsByCategoryAndCurrency ?? [];
+    const totalSum = rows.reduce((a, c) => a + (c.total ?? 0), 0);
+    const sorted = [...rows]
+      .map((c) => ({
+        ...c,
+        percentage: totalSum > 0 ? ((c.total ?? 0) / totalSum) * 100 : 0,
+      }))
+      .sort((a, b) => (b.total ?? 0) - (a.total ?? 0))
+      .filter((c) => c.percentage > 0);
+    if (sorted.length <= 7) return sorted;
+    const top6 = sorted.slice(0, 6);
+    const rest = sorted.slice(6);
+    const othersTotal = rest.reduce((a, c) => a + (c.total ?? 0), 0);
+    const othersPct = rest.reduce((a, c) => a + c.percentage, 0);
+    return [
+      ...top6,
+      {
+        categoryId: "__others",
+        categoryName: "Others",
+        nameKey: "others",
+        total: othersTotal,
+        percentage: othersPct,
+        expenseType: undefined as string | undefined,
+      },
+    ];
+  }, [summary]);
 
   /* ---------------- Net worth ---------------- */
 
@@ -330,7 +440,7 @@ export default function DashboardPage() {
             <div className="muted">{year}-{month2(month)}</div>
           </div>
 
-          <div className="card list">
+          <div className="card list cardCategoriesSplit">
             <div className="cardHead">
               <div className="cardTitle">{t("dashboard.topCategories")}</div>
               <div className="muted" style={{ fontSize: 12 }}>
@@ -338,30 +448,57 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {topCategories.map((c) => {
-              const pct = clamp01((c.total ?? 0) / (maxTopCat || 1));
-              return (
-                <div key={c.categoryId} className="rowLine">
-                  <div className="rowLeft">
-                    <div className="rowTitle">{c.categoryName}</div>
-                    <div className="bar">
-                      <div className="barFill" style={{ width: `${pct * 100}%` }} />
+            <div className="categoriesSplitInner">
+              <div className="categoriesSplitList">
+                {topCategories.map((c) => {
+                  const pct = clamp01((c.total ?? 0) / (maxTopCat || 1));
+                  const categoryDisplayName = getCategoryDisplayName(
+                    { name: c.categoryName, nameKey: c.nameKey ?? undefined, expenseType: c.expenseType ?? undefined },
+                    t
+                  );
+                  return (
+                    <div key={c.categoryId} className="rowLine">
+                      <div className="rowLeft">
+                        <div className="rowTitle">{categoryDisplayName}</div>
+                        <div className="bar">
+                          <div className="barFill" style={{ width: `${pct * 100}%` }} />
+                        </div>
+                      </div>
+                      <div className="rowRight">{usd0.format(c.total ?? 0)}</div>
                     </div>
-                  </div>
-                  <div className="rowRight">{usd0.format(c.total ?? 0)}</div>
-                </div>
-              );
-            })}
+                  );
+                })}
 
-            {topCategories.length === 0 && (
-              <div className="muted">
-                <Trans i18nKey="dashboard.noCategories" components={{ 1: <Link to="/expenses" /> }} />
+                {topCategories.length === 0 && (
+                  <div className="muted">
+                    <Trans i18nKey="dashboard.noCategories" components={{ 1: <Link to="/expenses" /> }} />
+                  </div>
+                )}
               </div>
-            )}
+
+              <div className="categoriesSplitChart">
+                {categoriesForPie.length > 0 ? (
+                  <DonutChart
+                    items={categoriesForPie.map((c) => ({
+                      ...c,
+                      label:
+                        c.categoryId === "__others"
+                          ? t("categories.other")
+                          : getCategoryDisplayName(
+                              { name: c.categoryName, nameKey: c.nameKey ?? undefined, expenseType: c.expenseType ?? undefined },
+                              t
+                            ),
+                    }))}
+                  />
+                ) : (
+                  <div className="muted chartEmpty">{t("dashboard.pieNoData")}</div>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div className="card list">
-            <div className="cardHead">
+          <div className="card list cardTopExpenses">
+            <div className="cardHead cardHeadCompact">
               <div className="cardTitle">{t("dashboard.topExpenses")}</div>
               <div className="muted" style={{ fontSize: 12 }}>
                 {t("dashboard.largestItems")}
@@ -370,14 +507,21 @@ export default function DashboardPage() {
 
             {topExpenses.map((e) => {
               const pct = clamp01((e.amountUsd ?? 0) / (maxTopExp || 1));
+              const categoryForDisplay = e.category
+                ? { ...e.category, expenseType: e.category.expenseType ?? e.expenseType }
+                : null;
+              const descriptionDisplay = getTemplateDescriptionDisplay(
+                { description: e.description, expenseType: e.expenseType },
+                t
+              );
               return (
-                <div key={e.id} className="rowLine">
+                <div key={e.id} className="rowLine rowLineCompact">
                   <div className="rowLeft">
-                    <div className="rowTitleEllipsis">{e.description}</div>
-                    <div className="rowSub">
-                      <span className="badge">{e.category ? getCategoryDisplayName(e.category, t) : "—"}</span>
-                      <span className="muted">•</span>
-                      <span className="muted">{e.date?.slice(0, 10)}</span>
+                    <div className="rowLineSingle">
+                      <span className="rowDescCat">{descriptionDisplay}</span>
+                      <span className="rowDescCatSep"> · </span>
+                      <span className="rowDescCat">{categoryForDisplay ? getCategoryDisplayName(categoryForDisplay, t) : "—"}</span>
+                      <span className="rowDateCompact muted">{e.date?.slice(0, 10)}</span>
                     </div>
                     <div className="bar">
                       <div className="barFill" style={{ width: `${pct * 100}%` }} />
@@ -579,6 +723,10 @@ export default function DashboardPage() {
           display: flex;
           flex-direction: column;
         }
+        .dashGrid > .col:first-child .card.list.cardTopExpenses{
+          flex: 0 1 auto;
+          min-height: 0;
+        }
         .dashGrid > .col:first-child .card.list .cardHead{
           flex-shrink: 0;
         }
@@ -605,6 +753,9 @@ export default function DashboardPage() {
           box-shadow:
             0 1px 1px rgba(15,23,42,0.02),
             0 10px 26px rgba(15,23,42,0.05);
+        }
+        .cardCategoriesSplit.card.list{
+          padding: 10px 12px;
         }
 
         .cardHead{
@@ -660,6 +811,51 @@ export default function DashboardPage() {
           align-items:center;
           flex-wrap:wrap;
         }
+        .rowLineCompact{
+          padding: 5px 0;
+        }
+        .rowLineCompact .bar{
+          margin-top: 4px;
+        }
+        .cardTopExpenses.card.list{
+          padding: 8px 12px;
+        }
+        .cardTopExpenses .cardHeadCompact{
+          margin-bottom: 4px;
+        }
+        .cardTopExpenses .rowLineCompact{
+          padding: 3px 0;
+        }
+        .cardTopExpenses .rowLineCompact .bar{
+          margin-top: 3px;
+          height: 5px;
+        }
+        .rowLineSingle{
+          display: flex;
+          align-items: center;
+          gap: 2px;
+          flex-wrap: wrap;
+          font-size: 12px;
+          font-weight: 600;
+          line-height: 1.3;
+          min-width: 0;
+        }
+        .rowLineSingle .rowDescCat{
+          font-size: 12px;
+          font-weight: 600;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .rowLineSingle .rowDescCatSep{
+          flex-shrink: 0;
+          color: rgba(15,23,42,0.5);
+        }
+        .rowLineSingle .rowDateCompact{
+          flex-shrink: 0;
+          font-size: 11px;
+          margin-left: 6px;
+        }
         .badge{
           display:inline-flex;
           padding: 2px 8px;
@@ -682,6 +878,92 @@ export default function DashboardPage() {
           height: 100%;
           border-radius: 999px;
           background: rgba(15,23,42,0.32);
+        }
+
+        .cardCategoriesSplit .categoriesSplitInner{
+          display: flex;
+          gap: 24px;
+          margin-top: 2px;
+          min-height: 0;
+          overflow: visible;
+        }
+        .cardCategoriesSplit .categoriesSplitList{
+          flex: 0 1 42%;
+          min-width: 0;
+        }
+        .cardCategoriesSplit .categoriesSplitChart{
+          flex: 1 1 58%;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          justify-content: center;
+          overflow: hidden;
+        }
+        .cardCategoriesSplit .donutChartWrap{
+          display: flex;
+          flex-direction: row;
+          align-items: center;
+          justify-content: center;
+          gap: 12px;
+          width: auto;
+          min-height: 0;
+          padding: 2px 0;
+          overflow: hidden;
+        }
+        .cardCategoriesSplit .donutChartSvg{
+          width: 200px;
+          height: auto;
+          aspect-ratio: 1;
+          overflow: hidden;
+          flex: 0 0 200px;
+        }
+        .cardCategoriesSplit .donutLegend{
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          min-width: 0;
+          flex: 0.5 1 auto;
+        }
+        .cardCategoriesSplit .donutLegendItem{
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 11px;
+          font-weight: 600;
+          color: rgba(15,23,42,0.9);
+        }
+        .cardCategoriesSplit .donutLegendDot{
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+        .cardCategoriesSplit .donutLegendLabel{
+          flex: 0 1 auto;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .cardCategoriesSplit .donutLegendPct{
+          font-weight: 700;
+          flex-shrink: 0;
+        }
+        .cardCategoriesSplit .chartEmpty{
+          font-size: 12px;
+          text-align: center;
+          padding: 16px;
+        }
+        @media (max-width: 700px){
+          .cardCategoriesSplit .categoriesSplitInner{
+            flex-direction: column;
+          }
+          .cardCategoriesSplit .donutChartWrap{
+            flex-direction: row;
+            flex-wrap: wrap;
+            justify-content: center;
+          }
         }
 
         .yearStack{

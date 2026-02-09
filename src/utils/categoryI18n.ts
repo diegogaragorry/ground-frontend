@@ -19,6 +19,7 @@ const CATEGORY_KEY_BY_NAME_AND_TYPE: Record<string, string> = {
 
 const DESCRIPTION_KEY_BY_DESC_AND_TYPE: Record<string, string> = {
   "Rent|FIXED": "rent",
+  "Mortgage|FIXED": "mortgage",
   "Building Fees|FIXED": "building_fees",
   "Property Taxes|FIXED": "property_taxes",
   "Household Staff Salary|FIXED": "household_staff_salary",
@@ -27,7 +28,10 @@ const DESCRIPTION_KEY_BY_DESC_AND_TYPE: Record<string, string> = {
   "Mobile Phone|FIXED": "mobile_phone",
   "Cloud Storage|FIXED": "cloud_storage",
   "Streaming Services|FIXED": "streaming_services",
+  "TV / Cable|FIXED": "tv_cable",
+  "Other online (Spotify, etc.)|FIXED": "other_online",
   "Electricity|FIXED": "electricity",
+  "Water|FIXED": "water",
   "Gas|FIXED": "gas",
   "Private Health Insurance|FIXED": "private_health_insurance",
   "Gym Membership|FIXED": "gym_membership",

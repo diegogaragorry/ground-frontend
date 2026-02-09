@@ -57,7 +57,8 @@ export default function LoginPage() {
       localStorage.setItem("token", token);
       nav("/", { replace: true });
     } catch (e: any) {
-      setError(e?.message ?? t("login.invalidCredentials"));
+      const msg = e?.message ?? "";
+      setError(msg === "Invalid credentials" ? t("login.invalidCredentials") : msg || t("login.invalidCredentials"));
     } finally {
       setLoading(false);
     }

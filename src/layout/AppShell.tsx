@@ -20,6 +20,7 @@ type Me = {
   email: string;
   role: "USER" | "SUPER_ADMIN";
   forceOnboardingNextLogin?: boolean;
+  onboardingStep?: string;
 };
 
 type OnboardingStep = "welcome" | "admin" | "expenses" | "investments" | "budget" | "dashboard" | "done";
@@ -126,13 +127,19 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
     api<Me>("/auth/me")
       .then((r) => {
         setMe(r);
-        let step = readOnboarding(r.id);
         const forceFromServer = r.forceOnboardingNextLogin === true || (r as Record<string, unknown>).forceOnboardingNextLogin === true;
+        const allowed: OnboardingStep[] = ["welcome", "admin", "expenses", "investments", "budget", "dashboard", "done"];
+        let step: OnboardingStep =
+          forceFromServer
+            ? "welcome"
+            : (r.onboardingStep && allowed.includes(r.onboardingStep as OnboardingStep)
+              ? (r.onboardingStep as OnboardingStep)
+              : readOnboarding(r.id));
         if (forceFromServer) {
-          step = "welcome";
           writeOnboarding(r.id, "welcome");
-          api("/auth/me", { method: "PATCH", body: JSON.stringify({ forceOnboardingNextLogin: false }) }).catch(() => {});
+          api("/auth/me", { method: "PATCH", body: JSON.stringify({ forceOnboardingNextLogin: false, onboardingStep: "welcome" }) }).catch(() => {});
         }
+        writeOnboarding(r.id, step);
         _setOnboardingStep(step);
       })
       .catch(() => {
@@ -145,12 +152,14 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
     if (!me) return;
     writeOnboarding(me.id, step);
     _setOnboardingStep(step);
+    api("/auth/me", { method: "PATCH", body: JSON.stringify({ onboardingStep: step }) }).catch(() => {});
   }
 
   function reopenOnboarding() {
     if (!me) return;
     writeOnboarding(me.id, "welcome");
     _setOnboardingStep("welcome");
+    api("/auth/me", { method: "PATCH", body: JSON.stringify({ onboardingStep: "welcome" }) }).catch(() => {});
   }
 
   const value: AppShellCtx = {

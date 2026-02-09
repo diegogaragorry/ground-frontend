@@ -1,5 +1,5 @@
 // New onboarding: welcome + questions to build template, then tour.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
 
@@ -21,6 +21,7 @@ export function OnboardingWizard(props: {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
+  const selectedTemplateIdsRef = useRef<string[]>([]);
 
   // Housing
   const [housingRent, setHousingRent] = useState(false);
@@ -100,14 +101,20 @@ export function OnboardingWizard(props: {
     return created.id;
   }
 
-  async function createTemplate(categoryId: string, description: string, amountUsd: number | null) {
+  async function createTemplate(
+    categoryId: string,
+    description: string,
+    amountUsd: number | null
+  ): Promise<{ id: string } | undefined> {
     try {
-      await api("/admin/expenseTemplates", {
+      const template = await api<{ id: string }>("/admin/expenseTemplates", {
         method: "POST",
         body: JSON.stringify({ categoryId, description, defaultAmountUsd: amountUsd }),
       });
+      if (template?.id) selectedTemplateIdsRef.current.push(template.id);
+      return template;
     } catch (e: any) {
-      if (e?.message?.includes("409") || String(e?.message).toLowerCase().includes("unique")) return;
+      if (e?.message?.includes("409") || String(e?.message).toLowerCase().includes("unique")) return undefined;
       throw e;
     }
   }
@@ -115,6 +122,7 @@ export function OnboardingWizard(props: {
   async function saveHousing() {
     setError("");
     setLoading(true);
+    selectedTemplateIdsRef.current = [];
     try {
       const housingId = await ensureCategory("Housing", "FIXED");
       if (housingRent) await createTemplate(housingId, "Rent", parseUsd(housingRentUsd));
@@ -213,6 +221,10 @@ export function OnboardingWizard(props: {
       if (recCafes && diningCat) await createTemplate(diningCat.id, "Coffee & Snacks", parseUsd(recUsd.cafes));
       if (recDelivery && diningCat) await createTemplate(diningCat.id, "Delivery", parseUsd(recUsd.delivery));
       if (recEvents && diningCat) await createTemplate(diningCat.id, "Events & Concerts", parseUsd(recUsd.events));
+      await api("/admin/expenseTemplates/set-visibility", {
+        method: "POST",
+        body: JSON.stringify({ visibleTemplateIds: selectedTemplateIdsRef.current }),
+      });
       setStep(6);
     } catch (e: any) {
       setError(e?.message ?? t("common.errorSaving"));
