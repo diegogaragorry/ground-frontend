@@ -10,10 +10,10 @@ type SidebarProps = {
   onNavigateClick?: () => void;
 };
 
-export function Sidebar(props: SidebarProps) {
+export function Sidebar({ onNavigateClick }: SidebarProps) {
   const nav = useNavigate();
   const { t, i18n } = useTranslation();
-  const { onNavigateClick, onboardingTourStep } = useAppShell();
+  const { onboardingTourStep } = useAppShell();
   const tourHighlightPath = onboardingTourStep != null ? TOUR_STEP_PATH[onboardingTourStep] ?? null : null;
 
   function logout() {
