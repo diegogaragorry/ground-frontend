@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
+import { getFxDefault } from "../utils/fx";
 
 type Investment = {
   id: string;
@@ -100,8 +101,9 @@ export default function InvestmentsPage() {
   const nav = useNavigate();
   const { t } = useTranslation();
 
-  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess } = useAppShell();
+  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess, serverFxRate } = useAppShell();
   const { year } = useAppYearMonth();
+  const usdUyuRate = serverFxRate ?? getFxDefault();
 
   // scroll targets for onboarding
   const addFundRef = useRef<HTMLDivElement>(null);
@@ -277,10 +279,14 @@ export default function InvestmentsPage() {
       return;
     }
     setError("");
+    const body: { closingCapital: number; usdUyuRate?: number } = { closingCapital: value };
+    if (inv.currencyId === "UYU" && Number.isFinite(usdUyuRate) && usdUyuRate > 0) {
+      body.usdUyuRate = usdUyuRate;
+    }
     try {
       const snap = await api<SnapshotMonth>(`/investments/${inv.id}/snapshots/${year}/${m}`, {
         method: "PUT",
-        body: JSON.stringify({ closingCapital: value }),
+        body: JSON.stringify(body),
       });
 
       setSnapshots((prev) => ({
