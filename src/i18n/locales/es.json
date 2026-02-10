@@ -385,6 +385,7 @@
     "editTemplate": "Editar plantilla",
     "description": "Descripción",
     "defaultAmountUsd": "Monto por defecto (USD)",
+    "defaultAmountLabel": "Monto por defecto ({{currency}})",
     "category": "Categoría",
     "noCategoriesOfThisType": "No hay categorías de este tipo",
     "noTemplatesYet": "Aún no hay plantillas.",

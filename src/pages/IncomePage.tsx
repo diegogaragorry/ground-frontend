@@ -39,7 +39,7 @@ const fieldToDraftKey: Record<"nominalUsd" | "extraordinaryUsd" | "taxesUsd", Dr
 
 export default function IncomePage() {
   const { t } = useTranslation();
-  const { setHeader } = useAppShell();
+  const { setHeader, serverFxRate } = useAppShell();
   const { year } = useAppYearMonth();
 
   const [data, setData] = useState<IncomeResp | null>(null);
@@ -48,6 +48,10 @@ export default function IncomePage() {
   const [drafts, setDrafts] = useState<DraftMap>({});
   const [incomeCurrency, setIncomeCurrency] = useState<"UYU" | "USD">("USD");
   const [incomeRate, setIncomeRate] = useState<number>(() => getFxDefault());
+
+  useEffect(() => {
+    if (serverFxRate != null) setIncomeRate(serverFxRate);
+  }, [serverFxRate]);
 
   useEffect(() => {
     setHeader({ title: t("income.title"), subtitle: t("income.subtitle", { year }) });
@@ -222,9 +226,6 @@ export default function IncomePage() {
                   step={0.01}
                   style={{ width: 80, height: 36 }}
                 />
-                <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer" className="muted" style={{ fontSize: 10, marginLeft: 6, color: "inherit", textDecoration: "underline" }}>
-                  {t("expenses.fxAttribution")}
-                </a>
               </>
             )}
             <button type="button" className="btn" onClick={load} disabled={loading}>

@@ -385,6 +385,7 @@
     "editTemplate": "Edit template",
     "description": "Description",
     "defaultAmountUsd": "Default amount (USD)",
+    "defaultAmountLabel": "Default amount ({{currency}})",
     "category": "Category",
     "noCategoriesOfThisType": "No categories of this type",
     "noTemplatesYet": "No templates yet.",

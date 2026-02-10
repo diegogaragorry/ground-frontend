@@ -118,7 +118,7 @@ export default function ExpensesPage() {
   const nav = useNavigate();
   const { t } = useTranslation();
 
-  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess, isMobile } = useAppShell();
+  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess, isMobile, serverFxRate } = useAppShell();
 
   const { year, month } = useAppYearMonth();
 
@@ -153,6 +153,9 @@ export default function ExpensesPage() {
   const [amount, setAmount] = useState<number>(100);
   const [currencyId, setCurrencyId] = useState<"UYU" | "USD">("UYU");
   const [usdUyuRate, setUsdUyuRate] = useState<number>(getFxDefault());
+  useEffect(() => {
+    if (serverFxRate != null) setUsdUyuRate(serverFxRate);
+  }, [serverFxRate]);
   const [categoryId, setCategoryId] = useState<string>("");
   const [ymCreate, setYmCreate] = useState<string>(ymToInputValue(year, month));
 
@@ -625,11 +628,6 @@ export default function ExpensesPage() {
                 <div className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
                   ≈ {usd0.format(amount / (usdUyuRate || 1))} USD
                 </div>
-              </div>
-              <div className="muted" style={{ fontSize: 10, marginTop: 4 }}>
-                <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>
-                  {t("expenses.fxAttribution")}
-                </a>
               </div>
             </div>
           )}

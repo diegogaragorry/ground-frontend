@@ -731,7 +731,7 @@ function ExpenseTemplatesAdminCard({
             </select>
           </div>
           <div style={{ minWidth: 120 }}>
-            <label className="admin-label">{t("admin.defaultAmountUsd")}</label>
+            <label className="admin-label">{t("admin.defaultAmountLabel", { currency: createDefaultCurrencyId })}</label>
             <input className="input" type="number" value={defaultAmountUsd} onChange={(e) => setDefaultAmountUsd(e.target.value)} placeholder={t("admin.optionalPlaceholder")} style={{ width: "100%", marginTop: 4, height: 40 }} />
           </div>
           {createDefaultCurrencyId === "UYU" && (

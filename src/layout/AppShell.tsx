@@ -93,6 +93,9 @@ type AppShellCtx = {
 
   toast: Toast;
   showSuccess: (text: string) => void;
+
+  /** Tipo de cambio USD/UYU del servidor (actualizado 1x/día). null hasta que se reciba. */
+  serverFxRate: number | null;
 };
 
 const Ctx = createContext<AppShellCtx | null>(null);
@@ -132,6 +135,8 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
     setToast({ text });
   }, []);
 
+  const [serverFxRate, setServerFxRate] = useState<number | null>(null);
+
   React.useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 4000);
@@ -166,7 +171,10 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
   React.useEffect(() => {
     if (!me) return;
     api<{ usdUyuRate: number }>("/fx/rate")
-      .then((r) => setFxDefault(r.usdUyuRate))
+      .then((r) => {
+        setFxDefault(r.usdUyuRate);
+        setServerFxRate(r.usdUyuRate);
+      })
       .catch(() => {});
   }, [me]);
 
@@ -203,6 +211,7 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
     setOnboardingTourStep,
     toast,
     showSuccess,
+    serverFxRate,
   };
 
   return <Ctx.Provider value={value}>{props.children}</Ctx.Provider>;
@@ -228,6 +237,7 @@ export function useAppShell() {
     reopenOnboarding: ctx.reopenOnboarding,
     onboardingTourStep: ctx.onboardingTourStep,
     showSuccess: ctx.showSuccess,
+    serverFxRate: ctx.serverFxRate,
   };
 }
 
@@ -475,6 +485,21 @@ export function AppShell(props: { children: React.ReactNode }) {
           {props.children}
         </div>
       </main>
+      <a
+        href="https://www.exchangerate-api.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          position: "fixed",
+          bottom: 8,
+          right: 12,
+          fontSize: 10,
+          color: "rgba(15,23,42,0.4)",
+          textDecoration: "none",
+        }}
+      >
+        {t("expenses.fxAttribution")}
+      </a>
     </div>
   );
 }
