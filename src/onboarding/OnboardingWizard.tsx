@@ -97,7 +97,7 @@ export function OnboardingWizard(props: {
   const [incomeSavings, setIncomeSavings] = useState(false);
   const [incomeSavingsUsd, setIncomeSavingsUsd] = useState("");
   const [incomeInvestments, setIncomeInvestments] = useState(false);
-  const [investmentsList, setInvestmentsList] = useState<Array<{ name: string; returnPct: string; amountUsd: string }>>([{ name: "", returnPct: "0", amountUsd: "" }]);
+  const [investmentsList, setInvestmentsList] = useState<Array<{ name: string; returnPct: string; amountUsd: string; currencyId: "UYU" | "USD" }>>([{ name: "", returnPct: "0", amountUsd: "", currencyId: "USD" }]);
 
   useEffect(() => {
     api<Category[]>("/categories")
@@ -154,7 +154,10 @@ export function OnboardingWizard(props: {
         try {
           const { rows } = await api<{ rows: Array<{ id: string; categoryId: string; description: string }> }>("/admin/expenseTemplates");
           const existing = Array.isArray(rows) ? rows.find((r) => r.categoryId === categoryId && r.description === description) : null;
-          if (existing?.id && !selectedTemplateIdsRef.current.includes(existing.id)) selectedTemplateIdsRef.current.push(existing.id);
+          if (existing?.id) {
+            if (!selectedTemplateIdsRef.current.includes(existing.id)) selectedTemplateIdsRef.current.push(existing.id);
+            return { id: existing.id };
+          }
         } catch {
           // ignore
         }
@@ -318,42 +321,81 @@ export function OnboardingWizard(props: {
     const giftsCat = findCategory(categories, "Gifts & Social", "VARIABLE");
     setError("");
     setLoading(true);
+    const recurrentVisibleIds: string[] = [];
+    // Consider selected if checkbox is checked OR user entered an amount (so "completed" = visible)
+    const has = (rec: boolean, key: string) => rec || String(recUsd[key] ?? "").trim() !== "";
     try {
-      if (recGroceries && foodCat) {
+      if (has(recGroceries, "groceries") && foodCat) {
         const cur = getItemCurrency("rec.groceries");
-        await createTemplate(foodCat.id, "Groceries", toUsdAmount(recUsd.groceries ?? "", cur, getItemRate("rec.groceries")), cur);
+        const t = await createTemplate(foodCat.id, "Groceries", toUsdAmount(recUsd.groceries ?? "", cur, getItemRate("rec.groceries")), cur);
+        if (t?.id) recurrentVisibleIds.push(t.id);
       }
-      if (recGifts && giftsCat) {
+      if (has(recGifts, "gifts") && giftsCat) {
         const cur = getItemCurrency("rec.gifts");
-        await createTemplate(giftsCat.id, "Holiday Gifts", toUsdAmount(recUsd.gifts ?? "", cur, getItemRate("rec.gifts")), cur);
+        const t = await createTemplate(giftsCat.id, "Holiday Gifts", toUsdAmount(recUsd.gifts ?? "", cur, getItemRate("rec.gifts")), cur);
+        if (t?.id) recurrentVisibleIds.push(t.id);
       }
-      if (recDonations && giftsCat) {
+      if (has(recDonations, "donations") && giftsCat) {
         const cur = getItemCurrency("rec.donations");
-        await createTemplate(giftsCat.id, "Donations / Raffles", toUsdAmount(recUsd.donations ?? "", cur, getItemRate("rec.donations")), cur);
+        const t = await createTemplate(giftsCat.id, "Donations / Raffles", toUsdAmount(recUsd.donations ?? "", cur, getItemRate("rec.donations")), cur);
+        if (t?.id) recurrentVisibleIds.push(t.id);
       }
-      if (recSports && sportsCat) {
+      if (has(recSports, "sports") && sportsCat) {
         const cur = getItemCurrency("rec.sports");
-        await createTemplate(sportsCat.id, "Tenis, Surf, Football / Others", toUsdAmount(recUsd.sports ?? "", cur, getItemRate("rec.sports")), cur);
+        const t = await createTemplate(sportsCat.id, "Tenis, Surf, Football / Others", toUsdAmount(recUsd.sports ?? "", cur, getItemRate("rec.sports")), cur);
+        if (t?.id) recurrentVisibleIds.push(t.id);
       }
-      if (recRestaurants && diningCat) {
+      if (has(recRestaurants, "restaurants") && diningCat) {
         const cur = getItemCurrency("rec.restaurants");
-        await createTemplate(diningCat.id, "Restaurants", toUsdAmount(recUsd.restaurants ?? "", cur, getItemRate("rec.restaurants")), cur);
+        const t = await createTemplate(diningCat.id, "Restaurants", toUsdAmount(recUsd.restaurants ?? "", cur, getItemRate("rec.restaurants")), cur);
+        if (t?.id) recurrentVisibleIds.push(t.id);
       }
-      if (recCafes && diningCat) {
+      if (has(recCafes, "cafes") && diningCat) {
         const cur = getItemCurrency("rec.cafes");
-        await createTemplate(diningCat.id, "Coffee & Snacks", toUsdAmount(recUsd.cafes ?? "", cur, getItemRate("rec.cafes")), cur);
+        const t = await createTemplate(diningCat.id, "Coffee & Snacks", toUsdAmount(recUsd.cafes ?? "", cur, getItemRate("rec.cafes")), cur);
+        if (t?.id) recurrentVisibleIds.push(t.id);
       }
-      if (recDelivery && diningCat) {
+      if (has(recDelivery, "delivery") && diningCat) {
         const cur = getItemCurrency("rec.delivery");
-        await createTemplate(diningCat.id, "Delivery", toUsdAmount(recUsd.delivery ?? "", cur, getItemRate("rec.delivery")), cur);
+        const t = await createTemplate(diningCat.id, "Delivery", toUsdAmount(recUsd.delivery ?? "", cur, getItemRate("rec.delivery")), cur);
+        if (t?.id) recurrentVisibleIds.push(t.id);
       }
-      if (recEvents && diningCat) {
+      if (has(recEvents, "events") && diningCat) {
         const cur = getItemCurrency("rec.events");
-        await createTemplate(diningCat.id, "Events & Concerts", toUsdAmount(recUsd.events ?? "", cur, getItemRate("rec.events")), cur);
+        const t = await createTemplate(diningCat.id, "Events & Concerts", toUsdAmount(recUsd.events ?? "", cur, getItemRate("rec.events")), cur);
+        if (t?.id) recurrentVisibleIds.push(t.id);
       }
+      // Visibility: only templates selected in THIS step (recurrent). First time → only these; re-run → keep already visible + these
+      const { rows } = await api<{ rows: Array<{ id: string; categoryId: string; description: string; showInExpenses?: boolean }> }>("/admin/expenseTemplates");
+      const allRows = Array.isArray(rows) ? rows : [];
+      // Fallback: add any recurrent template we selected but didn't get an id for (e.g. 409 path returned undefined)
+      const recurrentDescs: Array<{ categoryId: string; description: string }> = [];
+      if (foodCat && has(recGroceries, "groceries")) recurrentDescs.push({ categoryId: foodCat.id, description: "Groceries" });
+      if (giftsCat && has(recGifts, "gifts")) recurrentDescs.push({ categoryId: giftsCat.id, description: "Holiday Gifts" });
+      if (giftsCat && has(recDonations, "donations")) recurrentDescs.push({ categoryId: giftsCat.id, description: "Donations / Raffles" });
+      if (sportsCat && has(recSports, "sports")) recurrentDescs.push({ categoryId: sportsCat.id, description: "Tenis, Surf, Football / Others" });
+      if (diningCat && has(recRestaurants, "restaurants")) recurrentDescs.push({ categoryId: diningCat.id, description: "Restaurants" });
+      if (diningCat && has(recCafes, "cafes")) recurrentDescs.push({ categoryId: diningCat.id, description: "Coffee & Snacks" });
+      if (diningCat && has(recDelivery, "delivery")) recurrentDescs.push({ categoryId: diningCat.id, description: "Delivery" });
+      if (diningCat && has(recEvents, "events")) recurrentDescs.push({ categoryId: diningCat.id, description: "Events & Concerts" });
+      const idsSet = new Set(recurrentVisibleIds);
+      for (const { categoryId, description } of recurrentDescs) {
+        const row = allRows.find((r) => r.categoryId === categoryId && (r.description ?? "").trim() === description);
+        if (row?.id && !idsSet.has(row.id)) {
+          idsSet.add(row.id);
+          recurrentVisibleIds.push(row.id);
+        }
+      }
+      // Use ALL templates the user selected in the entire wizard (housing, transport, services, recurrent)
+      const allSelectedIds = [...new Set([...selectedTemplateIdsRef.current, ...recurrentVisibleIds])];
+      const alreadyVisible = allRows.filter((r) => r.showInExpenses !== false).map((r) => r.id);
+      const isFirstTimeOrAllDefault = allRows.length > 0 && alreadyVisible.length === allRows.length;
+      const visibleTemplateIds = isFirstTimeOrAllDefault
+        ? allSelectedIds
+        : [...new Set([...alreadyVisible, ...allSelectedIds])];
       await api("/admin/expenseTemplates/set-visibility", {
         method: "POST",
-        body: JSON.stringify({ visibleTemplateIds: selectedTemplateIdsRef.current }),
+        body: JSON.stringify({ visibleTemplateIds }),
       });
       setStep(6);
     } catch (e: any) {
@@ -387,17 +429,25 @@ export function OnboardingWizard(props: {
       }
       let bankAccountId: string | null = null;
       if (incomeSavings) {
-        const existingInvs = await api<Array<{ id: string; type: string }>>("/investments").catch(() => []);
+        const savingsCur = getItemCurrency("income.savings");
+        const savingsRate = getItemRate("income.savings");
+        const savingsUsd = toUsdAmount(incomeSavingsUsd, savingsCur, savingsRate);
+        const existingInvs = await api<Array<{ id: string; type: string; currencyId?: string }>>("/investments").catch(() => []);
         const account = Array.isArray(existingInvs) ? existingInvs.find((i) => i.type === "ACCOUNT") : null;
         if (account) {
           bankAccountId = account.id;
+          // Always set account currency to what user chose for savings (account may have been created at register with USD)
+          await api(`/investments/${account.id}`, {
+            method: "PUT",
+            body: JSON.stringify({ currencyId: String(savingsCur).trim().toUpperCase() }),
+          });
         } else {
           const created = await api<{ id: string }>("/investments", {
             method: "POST",
             body: JSON.stringify({
               name: t("investments.defaultBankAccountName"),
               type: "ACCOUNT",
-              currencyId: "USD",
+              currencyId: savingsCur,
               targetAnnualReturn: 0,
               yieldStartYear: year,
               yieldStartMonth: 1,
@@ -405,14 +455,15 @@ export function OnboardingWizard(props: {
           });
           bankAccountId = created.id;
         }
-        const savingsCur = getItemCurrency("income.savings");
-        const savingsRate = getItemRate("income.savings");
-        const savingsUsd = toUsdAmount(incomeSavingsUsd, savingsCur, savingsRate);
-        if (bankAccountId && savingsUsd !== null && savingsUsd >= 0) {
+        // Snapshot: value in the account currency (so Investments shows UYU when user chose UYU)
+        const capitalInCurrency = savingsCur === "UYU" ? Number(incomeSavingsUsd) || 0 : (savingsUsd ?? 0);
+        if (bankAccountId && Number.isFinite(capitalInCurrency) && capitalInCurrency >= 0) {
           const month = new Date().getMonth() + 1;
+          const body: { closingCapital: number; usdUyuRate?: number } = { closingCapital: capitalInCurrency };
+          if (savingsCur === "UYU" && Number.isFinite(savingsRate) && savingsRate > 0) body.usdUyuRate = savingsRate;
           await api(`/investments/${bankAccountId}/snapshots/${year}/${month}`, {
             method: "PUT",
-            body: JSON.stringify({ closingCapital: savingsUsd }),
+            body: JSON.stringify(body),
           });
         }
       }
@@ -423,18 +474,20 @@ export function OnboardingWizard(props: {
           body: JSON.stringify({
             name: inv.name.trim(),
             type: "PORTFOLIO",
-            currencyId: "USD",
+            currencyId: inv.currencyId,
             targetAnnualReturn: (Number(inv.returnPct) || 0) / 100,
             yieldStartYear: year,
             yieldStartMonth: 1,
           }),
         });
-        const amountUsd = Number(inv.amountUsd);
-        if (Number.isFinite(amountUsd) && amountUsd >= 0) {
+        const amount = Number(inv.amountUsd);
+        if (Number.isFinite(amount) && amount >= 0) {
           const month = new Date().getMonth() + 1;
+          const snapshotBody: { closingCapital: number; usdUyuRate?: number } = { closingCapital: amount };
+          if (inv.currencyId === "UYU") snapshotBody.usdUyuRate = getItemRate("income.savings");
           await api(`/investments/${created.id}/snapshots/${year}/${month}`, {
             method: "PUT",
-            body: JSON.stringify({ closingCapital: amountUsd }),
+            body: JSON.stringify(snapshotBody),
           });
         }
       }
@@ -745,7 +798,7 @@ export function OnboardingWizard(props: {
             {incomeInvestments && (
               <div style={{ paddingLeft: 28, display: "grid", gap: 10 }}>
                 {investmentsList.map((inv, idx) => (
-                  <div key={idx} style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr auto auto" }} className="wizard-investment-row">
+                  <div key={idx} style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr auto 120px auto", alignItems: "center" }} className="wizard-investment-row">
                     <input
                       type="text"
                       className="input"
@@ -760,10 +813,26 @@ export function OnboardingWizard(props: {
                       }
                       style={{ minWidth: 0 }}
                     />
+                    <select
+                      className="select"
+                      value={inv.currencyId}
+                      onChange={(e) =>
+                        setInvestmentsList((prev) => {
+                          const next = [...prev];
+                          next[idx] = { ...next[idx], currencyId: e.target.value as "UYU" | "USD" };
+                          return next;
+                        })
+                      }
+                      style={{ width: 56, height: 36, fontSize: 11 }}
+                      title={t("onboarding.wizardCurrencyLabel")}
+                    >
+                      <option value="UYU">UYU</option>
+                      <option value="USD">USD</option>
+                    </select>
                     <input
                       type="number"
                       className="input"
-                      placeholder={t("onboarding.wizardIncomeInvestAmount")}
+                      placeholder={inv.currencyId === "UYU" ? t("onboarding.wizardIncomeInvestAmountUyu") : t("onboarding.wizardIncomeInvestAmount")}
                       value={inv.amountUsd}
                       onChange={(e) =>
                         setInvestmentsList((prev) => {
@@ -772,7 +841,7 @@ export function OnboardingWizard(props: {
                           return next;
                         })
                       }
-                      style={{ width: 160 }}
+                      style={{ width: "100%", minWidth: 0 }}
                       min={0}
                     />
                     <div className="row" style={{ alignItems: "center", gap: 6 }}>
@@ -798,7 +867,7 @@ export function OnboardingWizard(props: {
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => setInvestmentsList((prev) => [...prev, { name: "", returnPct: "0", amountUsd: "" }])}
+                  onClick={() => setInvestmentsList((prev) => [...prev, { name: "", returnPct: "0", amountUsd: "", currencyId: "USD" }])}
                 >
                   {t("onboarding.wizardAddInvestment")}
                 </button>

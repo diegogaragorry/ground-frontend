@@ -68,6 +68,8 @@ function isOnboardingRouteStep(pathname: string): OnboardingStep | null {
 
 type Toast = { text: string } | null;
 
+const MOBILE_BREAKPOINT_PX = 900;
+
 type AppShellCtx = {
   year: number;
   month: number;
@@ -75,6 +77,8 @@ type AppShellCtx = {
 
   header: ShellHeader;
   setHeader: (h: ShellHeader) => void;
+
+  isMobile: boolean;
 
   me: Me | null;
   meLoaded: boolean;
@@ -100,6 +104,16 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
   const now = useMemo(() => ymNow(), []);
   const [year, setYear] = useState(now.year);
   const [month, setMonth] = useState(now.month);
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`).matches
+  );
+
+  React.useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`);
+    const handler = () => setIsMobile(mql.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
 
   const [header, setHeader] = useState<ShellHeader>({
     title: "Ground",
@@ -171,6 +185,7 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
     },
     header,
     setHeader,
+    isMobile,
     me,
     meLoaded,
     onboardingStep,
@@ -197,6 +212,7 @@ export function useAppShell() {
   return {
     header: ctx.header,
     setHeader: ctx.setHeader,
+    isMobile: ctx.isMobile,
     me: ctx.me,
     meLoaded: ctx.meLoaded,
     onboardingStep: ctx.onboardingStep,
@@ -211,20 +227,16 @@ export function useAppShell() {
    Shell layout
 ========================= */
 
-const MOBILE_BREAKPOINT = 900;
-
 export function AppShell(props: { children: React.ReactNode }) {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error("AppShell must be used within <AppShellProvider />");
 
   const nav = useNavigate();
   const loc = useLocation();
+  const isMobile = ctx.isMobile;
 
   const { t, i18n } = useTranslation();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== "undefined" && window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches
-  );
   const [mobileWarningDismissed, setMobileWarningDismissed] = useState(() => {
     if (typeof window === "undefined") return true;
     return localStorage.getItem("ground:mobile-warning-dismissed") === "1";
@@ -242,13 +254,6 @@ export function AppShell(props: { children: React.ReactNode }) {
   const years = React.useMemo(() => {
     const y = new Date().getFullYear();
     return Array.from({ length: 5 }, (_, i) => y - 2 + i);
-  }, []);
-
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
-    const handler = () => setIsMobile(mql.matches);
-    mql.addEventListener("change", handler);
-    return () => mql.removeEventListener("change", handler);
   }, []);
 
   React.useEffect(() => {
@@ -292,20 +297,20 @@ export function AppShell(props: { children: React.ReactNode }) {
 
   function skipSetup() {
     if (!ctx || !ctx.me) return;
-    ctx.setOnboardingStep("done");
-    nav("/", { replace: false });
+    ctx.setOnboardingStep("admin");
+    nav("/admin", { replace: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   return (
     <div className="container">
       {/* En desktop: sidebar fijo. En mobile: no se renderiza aquí, solo dentro del drawer. */}
-      {!isMobile && <Sidebar />}
+      {!isMobile && <Sidebar isMobile={false} />}
 
       {drawerOpen && (
         <div className="drawerOverlay" role="dialog" aria-modal="true" aria-label="Menú">
           <div className="drawer" onClick={(e) => e.stopPropagation()}>
-            <Sidebar onNavigateClick={() => setDrawerOpen(false)} />
+            <Sidebar isMobile={true} onNavigateClick={() => setDrawerOpen(false)} />
           </div>
           <div
             className="drawer-backdrop"
@@ -324,44 +329,40 @@ export function AppShell(props: { children: React.ReactNode }) {
             </div>
           )}
           <Topbar
-            title={isMobile ? t("brand.name") : ctx.header.title}
-            subtitle={isMobile ? undefined : ctx.header.subtitle}
+            title={ctx.header.title}
+            subtitle={!isMobile ? ctx.header.subtitle : undefined}
             onOpenMenu={() => setDrawerOpen(true)}
             isMobileFixed={isMobile}
             right={
-              !isMobile ? (
-                <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                  <span className="muted" style={{ fontSize: 12 }}>
-                    {t("common.month")}
-                  </span>
-                  <select
-                    className="input"
-                    value={ctx.month}
-                    onChange={(e) => ctx.setYearMonth({ year: ctx.year, month: Number(e.target.value) })}
-                    style={{ width: 120, minWidth: 0 }}
-                    aria-label={t("common.month")}
-                  >
-                    {monthNames.map((m) => (
-                      <option key={m.value} value={m.value}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className="input"
-                    value={ctx.year}
-                    onChange={(e) => ctx.setYearMonth({ year: Number(e.target.value), month: ctx.month })}
-                    style={{ width: 96, minWidth: 0 }}
-                    aria-label={t("admin.year")}
-                  >
-                    {years.map((y) => (
-                      <option key={y} value={y}>
-                        {y}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : undefined
+              <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                {isMobile && <span className="muted" style={{ fontSize: 12 }}>{t("common.month")}</span>}
+                <select
+                  className="input"
+                  value={ctx.month}
+                  onChange={(e) => ctx.setYearMonth({ year: ctx.year, month: Number(e.target.value) })}
+                  style={{ width: isMobile ? 100 : 120, minWidth: 0, fontSize: isMobile ? 14 : undefined }}
+                  aria-label={t("common.month")}
+                >
+                  {monthNames.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  className="input"
+                  value={ctx.year}
+                  onChange={(e) => ctx.setYearMonth({ year: Number(e.target.value), month: ctx.month })}
+                  style={{ width: isMobile ? 72 : 96, minWidth: 0, fontSize: isMobile ? 14 : undefined }}
+                  aria-label={t("admin.year")}
+                >
+                  {years.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
             }
           />
           {isMobile && <div className="topbar-spacer" aria-hidden />}

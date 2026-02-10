@@ -118,7 +118,7 @@ export default function ExpensesPage() {
   const nav = useNavigate();
   const { t } = useTranslation();
 
-  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess } = useAppShell();
+  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess, isMobile } = useAppShell();
 
   const { year, month } = useAppYearMonth();
 
@@ -149,7 +149,7 @@ export default function ExpensesPage() {
 
   // Create EXPENSE (real) form
   const [expenseTypeCreate, setExpenseTypeCreate] = useState<ExpenseType>("VARIABLE");
-  const [description, setDescription] = useState("Groceries");
+  const [description, setDescription] = useState("");
   const [amount, setAmount] = useState<number>(100);
   const [currencyId, setCurrencyId] = useState<"UYU" | "USD">("UYU");
   const [usdUyuRate, setUsdUyuRate] = useState<number>(getFxDefault());
@@ -281,6 +281,7 @@ export default function ExpensesPage() {
     if (isClosed(ym.month)) return setError(t("expenses.monthClosedEdit"));
 
     if (!categoryId) return setError(t("expenses.pickCategory"));
+    if (!description.trim()) return setError(t("expenses.descriptionRequired"));
 
     const ct = categoryTypeOf(categoryId);
     const finalType: ExpenseType = ct ?? expenseTypeCreate;
@@ -454,74 +455,94 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      {/* Monthly summary */}
-      <div className="card">
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-          <div>
-            <div style={{ fontWeight: 850, fontSize: 18 }}>{t("expenses.monthlySummary")}</div>
-            <div className="muted" style={{ fontSize: 12 }}>
-              {t("expenses.viewing")}: {monthLabel} • {t("expenses.status")}:{" "}
-              <span style={{ fontWeight: 850, color: isClosed(month) ? "var(--text)" : "var(--muted)" }}>
-                {isClosed(month) ? t("common.closed") : t("common.open")}
+      {/* Monthly summary (hidden on mobile) */}
+      {!isMobile && (
+        <div className="card">
+          <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+            <div>
+              <div style={{ fontWeight: 850, fontSize: 18 }}>{t("expenses.monthlySummary")}</div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                {t("expenses.viewing")}: {monthLabel} • {t("expenses.status")}:{" "}
+                <span style={{ fontWeight: 850, color: isClosed(month) ? "var(--text)" : "var(--muted)" }}>
+                  {isClosed(month) ? t("common.closed") : t("common.open")}
+                </span>
+              </div>
+            </div>
+
+            <div className="right">
+              <div className="muted" style={{ fontSize: 12 }}>{t("expenses.totalMonth")}</div>
+              <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{usd0.format(totalUsdMonth)}</div>
+            </div>
+          </div>
+
+          <div className="row" style={{ gap: 10, marginTop: 10, flexWrap: "wrap" }}>
+            <button className="btn" type="button" onClick={loadAll}>
+              {loading ? (
+              <span className="loading-inline">
+                <span className="loading-spinner" aria-hidden />
+                {t("common.loading")}
               </span>
-            </div>
+            ) : (
+              t("common.refresh")
+            )}
+            </button>
+            {info && <div style={{ color: "rgba(15,23,42,0.75)", fontWeight: 650 }}>{info}</div>}
           </div>
 
-          <div className="right">
-            <div className="muted" style={{ fontSize: 12 }}>{t("expenses.totalMonth")}</div>
-            <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{usd0.format(totalUsdMonth)}</div>
+          {error && <div style={{ marginTop: 10, color: "var(--danger)" }}>{error}</div>}
+
+          <div style={{ marginTop: 12, overflowX: "auto" }}>
+            {summaryByCategory.length === 0 ? (
+              <div className="muted">
+                {t("expenses.noExpensesYet")}
+              </div>
+            ) : (
+              <table className="table">
+                <thead>
+                  <tr>
+                    {summaryByCategory.map((c) => (
+                      <th key={c.categoryId} className="right" style={{ minWidth: 120 }}>
+                        {c.categoryName}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    {summaryByCategory.map((c) => (
+                      <td key={c.categoryId} className="right">
+                        {usd0.format(c.total)}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
+      )}
 
-        <div className="row" style={{ gap: 10, marginTop: 10, flexWrap: "wrap" }}>
-          <button className="btn" type="button" onClick={loadAll}>
+      {/* Mobile: refresh + error/info only */}
+      {isMobile && (
+        <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <button className="btn" type="button" onClick={loadAll} disabled={loading}>
             {loading ? (
-            <span className="loading-inline">
-              <span className="loading-spinner" aria-hidden />
-              {t("common.loading")}
-            </span>
-          ) : (
-            t("common.refresh")
-          )}
+              <span className="loading-inline">
+                <span className="loading-spinner" aria-hidden />
+                {t("common.loading")}
+              </span>
+            ) : (
+              t("common.refresh")
+            )}
           </button>
-          {info && <div style={{ color: "rgba(15,23,42,0.75)", fontWeight: 650 }}>{info}</div>}
+          {info && <span style={{ color: "rgba(15,23,42,0.75)", fontWeight: 650, fontSize: 13 }}>{info}</span>}
+          {error && <span style={{ color: "var(--danger)", fontSize: 13 }}>{error}</span>}
         </div>
-
-        {error && <div style={{ marginTop: 10, color: "var(--danger)" }}>{error}</div>}
-
-        <div style={{ marginTop: 12, overflowX: "auto" }}>
-          {summaryByCategory.length === 0 ? (
-            <div className="muted">
-              {t("expenses.noExpensesYet")}
-            </div>
-          ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  {summaryByCategory.map((c) => (
-                    <th key={c.categoryId} className="right" style={{ minWidth: 120 }}>
-                      {c.categoryName}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  {summaryByCategory.map((c) => (
-                    <td key={c.categoryId} className="right">
-                      {usd0.format(c.total)}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* Add real expense */}
       <div className="card">
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
           <div>
             <div style={{ fontWeight: 850, marginBottom: 6 }}>{t("expenses.addExpenseReal")}</div>
             <div className="muted" style={{ fontSize: 12 }}>
@@ -533,15 +554,19 @@ export default function ExpensesPage() {
 
         <form
           onSubmit={createExpense}
-          className="grid"
+          className={isMobile ? "expenses-form-mobile" : "grid"}
           style={{
             marginTop: 12,
-            gridTemplateColumns:
-              currencyId === "UYU"
-                ? "0.8fr 1.6fr 0.8fr 0.8fr 1.4fr 1.2fr 1fr auto"
-                : "0.8fr 1.6fr 0.8fr 0.8fr 1.2fr 1fr auto",
-            alignItems: "end",
-            gap: 10,
+            ...(isMobile
+              ? { display: "flex", flexDirection: "column", gap: 12, maxWidth: 360 }
+              : {
+                  gridTemplateColumns:
+                    currencyId === "UYU"
+                      ? "0.8fr 1.6fr 0.8fr 0.8fr 1.4fr 1.2fr 1fr auto"
+                      : "0.8fr 1.6fr 0.8fr 0.8fr 1.2fr 1fr auto",
+                  alignItems: "end",
+                  gap: 10,
+                }),
           }}
         >
           <div>
@@ -559,7 +584,7 @@ export default function ExpensesPage() {
 
           <div>
             <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.description")}</div>
-            <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} disabled={createMonthClosed} />
+            <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("expenses.descriptionPlaceholder")} disabled={createMonthClosed} />
           </div>
 
           <div>
@@ -683,7 +708,8 @@ export default function ExpensesPage() {
         />
       </div>
 
-      {/* Drafts */}
+      {/* Drafts (hidden on mobile) */}
+      {!isMobile && (
       <div className="card" ref={draftsRef}>
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
           <div>
@@ -865,9 +891,15 @@ export default function ExpensesPage() {
           </div>
         )}
       </div>
+      )}
 
       <style>{`
         .table th, .table td { vertical-align: middle; }
+        @media (max-width: 900px) {
+          .expenses-form-mobile input,
+          .expenses-form-mobile select { width: 100%; max-width: 100%; box-sizing: border-box; }
+          .expenses-form-mobile .row { flex-wrap: wrap; }
+        }
       `}</style>
     </div>
   );

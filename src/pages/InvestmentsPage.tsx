@@ -310,6 +310,23 @@ export default function InvestmentsPage() {
     }
   }
 
+  async function saveCurrency(inv: Investment, currencyId: string) {
+    const id = (currencyId ?? "").trim().toUpperCase();
+    if (id !== "USD" && id !== "UYU") return;
+    if (inv.currencyId === id) return;
+    setError("");
+    try {
+      const updated = await api<Investment>(`/investments/${inv.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ currencyId: id }),
+      });
+      setInvestments((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      showSuccess(t("common.saved"));
+    } catch (e: any) {
+      setError(e?.message ?? t("investments.errorSavingTargetReturn"));
+    }
+  }
+
   // Groups
   const portfolios = useMemo(() => investments.filter((i) => i.type === "PORTFOLIO"), [investments]);
   const accounts = useMemo(() => investments.filter((i) => i.type === "ACCOUNT"), [investments]);
@@ -603,8 +620,8 @@ export default function InvestmentsPage() {
               onChange={(e) => setNewType(e.target.value as any)}
               style={{ height: 32, fontSize: 12, padding: "6px 10px" }}
             >
-              <option value="PORTFOLIO">PORTFOLIO</option>
-              <option value="ACCOUNT">ACCOUNT</option>
+              <option value="PORTFOLIO">{t("investments.typePortfolio")}</option>
+              <option value="ACCOUNT">{t("investments.typeAccount")}</option>
             </select>
           </div>
 
@@ -696,7 +713,17 @@ export default function InvestmentsPage() {
                 return (
                   <tr key={inv.id}>
                     <td style={{ ...tdStyle, ...stickyCell, fontWeight: 700, textAlign: "center", verticalAlign: "middle" }}>{inv.name}</td>
-                    <td style={{ ...tdStyle, textAlign: "center", verticalAlign: "middle" }}>{inv.currencyId}</td>
+                    <td style={{ ...tdStyle, textAlign: "center", verticalAlign: "middle" }}>
+                      <select
+                        className="select"
+                        style={{ height: 28, fontSize: 11, padding: "4px 6px", margin: 0, minWidth: 56 }}
+                        value={inv.currencyId ?? "USD"}
+                        onChange={(e) => saveCurrency(inv, e.target.value)}
+                      >
+                        <option value="USD">USD</option>
+                        <option value="UYU">UYU</option>
+                      </select>
+                    </td>
 
                     <td style={{ ...tdStyle, textAlign: "center", verticalAlign: "middle" }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 2 }}>
@@ -1046,7 +1073,17 @@ export default function InvestmentsPage() {
                 return (
                   <tr key={inv.id}>
                     <td style={{ ...tdStyle, ...stickyCell, fontWeight: 700 }}>{inv.name}</td>
-                    <td style={tdStyle}>{inv.currencyId}</td>
+                    <td style={tdStyle}>
+                      <select
+                        className="select"
+                        style={{ height: 28, fontSize: 11, padding: "4px 6px", margin: 0, minWidth: 56 }}
+                        value={inv.currencyId ?? "USD"}
+                        onChange={(e) => saveCurrency(inv, e.target.value)}
+                      >
+                        <option value="USD">USD</option>
+                        <option value="UYU">UYU</option>
+                      </select>
+                    </td>
 
                     {months.map((m) => {
                       const s = byM[m];

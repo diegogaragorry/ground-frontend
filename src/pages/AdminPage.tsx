@@ -994,7 +994,7 @@ export default function AdminPage() {
   const isSuperAdmin = meResp?.role === "SUPER_ADMIN";
 
   type AdminTab = "account" | "categories" | "templates" | "monthClose" | "users";
-  const [activeTab, setActiveTab] = useState<AdminTab>("categories");
+  const [activeTab, setActiveTab] = useState<AdminTab>("templates");
 
   /**
    * 🔧 Fix: when user clicks "Start with step 1" we navigate to /admin,
@@ -1247,8 +1247,8 @@ export default function AdminPage() {
   }
 
   const tabs: { id: AdminTab; label: string }[] = [
-    { id: "categories", label: t("admin.tabCategories") },
     { id: "templates", label: t("admin.tabTemplates") },
+    { id: "categories", label: t("admin.tabCategories") },
     { id: "monthClose", label: t("admin.tabMonthClose") },
     { id: "account", label: t("admin.tabAccount") },
     ...(isSuperAdmin ? [{ id: "users" as const, label: t("admin.tabUsers") }] : []),

@@ -6,11 +6,13 @@ import { useAppShell } from "./AppShell";
 const TOUR_STEP_PATH: (string | null)[] = ["/expenses", "/investments", "/budgets", "/"];
 
 type SidebarProps = {
+  /** En móvil solo se muestran Panel, Gastos y Salir */
+  isMobile?: boolean;
   /** Llamar al hacer click en un enlace de navegación (p. ej. cerrar drawer en móvil) */
   onNavigateClick?: () => void;
 };
 
-export function Sidebar({ onNavigateClick }: SidebarProps) {
+export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
   const nav = useNavigate();
   const { t, i18n } = useTranslation();
   const { onboardingTourStep } = useAppShell();
@@ -25,26 +27,28 @@ export function Sidebar({ onNavigateClick }: SidebarProps) {
     <aside className="sidebar sidebar-ground">
       <div className="sidebar-brand">
         <span className="sidebar-wordmark">{t("brand.name")}</span>
-        <span className="sidebar-tagline">{t("brand.tagline")}</span>
-        <div className="sidebar-lang" style={{ marginTop: 8 }}>
-          <button
-            type="button"
-            className={i18n.language === "en" ? "lang-btn active" : "lang-btn"}
-            onClick={() => i18n.changeLanguage("en")}
-            aria-label="English"
-          >
-            EN
-          </button>
-          <span style={{ color: "var(--muted)", fontSize: 12 }}>·</span>
-          <button
-            type="button"
-            className={i18n.language === "es" ? "lang-btn active" : "lang-btn"}
-            onClick={() => i18n.changeLanguage("es")}
-            aria-label="Español"
-          >
-            ES
-          </button>
-        </div>
+        {!isMobile && <span className="sidebar-tagline">{t("brand.tagline")}</span>}
+        {!isMobile && (
+          <div className="sidebar-lang" style={{ marginTop: 8 }}>
+            <button
+              type="button"
+              className={i18n.language === "en" ? "lang-btn active" : "lang-btn"}
+              onClick={() => i18n.changeLanguage("en")}
+              aria-label="English"
+            >
+              EN
+            </button>
+            <span style={{ color: "var(--muted)", fontSize: 12 }}>·</span>
+            <button
+              type="button"
+              className={i18n.language === "es" ? "lang-btn active" : "lang-btn"}
+              onClick={() => i18n.changeLanguage("es")}
+              aria-label="Español"
+            >
+              ES
+            </button>
+          </div>
+        )}
       </div>
 
       <nav className="sidebar-nav">
@@ -56,21 +60,27 @@ export function Sidebar({ onNavigateClick }: SidebarProps) {
         >
           {t("sidebar.dashboard")}
         </NavLink>
-        <NavLink to="/income" className={({ isActive }) => [isActive && "active"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
-          {t("sidebar.income")}
-        </NavLink>
+        {!isMobile && (
+          <NavLink to="/income" className={({ isActive }) => [isActive && "active"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
+            {t("sidebar.income")}
+          </NavLink>
+        )}
         <NavLink to="/expenses" className={({ isActive }) => [isActive && "active", tourHighlightPath === "/expenses" && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
           {t("sidebar.expenses")}
         </NavLink>
-        <NavLink to="/investments" className={({ isActive }) => [isActive && "active", tourHighlightPath === "/investments" && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
-          {t("sidebar.investments")}
-        </NavLink>
-        <NavLink to="/budgets" className={({ isActive }) => [isActive && "active", tourHighlightPath === "/budgets" && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
-          {t("sidebar.budgets")}
-        </NavLink>
-        <NavLink to="/admin" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
-          {t("sidebar.admin")}
-        </NavLink>
+        {!isMobile && (
+          <>
+            <NavLink to="/investments" className={({ isActive }) => [isActive && "active", tourHighlightPath === "/investments" && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
+              {t("sidebar.investments")}
+            </NavLink>
+            <NavLink to="/budgets" className={({ isActive }) => [isActive && "active", tourHighlightPath === "/budgets" && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
+              {t("sidebar.budgets")}
+            </NavLink>
+            <NavLink to="/admin" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
+              {t("sidebar.admin")}
+            </NavLink>
+          </>
+        )}
       </nav>
 
       <div className="sidebar-footer">
