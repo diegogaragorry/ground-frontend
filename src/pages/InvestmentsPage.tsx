@@ -321,6 +321,8 @@ export default function InvestmentsPage() {
         body: JSON.stringify({ currencyId: id }),
       });
       setInvestments((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      const r = await api<{ months: SnapshotMonth[] }>(`/investments/${inv.id}/snapshots?year=${year}`);
+      setSnapshots((prev) => ({ ...prev, [inv.id]: r.months }));
       showSuccess(t("common.saved"));
     } catch (e: any) {
       setError(e?.message ?? t("investments.errorSavingTargetReturn"));
@@ -389,7 +391,7 @@ export default function InvestmentsPage() {
   );
 
   // MOVEMENTS CRUD
-  async function createMovement(draft: { investmentId: string; type: "deposit" | "withdrawal" | "yield"; month: number; amount: number }) {
+  async function createMovement(draft: { investmentId: string; type: "deposit" | "withdrawal" | "yield"; month: number; amount: number; currencyId: string }) {
     if (isClosed(draft.month)) {
       setError(t("investments.monthClosedAddMovement"));
       return;
@@ -403,7 +405,7 @@ export default function InvestmentsPage() {
           investmentId: draft.investmentId,
           date,
           type: draft.type,
-          currencyId: "USD",
+          currencyId: (draft.currencyId ?? "USD").trim().toUpperCase(),
           amount: Number(draft.amount) || 0,
         }),
       });
@@ -459,6 +461,7 @@ export default function InvestmentsPage() {
   const [mvType, setMvType] = useState<"deposit" | "withdrawal">("withdrawal");
   const [mvMonth, setMvMonth] = useState<number>(1);
   const [mvAmount, setMvAmount] = useState<number>(0);
+  const [mvCurrency, setMvCurrency] = useState<"USD" | "UYU">("USD");
 
   useEffect(() => {
     if (!mvInvId && portfolios.length > 0) setMvInvId(portfolios[0].id);
@@ -863,7 +866,7 @@ export default function InvestmentsPage() {
           onSubmit={async (e) => {
             e.preventDefault();
             if (!mvInvId) return;
-            await createMovement({ investmentId: mvInvId, month: mvMonth, type: mvType, amount: Number(mvAmount) || 0 });
+            await createMovement({ investmentId: mvInvId, month: mvMonth, type: mvType, amount: Number(mvAmount) || 0, currencyId: mvCurrency });
             setMvAmount(0);
           }}
           className="row"
@@ -915,7 +918,22 @@ export default function InvestmentsPage() {
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("investments.amountUsd")}</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("investments.currency")}</div>
+            <select
+              className="select"
+              value={mvCurrency}
+              disabled={mvIsClosed}
+              onChange={(e) => setMvCurrency(e.target.value as "USD" | "UYU")}
+              style={{ height: 32, fontSize: 11, padding: "4px 6px", width: 64 }}
+              title={mvIsClosed ? t("investments.closedMonth") : undefined}
+            >
+              <option value="USD">USD</option>
+              <option value="UYU">UYU</option>
+            </select>
+          </div>
+
+          <div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("investments.amount")}</div>
             <input
               className="input"
               type="number"
@@ -945,7 +963,8 @@ export default function InvestmentsPage() {
                 <th style={thStyle}>{t("expenses.month")}</th>
                 <th style={thStyle}>{t("investments.investment")}</th>
                 <th style={thStyle}>{t("investments.type")}</th>
-                <th className="right" style={thStyle}>USD</th>
+                <th style={thStyle}>{t("investments.currency")}</th>
+                <th className="right" style={thStyle}>{t("investments.amount")}</th>
                 <th style={{ ...thStyle, width: 110 }} className="right">{t("expenses.actions")}</th>
               </tr>
             </thead>
@@ -986,9 +1005,23 @@ export default function InvestmentsPage() {
                           title={locked ? t("investments.closedMonth") : undefined}
                           onChange={(e) => updateMovementFull({ ...mv, type: e.target.value as any })}
                         >
-                          <option value="withdrawal">withdrawal</option>
-                          <option value="deposit">deposit</option>
+                          <option value="withdrawal">{t("investments.withdrawalOut")}</option>
+                          <option value="deposit">{t("investments.depositIn")}</option>
                           <option value="yield">yield</option>
+                        </select>
+                      </td>
+
+                      <td style={tdStyle}>
+                        <select
+                          className="select"
+                          style={{ height: 28, fontSize: 11, padding: "4px 6px", minWidth: 56 }}
+                          value={mv.currencyId ?? "USD"}
+                          disabled={locked}
+                          title={locked ? t("investments.closedMonth") : undefined}
+                          onChange={(e) => updateMovementFull({ ...mv, currencyId: e.target.value })}
+                        >
+                          <option value="USD">USD</option>
+                          <option value="UYU">UYU</option>
                         </select>
                       </td>
 
@@ -1003,7 +1036,7 @@ export default function InvestmentsPage() {
                             if (locked) return;
                             const v = Number((e.target as HTMLInputElement).value);
                             if (!Number.isFinite(v)) return;
-                            updateMovementFull({ ...mv, amount: v, currencyId: "USD" });
+                            updateMovementFull({ ...mv, amount: v, currencyId: mv.currencyId ?? "USD" });
                           }}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -1029,7 +1062,7 @@ export default function InvestmentsPage() {
 
               {movements.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="muted" style={tdStyle}>
+                  <td colSpan={6} className="muted" style={tdStyle}>
                   {t("investments.noMovementsYet")}
                 </td>
                 </tr>
