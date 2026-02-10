@@ -1,7 +1,15 @@
 /* index.css — Ground design system */
 
 :root {
-  font-family: "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  /* Design tokens unificados (font primero para usarlo abajo) */
+  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+
+  font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
 
@@ -12,6 +20,12 @@
   --muted: #64748b;
   --border: #e2e8f0;
   --danger: #dc2626;
+
+  /* Marca (verde ground.) */
+  --brand-green: #22c55e;
+  --brand-green-hover: #16a34a;
+  --brand-green-light: #f0fdf4;
+  --brand-green-border: #bbf7d0;
 
   color: var(--text);
   background-color: var(--bg);
@@ -42,11 +56,13 @@ a {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-a:hover { color: #334155; }
+a:hover { color: var(--brand-green); }
 
-/* Headings */
+/* Headings — misma familia en todo el sitio */
+.h1, h1, h2, h3 {
+  font-family: var(--font-sans);
+}
 .h1 {
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   font-size: 1.375rem;
   line-height: 1.25;
   font-weight: 700;
@@ -54,17 +70,31 @@ a:hover { color: #334155; }
   letter-spacing: -0.02em;
 }
 h1 {
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   font-size: 2rem;
   line-height: 1.15;
   font-weight: 700;
   margin: 0;
   letter-spacing: -0.02em;
 }
+h2 { font-size: 1.5rem; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
+h3 { font-size: 1.25rem; font-weight: 700; margin: 0; letter-spacing: -0.02em; }
 
 /* Utility */
 .muted { color: var(--muted); }
 .right { text-align: right; }
+
+.badge {
+  font-family: var(--font-sans);
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--brand-green-border);
+  background: var(--brand-green-light);
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--brand-green-hover);
+}
 
 .row {
   display: flex;
@@ -122,8 +152,9 @@ h1 {
   color: rgba(15, 23, 42, 0.82);
 }
 .nav a.active {
-  background: rgba(15, 23, 42, 0.08);
+  background: var(--brand-green-light);
   color: var(--text);
+  border-left: 3px solid var(--brand-green);
 }
 .nav a:hover { background: rgba(15, 23, 42, 0.06); }
 
@@ -137,7 +168,7 @@ h1 {
   padding: 14px 18px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
 }
 
 .topbar-left {
@@ -148,7 +179,7 @@ h1 {
 
 .topbar-wordmark {
   display: inline-block;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 1.25rem;
   font-weight: 800;
   letter-spacing: -0.04em;
@@ -159,7 +190,7 @@ h1 {
 
 .topbar-wordmark::after {
   content: ".";
-  color: #22c55e;
+  color: var(--brand-green);
 }
 
 @media (max-width: 768px) {
@@ -220,28 +251,34 @@ h1 {
 
 /* Toast éxito (mensaje bajo el topbar) */
 .toast-success {
+  font-family: var(--font-sans);
   padding: 10px 14px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 10px;
+  background: var(--brand-green-light);
+  border: 1px solid var(--brand-green-border);
+  border-radius: var(--radius-md);
   color: #166534;
   font-size: 0.9rem;
   font-weight: 600;
 }
 
-/* Cards / Tables / Inputs */
+/* Cards — paleta unificada, acento verde sutil */
 .card {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   padding: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.card:hover {
+  border-color: var(--brand-green-border);
+  box-shadow: var(--shadow-sm), 0 0 0 1px rgba(34, 197, 94, 0.08);
 }
 
 @media (max-width: 768px) {
   .card {
     padding: 14px;
-    border-radius: 14px;
+    border-radius: var(--radius-md);
   }
 }
 
@@ -256,10 +293,19 @@ h1 {
   vertical-align: middle;
 }
 .table th {
-  font-size: 12px;
-  letter-spacing: 0.04em;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--muted);
+  border-bottom: 2px solid var(--brand-green-border);
+}
+.table tbody tr {
+  transition: background 0.15s;
+}
+.table tbody tr:hover {
+  background: rgba(34, 197, 94, 0.04);
 }
 
 @media (max-width: 768px) {
@@ -360,9 +406,10 @@ h1 {
 .input,
 .select,
 textarea {
+  font-family: var(--font-sans);
   width: 100%;
-  padding: 9px 10px;
-  border-radius: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--text);
@@ -372,8 +419,8 @@ textarea {
 .input:focus,
 .select:focus,
 textarea:focus {
-  border-color: var(--text);
-  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.1);
+  border-color: var(--brand-green);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
   outline: none;
 }
 
@@ -394,8 +441,8 @@ textarea:focus {
   justify-content: center;
   gap: 8px;
 
-  padding: 10px 12px;
-  border-radius: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--text);
@@ -404,7 +451,13 @@ textarea:focus {
   min-height: 44px; /* Touch target mínimo para mobile */
   touch-action: manipulation; /* Evita delay en mobile */
 }
-.btn:hover { background: rgba(15, 23, 42, 0.04); }
+.btn {
+  font-family: var(--font-sans);
+}
+.btn:hover {
+  background: rgba(34, 197, 94, 0.06);
+  border-color: var(--brand-green-border);
+}
 
 @media (max-width: 768px) {
   .btn {
@@ -414,11 +467,11 @@ textarea:focus {
 }
 
 .btn.primary {
-  background: #0f172a;
+  background: var(--brand-green);
   color: #fff;
   border-color: transparent;
 }
-.btn.primary:hover { background: #1e293b; }
+.btn.primary:hover { background: var(--brand-green-hover); }
 
 .btn.danger {
   background: #fef2f2;
@@ -432,7 +485,7 @@ textarea:focus {
 a:focus-visible,
 .input:focus-visible,
 .select:focus-visible {
-  outline: 2px solid var(--text);
+  outline: 2px solid var(--brand-green);
   outline-offset: 2px;
 }
 
@@ -561,7 +614,7 @@ a:focus-visible,
 
 .brand-wordmark {
   display: inline-block;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: clamp(3.9rem, 7.8vw, 5.5rem);
   font-weight: 800;
   letter-spacing: -0.04em;
@@ -571,11 +624,11 @@ a:focus-visible,
 }
 .brand-wordmark::after {
   content: ".";
-  color: #22c55e;
+  color: var(--brand-green);
 }
 
 .brand-headline {
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: clamp(1.35rem, 2.5vw, 1.75rem);
   font-weight: 700;
   line-height: 1.2;
@@ -598,19 +651,19 @@ a:focus-visible,
 
 .brand-cta-link {
   display: inline-block;
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-weight: 600;
   font-size: 1rem;
   color: #fff;
-  background: var(--text);
+  background: var(--brand-green);
   padding: 14px 24px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   text-decoration: none;
   transition: background 0.2s;
 }
 
 .brand-cta-link:hover {
-  background: #1e293b;
+  background: var(--brand-green-hover);
   text-decoration: none;
 }
 
@@ -628,12 +681,11 @@ a:focus-visible,
 .register-card {
   width: 100%;
   max-width: 440px;
-  /* Misma banda vertical que el panel izquierdo: de Ground hasta EN/ES */
   min-height: 360px;
   padding: 48px;
   background: var(--panel);
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   border: 1px solid var(--border);
 }
 
@@ -645,7 +697,7 @@ a:focus-visible,
 
 .login-card h2,
 .register-card h2 {
-  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 1.5rem;
   font-weight: 700;
   margin: 0 0 8px;
@@ -667,8 +719,9 @@ a:focus-visible,
   width: 100%;
   padding: 12px 14px;
   font-size: 1rem;
+  font-family: var(--font-sans);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--panel);
   color: var(--text);
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -682,8 +735,8 @@ a:focus-visible,
 .login-card .input:focus,
 .register-card .input:focus {
   outline: none;
-  border-color: var(--text);
-  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.1);
+  border-color: var(--brand-green);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
 }
 
 .login-card .btn.primary,
@@ -692,9 +745,9 @@ a:focus-visible,
   height: 48px;
   font-size: 1rem;
   font-weight: 600;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   border: none;
-  background: var(--text);
+  background: var(--brand-green);
   color: #fff;
   cursor: pointer;
   transition: background 0.2s;
@@ -702,7 +755,7 @@ a:focus-visible,
 
 .login-card .btn.primary:hover:not(:disabled),
 .register-card .btn.primary:hover:not(:disabled) {
-  background: #1e293b;
+  background: var(--brand-green-hover);
 }
 
 .login-card .btn.primary:disabled,

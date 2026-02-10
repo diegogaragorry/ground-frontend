@@ -37,23 +37,7 @@ function sanitizeNumber(raw: string) {
 }
 
 function Badge({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      style={{
-        fontSize: 11,
-        padding: "2px 8px",
-        borderRadius: 999,
-        background: "rgba(15,23,42,0.06)",
-        color: "rgba(15,23,42,0.75)",
-        fontWeight: 750,
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-      }}
-    >
-      {children}
-    </span>
-  );
+  return <span className="badge">{children}</span>;
 }
 
 export default function BudgetsPage() {
@@ -382,7 +366,7 @@ export default function BudgetsPage() {
 
         <style>{`
           .table.compact th, .table.compact td { padding: 6px 8px; }
-          .input.compact { padding: 6px 8px; border-radius: 10px; }
+          .input.compact { padding: 6px 8px; border-radius: var(--radius-md); }
         `}</style>
       </div>
     </div>

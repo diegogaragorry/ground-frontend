@@ -1169,7 +1169,7 @@ export default function InvestmentsPage() {
         .investments-page .table td { padding: 6px 6px; }
         .investments-page .table th { font-size: 10px; letter-spacing: 0.4px; }
         .investments-page .input,
-        .investments-page .select { border-radius: 10px; }
+        .investments-page .select { border-radius: var(--radius-md); }
         .investments-page .row { flex-wrap: wrap; min-width: 0; }
       `}</style>
     </div>

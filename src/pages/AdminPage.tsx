@@ -1621,9 +1621,9 @@ export default function AdminPage() {
 
       <style>{`
         .admin-page .admin-inner-card {
-          background: rgba(15,23,42,0.03);
-          border: 1px solid var(--border);
-          border-radius: 12px;
+          background: var(--brand-green-light);
+          border: 1px solid var(--brand-green-border);
+          border-radius: var(--radius-md);
           padding: 14px 16px;
         }
         .admin-page .admin-label {
@@ -1635,13 +1635,13 @@ export default function AdminPage() {
         .admin-page .admin-edit-card {
           background: rgba(15,23,42,0.02);
           border: 1px solid var(--border);
-          border-left: 3px solid var(--text);
-          border-radius: 12px;
+          border-left: 4px solid var(--brand-green);
+          border-radius: var(--radius-md);
           padding: 14px 16px;
         }
         .admin-page .admin-table-wrap {
           overflow-x: auto;
-          border-radius: 10px;
+          border-radius: var(--radius-md);
           border: 1px solid var(--border);
         }
         .admin-page .admin-table {
@@ -1655,25 +1655,26 @@ export default function AdminPage() {
           border-bottom: 1px solid var(--border);
         }
         .admin-page .admin-table th {
-          background: rgba(15,23,42,0.04);
+          background: var(--brand-green-light);
+          border-bottom: 2px solid var(--brand-green-border);
           font-weight: 700;
           text-align: left;
         }
         .admin-page .admin-table th.right { text-align: right; }
         .admin-page .admin-table tbody tr:hover {
-          background: rgba(15,23,42,0.02);
+          background: rgba(34, 197, 94, 0.04);
         }
         .admin-page .admin-table tbody tr:last-child td { border-bottom: none; }
         .admin-page .admin-message--error { color: var(--danger); font-size: 13px; }
         .admin-page .admin-message--info { color: rgba(15,23,42,0.75); font-size: 13px; }
         .admin-page .admin-onb-callout {
-          border: 1px solid rgba(15,23,42,0.10);
-          background: rgba(15,23,42,0.03);
-          border-radius: 12px;
+          border: 1px solid var(--brand-green-border);
+          background: var(--brand-green-light);
+          border-radius: var(--radius-md);
           padding: 12px 14px;
         }
         .admin-page .admin-table .input.compact,
-        .admin-page .admin-table .select { padding: 6px 8px; border-radius: 8px; font-size: 12px; }
+        .admin-page .admin-table .select { padding: 6px 8px; border-radius: var(--radius-sm); font-size: 12px; }
       `}</style>
     </div>
   );

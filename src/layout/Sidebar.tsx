@@ -114,7 +114,7 @@ export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
 
         .sidebar-wordmark {
           display: block;
-          font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+          font-family: var(--font-sans);
           font-size: 1.95rem;
           font-weight: 800;
           letter-spacing: -0.04em;
@@ -124,7 +124,7 @@ export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
         }
         .sidebar-wordmark::after {
           content: ".";
-          color: #22c55e;
+          color: var(--brand-green);
         }
 
         .sidebar-tagline {
@@ -171,9 +171,10 @@ export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
         }
 
         .sidebar-nav a.active {
-          background: rgba(15, 23, 42, 0.08);
+          background: var(--brand-green-light);
           color: var(--text);
-          border: 1px solid var(--border);
+          border: 1px solid var(--brand-green-border);
+          border-left: 3px solid var(--brand-green);
         }
 
         .sidebar-nav a.tour-highlight {

@@ -100,16 +100,17 @@ function clamp01(n: number) {
   return Math.max(0, Math.min(1, n));
 }
 
+/* Verde marca primero, luego paleta armónica */
 const CATEGORY_CHART_PALETTE = [
+  "hsl(142, 71%, 45%)", /* --brand-green */
   "hsl(220, 70%, 50%)",
-  "hsl(160, 60%, 42%)",
   "hsl(35, 90%, 48%)",
   "hsl(340, 75%, 52%)",
   "hsl(260, 60%, 55%)",
   "hsl(190, 70%, 42%)",
   "hsl(20, 85%, 52%)",
   "hsl(280, 55%, 50%)",
-  "hsl(145, 50%, 40%)",
+  "hsl(160, 60%, 42%)",
   "hsl(200, 65%, 45%)",
   "hsl(0, 60%, 50%)",
   "hsl(50, 80%, 48%)",
@@ -622,17 +623,19 @@ export default function DashboardPage() {
           display:inline-flex;
           align-items:center;
           gap:6px;
-          padding: 4px 8px;
-          border-radius: 999px;
-          border: 1px solid rgba(15,23,42,0.10);
-          background: rgba(15,23,42,0.03);
-          color: rgba(15,23,42,0.75);
+          padding: 4px 10px;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--brand-green-border);
+          background: var(--brand-green-light);
+          color: var(--brand-green-hover);
           font-size:12px;
           font-weight:700;
+          font-family: var(--font-sans);
         }
         .chipLocked{
-          border-color: rgba(15,23,42,0.16);
-          background: rgba(15,23,42,0.05);
+          border-color: var(--border);
+          background: rgba(15,23,42,0.04);
+          color: var(--muted);
         }
 
         .onb{
@@ -655,19 +658,17 @@ export default function DashboardPage() {
 
         .kpi{
           padding: 16px;
-          border-radius: 16px;
-          border: 1px solid rgba(15,23,42,0.10);
-          background: #fff;
-          box-shadow:
-            0 1px 1px rgba(15,23,42,0.02),
-            0 10px 26px rgba(15,23,42,0.05);
+          border-radius: var(--radius-lg);
+          border: 1px solid var(--border);
+          background: var(--panel);
+          box-shadow: var(--shadow-sm);
+          font-family: var(--font-sans);
         }
         .kpiHighlight{
-          background: #fff;
-          border: 1px solid rgba(15,23,42,0.22);
-          box-shadow:
-            0 2px 4px rgba(15,23,42,0.06),
-            0 14px 32px rgba(15,23,42,0.10);
+          background: var(--panel);
+          border: 1px solid var(--brand-green-border);
+          border-left: 4px solid var(--brand-green);
+          box-shadow: var(--shadow-sm), 0 0 0 1px rgba(34, 197, 94, 0.06);
         }
         .kpiLabel{
           font-size: 13px;
@@ -743,16 +744,17 @@ export default function DashboardPage() {
         .sectionTitle{
           font-size: 15px;
           font-weight: 900;
+          font-family: var(--font-sans);
+          padding-bottom: 4px;
+          border-bottom: 2px solid var(--brand-green-border);
         }
 
         .card.list{
           padding: 14px 14px;
-          border-radius: 16px;
-          border: 1px solid rgba(15,23,42,0.10);
-          background: #fff;
-          box-shadow:
-            0 1px 1px rgba(15,23,42,0.02),
-            0 10px 26px rgba(15,23,42,0.05);
+          border-radius: var(--radius-lg);
+          border: 1px solid var(--border);
+          background: var(--panel);
+          box-shadow: var(--shadow-sm);
         }
         .cardCategoriesSplit.card.list{
           padding: 10px 12px;
@@ -767,6 +769,7 @@ export default function DashboardPage() {
         .cardTitle{
           font-size: 14px;
           font-weight: 900;
+          font-family: var(--font-sans);
         }
 
         .rowLine{
@@ -858,13 +861,14 @@ export default function DashboardPage() {
         }
         .badge{
           display:inline-flex;
-          padding: 2px 8px;
-          border-radius: 999px;
-          border: 1px solid rgba(15,23,42,0.10);
-          background: rgba(15,23,42,0.03);
-          font-weight: 800;
+          padding: 4px 10px;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--brand-green-border);
+          background: var(--brand-green-light);
+          font-weight: 700;
           font-size: 12px;
-          color: rgba(15,23,42,0.82);
+          font-family: var(--font-sans);
+          color: var(--brand-green-hover);
         }
 
         .bar{
@@ -877,7 +881,7 @@ export default function DashboardPage() {
         .barFill{
           height: 100%;
           border-radius: 999px;
-          background: rgba(15,23,42,0.32);
+          background: var(--brand-green);
         }
 
         .cardCategoriesSplit .categoriesSplitInner{
@@ -972,19 +976,17 @@ export default function DashboardPage() {
         }
         .yearKpi{
           padding: 14px;
-          border-radius: 16px;
-          border: 1px solid rgba(15,23,42,0.10);
-          background: #fff;
-          box-shadow:
-            0 1px 1px rgba(15,23,42,0.02),
-            0 10px 26px rgba(15,23,42,0.05);
+          border-radius: var(--radius-lg);
+          border: 1px solid var(--border);
+          background: var(--panel);
+          box-shadow: var(--shadow-sm);
+          font-family: var(--font-sans);
         }
         .yearHighlight{
-          background: #fff;
-          border: 1px solid rgba(15,23,42,0.22);
-          box-shadow:
-            0 2px 4px rgba(15,23,42,0.06),
-            0 14px 32px rgba(15,23,42,0.10);
+          background: var(--panel);
+          border: 1px solid var(--brand-green-border);
+          border-left: 4px solid var(--brand-green);
+          box-shadow: var(--shadow-sm), 0 0 0 1px rgba(34, 197, 94, 0.06);
         }
       `}</style>
     </div>
