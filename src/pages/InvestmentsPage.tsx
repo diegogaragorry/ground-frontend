@@ -142,14 +142,9 @@ export default function InvestmentsPage() {
 
   async function loadMonthCloses() {
     const r = await api<MonthClosesResp>(`/monthCloses?year=${year}`);
-    const rPrev = await api<MonthClosesResp>(`/monthCloses?year=${year - 1}`);
     const set = new Set<number>();
     for (const row of r.rows ?? []) {
       set.add(row.month);
-      if (row.month < 12) set.add(row.month + 1);
-    }
-    for (const row of rPrev.rows ?? []) {
-      if (row.month === 12) set.add(1);
     }
     setClosedMonths(set);
   }

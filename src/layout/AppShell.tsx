@@ -141,8 +141,8 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
 
   const [serverFxRate, setServerFxRate] = useState<number | null>(null);
 
-  const dismissMobileWarning = React.useCallback(() => {
-    api("/auth/me", { method: "PATCH", body: JSON.stringify({ mobileWarningDismissed: true }) }).then(() => {
+  const dismissMobileWarning = React.useCallback((): Promise<void> => {
+    return api("/auth/me", { method: "PATCH", body: JSON.stringify({ mobileWarningDismissed: true }) }).then(() => {
       setMe((prev) => (prev ? { ...prev, mobileWarningDismissed: true } : null));
     });
   }, []);
@@ -393,7 +393,7 @@ export function AppShell(props: { children: React.ReactNode }) {
           />
           {isMobile && <div className="topbar-spacer" aria-hidden />}
           {isMobile && ctx.meLoaded && ctx.me && !ctx.me.mobileWarningDismissed && (
-            <div className="mobile-warning" role="alert">
+            <div className="mobile-warning" role="alert" style={{ position: "relative", zIndex: 10000 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 900, marginBottom: 6, color: "var(--danger)" }}>
                   {t("common.mobileWarningTitle")}
