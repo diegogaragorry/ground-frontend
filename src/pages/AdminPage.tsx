@@ -644,7 +644,11 @@ function ExpenseTemplatesAdminCard({
               )}
             </div>
           ) : (
-            row.defaultAmountUsd == null ? <span className="muted">—</span> : (
+            row.defaultAmountUsd == null ? (
+              <span className="muted">—</span>
+            ) : (row.defaultCurrencyId ?? "USD") === "UYU" ? (
+              <span>{usd0.format(Math.round(row.defaultAmountUsd * getFxDefault()))} UYU</span>
+            ) : (
               <span>{usd0.format(row.defaultAmountUsd)} USD</span>
             )
           )}

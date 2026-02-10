@@ -56,6 +56,7 @@ type PlannedExpense = {
   expenseId?: string | null;
 
   category?: { id: string; name: string };
+  template?: { defaultCurrencyId?: string | null } | null;
 };
 
 function ymToInputValue(year: number, month: number) {
@@ -505,7 +506,10 @@ export default function ExpensesPage() {
                   <tr>
                     {summaryByCategory.map((c) => (
                       <th key={c.categoryId} className="right" style={{ minWidth: 120 }}>
-                        {c.categoryName}
+                        {getCategoryDisplayName(
+                          categories.find((cat) => cat.id === c.categoryId) ?? { name: c.categoryName, expenseType: "VARIABLE" },
+                          t
+                        )}
                       </th>
                     ))}
                   </tr>
@@ -565,8 +569,8 @@ export default function ExpensesPage() {
               : {
                   gridTemplateColumns:
                     currencyId === "UYU"
-                      ? "0.8fr 1.6fr 0.8fr 0.8fr 1.4fr 1.2fr 1fr auto"
-                      : "0.8fr 1.6fr 0.8fr 0.8fr 1.2fr 1fr auto",
+                      ? "0.8fr 1.6fr 1.6fr 0.8fr 0.8fr 1.4fr 1fr auto"
+                      : "0.8fr 1.6fr 1.6fr 0.8fr 0.8fr 1fr auto",
                   alignItems: "end",
                   gap: 10,
                 }),
@@ -586,13 +590,19 @@ export default function ExpensesPage() {
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.description")}</div>
-            <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("expenses.descriptionPlaceholder")} disabled={createMonthClosed} />
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.category")}</div>
+            <select className="select" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={createMonthClosed}>
+              {(categoriesByType[expenseTypeCreate] ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {getCategoryDisplayName(c, t)}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.amount")}</div>
-            <input className="input" type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} disabled={createMonthClosed} />
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.description")}</div>
+            <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("expenses.descriptionPlaceholder")} disabled={createMonthClosed} />
           </div>
 
           <div>
@@ -610,6 +620,11 @@ export default function ExpensesPage() {
               <option value="UYU">UYU</option>
               <option value="USD">USD</option>
             </select>
+          </div>
+
+          <div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.amount")}</div>
+            <input className="input" type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} disabled={createMonthClosed} />
           </div>
 
           {currencyId === "UYU" && (
@@ -631,22 +646,6 @@ export default function ExpensesPage() {
               </div>
             </div>
           )}
-
-          <div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.category")}</div>
-            <select className="select" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={createMonthClosed}>
-              {(categoriesByType[expenseTypeCreate] ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {getCategoryDisplayName(c, t)}
-                </option>
-              ))}
-            </select>
-            {categoryId && (
-              <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-                {t("expenses.enforcedType")}: <b>{getExpenseTypeLabel(categoryTypeOf(categoryId) ?? expenseTypeCreate, t)}</b>
-              </div>
-            )}
-          </div>
 
           <div>
             <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.month")}</div>
@@ -757,11 +756,14 @@ export default function ExpensesPage() {
           <table className="table">
             <thead>
               <tr>
-                <th style={{ width: 120 }}>{t("expenses.type")}</th>
+                <th style={{ width: 130 }}>{t("expenses.month")}</th>
+                <th style={{ width: 110 }}>{t("expenses.type")}</th>
                 <th style={{ width: 220 }}>{t("expenses.category")}</th>
                 <th>{t("expenses.description")}</th>
-                <th className="right" style={{ width: 160 }}>{t("expenses.amountUsd")}</th>
-                <th className="right" style={{ width: 220 }}>{t("expenses.actions")}</th>
+                <th style={{ width: 90 }}>{t("expenses.curr")}</th>
+                <th className="right" style={{ width: 110 }}>{t("expenses.amount")}</th>
+                <th style={{ width: 100 }}>{t("expenses.fx")}</th>
+                <th style={{ width: 220 }}>{t("expenses.actions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -769,11 +771,19 @@ export default function ExpensesPage() {
                 const d = getPlannedDraft(p.id);
                 const currentCategoryId = d.categoryId ?? p.categoryId;
                 const enforcedType = categoryTypeOf(currentCategoryId) ?? (d.expenseType ?? p.expenseType);
-
+                const isUyu = p.template?.defaultCurrencyId === "UYU";
+                const rate = isUyu && Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : 1;
+                const amountUsd = Number(d.amountUsd ?? p.amountUsd ?? 0) || 0;
+                const displayValue = isUyu ? Math.round(amountUsd * rate) : Math.round(amountUsd);
                 const locked = isClosed(month);
+                const ymDisplay = `${p.year}-${String(p.month).padStart(2, "0")}`;
 
                 return (
                   <tr key={p.id} style={locked ? { opacity: 0.85 } : undefined}>
+                    <td>
+                      <span className="muted" style={{ fontSize: 13 }}>{ymDisplay}</span>
+                    </td>
+
                     <td>
                       <Badge>{getExpenseTypeLabel(enforcedType, t)}</Badge>
                     </td>
@@ -828,21 +838,37 @@ export default function ExpensesPage() {
                       />
                     </td>
 
+                    <td>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{isUyu ? "UYU" : "USD"}</span>
+                    </td>
+
                     <td className="right">
                       <input
                         className="input"
                         type="number"
-                        value={Number.isFinite(d.amountUsd ?? p.amountUsd ?? 0) ? Number(d.amountUsd ?? p.amountUsd ?? 0) : 0}
+                        value={displayValue}
                         disabled={locked}
-                        onChange={(e) => setPlannedDraft(p.id, { amountUsd: Number(e.target.value) })}
+                        onChange={(e) => {
+                          const raw = Number(e.target.value);
+                          const usd = isUyu ? (Number.isFinite(rate) && rate > 0 ? raw / rate : raw) : raw;
+                          setPlannedDraft(p.id, { amountUsd: usd });
+                        }}
                         onBlur={() => {
                           if (locked) return;
                           const v = Number(d.amountUsd ?? p.amountUsd ?? 0);
                           if (!Number.isFinite(v)) return;
-                          patchPlanned(p.id, { amountUsd: v }).then(() => clearPlannedDraft(p.id));
+                          patchPlanned(p.id, { amountUsd: Math.round(v * 100) / 100 }).then(() => clearPlannedDraft(p.id));
                         }}
-                        style={{ width: 140, textAlign: "right" }}
+                        style={{ width: 100, textAlign: "right" }}
                       />
+                    </td>
+
+                    <td>
+                      {isUyu ? (
+                        <span className="muted" style={{ fontSize: 12 }}>{Number(rate).toFixed(3)}</span>
+                      ) : (
+                        <span className="muted" style={{ fontSize: 12 }}>—</span>
+                      )}
                     </td>
 
                     <td className="right">
@@ -865,7 +891,7 @@ export default function ExpensesPage() {
 
               {planned.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="muted">
+                  <td colSpan={8} className="muted">
                     <div style={{ padding: "8px 0" }}>
                       <div style={{ fontWeight: 800, marginBottom: 4 }}>{t("expenses.noDrafts")}</div>
                       <div className="muted" style={{ fontSize: 13 }}>
@@ -936,10 +962,12 @@ function RealExpensesTable(props: {
           <tr>
             <th style={{ width: 130 }}>{t("expenses.month")}</th>
             <th style={{ width: 110 }}>{t("expenses.type")}</th>
-            <th>{t("expenses.description")}</th>
             <th style={{ width: 220 }}>{t("expenses.category")}</th>
-            <th style={{ width: 340 }}>{t("expenses.original")}</th>
-            <th className="right" style={{ width: 120 }}>{t("expenses.usd")}</th>
+            <th>{t("expenses.description")}</th>
+            <th style={{ width: 90 }}>{t("expenses.curr")}</th>
+            <th className="right" style={{ width: 110 }}>{t("expenses.amount")}</th>
+            <th style={{ width: 100 }}>{t("expenses.fx")}</th>
+            <th className="right" style={{ width: 100 }}>{t("expenses.usd")}</th>
             <th style={{ width: 110 }} />
           </tr>
         </thead>
@@ -987,6 +1015,30 @@ function RealExpensesTable(props: {
                 </td>
 
                 <td>
+                  <select
+                    className="select"
+                    value={d.categoryId ?? e.categoryId}
+                    disabled={locked}
+                    onChange={(ev) => {
+                      if (locked) return;
+                      const v = ev.target.value;
+                      const cat = categories.find((c) => c.id === v);
+                      const enforcedType = cat?.expenseType ?? e.expenseType;
+
+                      setDraft(e.id, { categoryId: v });
+                      patchExpense(e.id, expMonth, { categoryId: v, expenseType: enforcedType }).then(() => clearDraft(e.id));
+                    }}
+                    title={locked ? t("expenses.monthClosed") : undefined}
+                  >
+                    {categoriesSorted.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {getCategoryDisplayName(c, t)} ({getExpenseTypeLabel(c.expenseType, t)})
+                      </option>
+                    ))}
+                  </select>
+                </td>
+
+                <td>
                   <input
                     className="input"
                     value={getTemplateDescriptionDisplay(
@@ -1014,97 +1066,73 @@ function RealExpensesTable(props: {
                 <td>
                   <select
                     className="select"
-                    value={d.categoryId ?? e.categoryId}
+                    value={currentCurrency}
                     disabled={locked}
                     onChange={(ev) => {
                       if (locked) return;
-                      const v = ev.target.value;
-                      const cat = categories.find((c) => c.id === v);
-                      const enforcedType = cat?.expenseType ?? e.expenseType;
+                      const v = ev.target.value as "UYU" | "USD";
+                      setDraft(e.id, { currencyId: v });
 
-                      setDraft(e.id, { categoryId: v });
-                      patchExpense(e.id, expMonth, { categoryId: v, expenseType: enforcedType }).then(() => clearDraft(e.id));
+                      if (v === "UYU") {
+                        const rate = getFxDefault();
+                        setDraft(e.id, { currencyId: v, usdUyuRate: rate });
+                        patchExpense(e.id, expMonth, { currencyId: v, usdUyuRate: rate }).then(() => clearDraft(e.id));
+                      } else {
+                        patchExpense(e.id, expMonth, { currencyId: v, usdUyuRate: undefined }).then(() => clearDraft(e.id));
+                      }
                     }}
+                    style={{ width: 82 }}
                     title={locked ? t("expenses.monthClosed") : undefined}
                   >
-                    {categoriesSorted.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {getCategoryDisplayName(c, t)} ({getExpenseTypeLabel(c.expenseType, t)})
-                      </option>
-                    ))}
+                    <option value="UYU">UYU</option>
+                    <option value="USD">USD</option>
                   </select>
                 </td>
 
+                <td className="right">
+                  <input
+                    className="input"
+                    type="number"
+                    value={Number.isFinite(currentAmount) ? currentAmount : 0}
+                    disabled={locked}
+                    onChange={(ev) => setDraft(e.id, { amount: Number(ev.target.value) })}
+                    onBlur={() => {
+                      if (locked) return;
+                      if (!Number.isFinite(currentAmount) || currentAmount === 0) return;
+                      patchExpense(e.id, expMonth, { amount: Number(currentAmount) }).then(() => clearDraft(e.id));
+                    }}
+                    style={{ width: 100, textAlign: "right" }}
+                    title={locked ? t("expenses.monthClosed") : undefined}
+                  />
+                </td>
+
                 <td>
-                  <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                  {currentCurrency === "UYU" ? (
                     <input
                       className="input"
                       type="number"
-                      value={Number.isFinite(currentAmount) ? currentAmount : 0}
+                      step="0.001"
+                      value={Number(currentRate)}
                       disabled={locked}
-                      onChange={(ev) => setDraft(e.id, { amount: Number(ev.target.value) })}
+                      onChange={(ev) => setDraft(e.id, { usdUyuRate: Number(ev.target.value) })}
                       onBlur={() => {
                         if (locked) return;
-                        if (!Number.isFinite(currentAmount) || currentAmount === 0) return;
-                        patchExpense(e.id, expMonth, { amount: Number(currentAmount) }).then(() => clearDraft(e.id));
+                        if (!Number.isFinite(currentRate) || currentRate <= 0) return;
+                        setFxDefault(Number(currentRate));
+                        patchExpense(e.id, expMonth, { usdUyuRate: Number(currentRate) }).then(() => clearDraft(e.id));
                       }}
-                      style={{ width: 110, textAlign: "right" }}
-                      title={locked ? t("expenses.monthClosed") : undefined}
+                      style={{ width: 90 }}
+                      title={locked ? t("expenses.monthClosed") : t("expenses.fxUsdUyu")}
                     />
-
-                    <select
-                      className="select"
-                      value={currentCurrency}
-                      disabled={locked}
-                      onChange={(ev) => {
-                        if (locked) return;
-                        const v = ev.target.value as "UYU" | "USD";
-                        setDraft(e.id, { currencyId: v });
-
-                        if (v === "UYU") {
-                          const rate = getFxDefault();
-                          setDraft(e.id, { currencyId: v, usdUyuRate: rate });
-                          patchExpense(e.id, expMonth, { currencyId: v, usdUyuRate: rate }).then(() => clearDraft(e.id));
-                        } else {
-                          patchExpense(e.id, expMonth, { currencyId: v, usdUyuRate: undefined }).then(() => clearDraft(e.id));
-                        }
-                      }}
-                      style={{ width: 82 }}
-                      title={locked ? t("expenses.monthClosed") : undefined}
-                    >
-                      <option value="UYU">UYU</option>
-                      <option value="USD">USD</option>
-                    </select>
-
-                    {currentCurrency === "UYU" && (
-                      <input
-                        className="input"
-                        type="number"
-                        step="0.001"
-                        value={Number(currentRate)}
-                        disabled={locked}
-                        onChange={(ev) => setDraft(e.id, { usdUyuRate: Number(ev.target.value) })}
-                        onBlur={() => {
-                          if (locked) return;
-                          if (!Number.isFinite(currentRate) || currentRate <= 0) return;
-                          setFxDefault(Number(currentRate));
-                          patchExpense(e.id, expMonth, { usdUyuRate: Number(currentRate) }).then(() => clearDraft(e.id));
-                        }}
-                        style={{ width: 110 }}
-                        title={locked ? t("expenses.monthClosed") : t("expenses.fxUsdUyu")}
-                      />
-                    )}
-
-                    {currentCurrency === "UYU" && (
-                      <span className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-                        ≈ {usd0.format(usdPreview)} USD
-                      </span>
-                    )}
-                  </div>
+                  ) : (
+                    <span className="muted" style={{ fontSize: 12 }}>—</span>
+                  )}
                 </td>
 
                 <td className="right">
-                  <span className="muted">{usd0.format(currentCurrency === "USD" ? currentAmount : usdPreview)}</span>
+                  <span className="muted" style={{ whiteSpace: "nowrap" }}>
+                    {currentCurrency === "UYU" ? `≈ ${usd0.format(usdPreview)}` : usd0.format(currentAmount)} USD
+                  </span>
                 </td>
 
                 <td className="right">
@@ -1124,7 +1152,7 @@ function RealExpensesTable(props: {
 
           {expenses.length === 0 && (
             <tr>
-              <td colSpan={7} className="muted" style={{ padding: "12px 10px" }}>
+              <td colSpan={9} className="muted" style={{ padding: "12px 10px" }}>
                 {t("expenses.noExpensesInList")}
               </td>
             </tr>
