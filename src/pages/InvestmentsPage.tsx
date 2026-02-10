@@ -771,7 +771,8 @@ export default function InvestmentsPage() {
                       const s = byM[m];
                       const hasReal = s?.closingCapital != null;
                       const display = capitalOrigPortfolio(inv, snaps, m);
-                      const locked = isClosed(m);
+                      const prevMonthClosed = m >= 2 && isClosed(m - 1);
+                      const locked = isClosed(m) || (prevMonthClosed && !hasReal);
 
                       return (
                         <td key={`p-${inv.id}-${m}`} style={{ ...tdStyle, textAlign: "center", verticalAlign: "middle" }}>
@@ -1123,7 +1124,8 @@ export default function InvestmentsPage() {
                       const s = byM[m];
                       const hasReal = s?.closingCapital != null;
                       const display = capitalOrigAccountCarry(inv, snaps, m);
-                      const locked = isClosed(m);
+                      const prevMonthClosed = m >= 2 && isClosed(m - 1);
+                      const locked = isClosed(m) || (prevMonthClosed && !hasReal);
 
                       return (
                         <td key={`a-${inv.id}-${m}`} className="right" style={tdStyle}>
