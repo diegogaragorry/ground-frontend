@@ -115,11 +115,16 @@ export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
         .sidebar-wordmark {
           display: block;
           font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-          font-size: 1.5rem;
+          font-size: 1.95rem;
           font-weight: 800;
           letter-spacing: -0.04em;
           color: var(--text);
           line-height: 1.1;
+          text-transform: lowercase;
+        }
+        .sidebar-wordmark::after {
+          content: ".";
+          color: #22c55e;
         }
 
         .sidebar-tagline {

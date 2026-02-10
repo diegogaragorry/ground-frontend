@@ -392,8 +392,8 @@ export function AppShell(props: { children: React.ReactNode }) {
             }
           />
           {isMobile && <div className="topbar-spacer" aria-hidden />}
-          {isMobile && ctx.meLoaded && ctx.me && !ctx.me.mobileWarningDismissed && (
-            <div className="mobile-warning" role="alert" style={{ position: "relative", zIndex: 10000 }}>
+          {isMobile && !drawerOpen && ctx.meLoaded && ctx.me && !ctx.me.mobileWarningDismissed && (
+            <div className="mobile-warning" role="alert">
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 900, marginBottom: 6, color: "var(--danger)" }}>
                   {t("common.mobileWarningTitle")}

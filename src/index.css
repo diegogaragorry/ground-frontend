@@ -140,6 +140,28 @@ h1 {
   border-radius: 14px;
 }
 
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-wordmark {
+  display: inline-block;
+  font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--text);
+  line-height: 1;
+  text-transform: lowercase;
+}
+
+.topbar-wordmark::after {
+  content: ".";
+  color: #22c55e;
+}
+
 @media (max-width: 768px) {
   .topbar {
     padding: 12px 14px;
@@ -532,11 +554,16 @@ a:focus-visible,
 .brand-wordmark {
   display: inline-block;
   font-family: "Plus Jakarta Sans", system-ui, sans-serif;
-  font-size: clamp(3rem, 6vw, 4.25rem);
+  font-size: clamp(3.9rem, 7.8vw, 5.5rem);
   font-weight: 800;
   letter-spacing: -0.04em;
   color: var(--text);
   line-height: 1;
+  text-transform: lowercase;
+}
+.brand-wordmark::after {
+  content: ".";
+  color: #22c55e;
 }
 
 .brand-headline {
@@ -744,7 +771,7 @@ a:focus-visible,
   }
 
   .brand-wordmark {
-    font-size: 3rem;
+    font-size: 3.9rem;
   }
 
   .brand-headline {
