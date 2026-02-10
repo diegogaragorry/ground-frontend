@@ -222,6 +222,9 @@ export default function IncomePage() {
                   step={0.01}
                   style={{ width: 80, height: 36 }}
                 />
+                <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer" className="muted" style={{ fontSize: 10, marginLeft: 6, color: "inherit", textDecoration: "underline" }}>
+                  {t("expenses.fxAttribution")}
+                </a>
               </>
             )}
             <button type="button" className="btn" onClick={load} disabled={loading}>

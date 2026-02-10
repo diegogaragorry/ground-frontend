@@ -195,6 +195,7 @@
     "month": "Month",
     "fxUsdUyu": "FX: 1 USD = X UYU",
     "fx": "FX",
+    "fxAttribution": "Rates by Exchange Rate API",
     "monthStoredNote": "Month is stored as the 1st day of the month (UTC). USD displayed without decimals.",
     "errorConfirmingDraft": "Error confirming draft",
     "allDraftsConfirmed": "All drafts confirmed.",

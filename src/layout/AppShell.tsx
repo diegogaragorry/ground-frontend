@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { api } from "../api";
+import { setFxDefault } from "../utils/fx";
 import { OnboardingWizard } from "../onboarding/OnboardingWizard";
 import { OnboardingTour } from "../onboarding/OnboardingTour";
 
@@ -161,6 +162,13 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
       })
       .finally(() => setMeLoaded(true));
   }, []);
+
+  React.useEffect(() => {
+    if (!me) return;
+    api<{ usdUyuRate: number }>("/fx/rate")
+      .then((r) => setFxDefault(r.usdUyuRate))
+      .catch(() => {});
+  }, [me]);
 
   function setOnboardingStep(step: OnboardingStep) {
     if (!me) return;

@@ -626,6 +626,11 @@ export default function ExpensesPage() {
                   ≈ {usd0.format(amount / (usdUyuRate || 1))} USD
                 </div>
               </div>
+              <div className="muted" style={{ fontSize: 10, marginTop: 4 }}>
+                <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>
+                  {t("expenses.fxAttribution")}
+                </a>
+              </div>
             </div>
           )}
 
