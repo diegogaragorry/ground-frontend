@@ -180,6 +180,242 @@ function DonutChart({
   );
 }
 
+const CHART_WIDTH = 380;
+const CHART_HEIGHT = 110;
+const CHART_PAD = { top: 8, right: 12, bottom: 28, left: 38 };
+const CHART_INNER_WIDTH = CHART_WIDTH - CHART_PAD.left - CHART_PAD.right;
+const CHART_INNER_HEIGHT = CHART_HEIGHT - CHART_PAD.top - CHART_PAD.bottom;
+const MONTHS_N = 12;
+
+const formatAxis = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
+const formatTooltip = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
+
+function niceTicks(min: number, max: number, n: number): number[] {
+  if (max <= min || !Number.isFinite(min) || !Number.isFinite(max)) return [0, 1];
+  const range = max - min;
+  const step = range / (n - 1);
+  const ticks: number[] = [];
+  for (let i = 0; i < n; i++) ticks.push(min + step * i);
+  return ticks;
+}
+
+function AnnualBarChart({
+  data,
+  monthLabels,
+  title,
+  color = "var(--brand-green)",
+}: {
+  data: number[];
+  monthLabels: string[];
+  title: string;
+  color?: string;
+}) {
+  const max = Math.max(1, ...data);
+  const barW = (CHART_INNER_WIDTH / MONTHS_N) * 0.7;
+  const gap = (CHART_INNER_WIDTH / MONTHS_N) * 0.3;
+  const yTicks = niceTicks(0, max, 5);
+
+  return (
+    <div className="historyChart">
+      <div className="historyChartTitle">{title}</div>
+      <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} className="historyChartSvg" aria-hidden>
+        {/* Eje Y */}
+        <line x1={CHART_PAD.left} y1={CHART_PAD.top} x2={CHART_PAD.left} y2={CHART_PAD.top + CHART_INNER_HEIGHT} stroke="var(--border)" strokeWidth="1" />
+        {yTicks.map((tick, i) => {
+          const y = CHART_PAD.top + CHART_INNER_HEIGHT - (max > 0 ? (tick / max) * CHART_INNER_HEIGHT : 0);
+          return (
+            <g key={i}>
+              <line x1={CHART_PAD.left} y1={y} x2={CHART_PAD.left + 4} y2={y} stroke="var(--border)" strokeWidth="1" />
+              <text x={CHART_PAD.left - 4} y={y + 3} textAnchor="end" className="historyChartAxis" fontSize="9">
+                {formatAxis.format(tick)}
+              </text>
+            </g>
+          );
+        })}
+        {data.map((v, i) => {
+          const x = CHART_PAD.left + i * (CHART_INNER_WIDTH / MONTHS_N) + gap / 2;
+          const h = max > 0 ? (v / max) * CHART_INNER_HEIGHT : 0;
+          const y = CHART_PAD.top + CHART_INNER_HEIGHT - h;
+          return (
+            <g key={i}>
+              <title>{`${monthLabels[i] ?? ""}: ${formatTooltip.format(v)} USD`}</title>
+              <rect x={x} y={y} width={barW} height={h} fill={color} rx={2} />
+              <text
+                x={x + barW / 2}
+                y={CHART_HEIGHT - 6}
+                textAnchor="middle"
+                className="historyChartAxis"
+                fontSize="9"
+              >
+                {monthLabels[i] ?? ""}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function NetWorthLineChart({ data, monthLabels, title }: { data: number[]; monthLabels: string[]; title: string }) {
+  const min = Math.min(0, ...data);
+  const max = Math.max(1, ...data, min + 1);
+  const range = max - min;
+  const yTicks = niceTicks(min, max, 5);
+  const yToPx = (v: number) =>
+    CHART_PAD.top + CHART_INNER_HEIGHT - (range > 0 ? ((v - min) / range) * CHART_INNER_HEIGHT : 0);
+  const points = data.map((v, i) => {
+    const x = CHART_PAD.left + (i + 0.5) * (CHART_INNER_WIDTH / MONTHS_N);
+    const y = yToPx(v);
+    return `${x},${y}`;
+  }).join(" ");
+  const zeroY = min < 0 && max > 0 ? yToPx(0) : null;
+
+  return (
+    <div className="historyChart">
+      <div className="historyChartTitle">{title}</div>
+      <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} className="historyChartSvg" aria-hidden>
+        {/* Eje Y */}
+        <line x1={CHART_PAD.left} y1={CHART_PAD.top} x2={CHART_PAD.left} y2={CHART_PAD.top + CHART_INNER_HEIGHT} stroke="var(--border)" strokeWidth="1" />
+        {yTicks.map((tick, i) => (
+          <g key={i}>
+            <line x1={CHART_PAD.left} y1={yToPx(tick)} x2={CHART_PAD.left + 4} y2={yToPx(tick)} stroke="var(--border)" strokeWidth="1" />
+            <text x={CHART_PAD.left - 4} y={yToPx(tick) + 3} textAnchor="end" className="historyChartAxis" fontSize="9">
+              {formatAxis.format(tick)}
+            </text>
+          </g>
+        ))}
+        {zeroY != null && (
+          <line x1={CHART_PAD.left} y1={zeroY} x2={CHART_PAD.left + CHART_INNER_WIDTH} y2={zeroY} stroke="var(--muted)" strokeWidth="1" strokeDasharray="2,2" opacity={0.7} />
+        )}
+        <polyline
+          points={points}
+          fill="none"
+          stroke="var(--brand-green)"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {data.map((v, i) => {
+          const x = CHART_PAD.left + (i + 0.5) * (CHART_INNER_WIDTH / MONTHS_N);
+          const y = yToPx(v);
+          return (
+            <g key={i}>
+              <title>{`${monthLabels[i] ?? ""}: ${formatTooltip.format(v)} USD`}</title>
+              <circle cx={x} cy={y} r={6} fill="transparent" />
+              <circle cx={x} cy={y} r={2.5} fill="var(--brand-green)" />
+            </g>
+          );
+        })}
+        {monthLabels.map((l, i) => (
+          <text
+            key={i}
+            x={CHART_PAD.left + (i + 0.5) * (CHART_INNER_WIDTH / MONTHS_N)}
+            y={CHART_HEIGHT - 6}
+            textAnchor="middle"
+            className="historyChartAxis"
+            fontSize="9"
+          >
+            {l}
+          </text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function IncomeVsExpensesChart({
+  income,
+  expenses,
+  monthLabels,
+  title,
+  incomeLabel,
+  expensesLabel,
+}: {
+  income: number[];
+  expenses: number[];
+  monthLabels: string[];
+  title: string;
+  incomeLabel: string;
+  expensesLabel: string;
+}) {
+  const max = Math.max(1, ...income, ...expenses);
+  const barW = (CHART_INNER_WIDTH / MONTHS_N) * 0.35;
+  const gap = (CHART_INNER_WIDTH / MONTHS_N) * 0.15;
+  const yTicks = niceTicks(0, max, 5);
+
+  return (
+    <div className="historyChart">
+      <div className="historyChartTitle">{title}</div>
+      <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} className="historyChartSvg" aria-hidden>
+        {/* Eje Y */}
+        <line x1={CHART_PAD.left} y1={CHART_PAD.top} x2={CHART_PAD.left} y2={CHART_PAD.top + CHART_INNER_HEIGHT} stroke="var(--border)" strokeWidth="1" />
+        {yTicks.map((tick, i) => {
+          const y = CHART_PAD.top + CHART_INNER_HEIGHT - (max > 0 ? (tick / max) * CHART_INNER_HEIGHT : 0);
+          return (
+            <g key={i}>
+              <line x1={CHART_PAD.left} y1={y} x2={CHART_PAD.left + 4} y2={y} stroke="var(--border)" strokeWidth="1" />
+              <text x={CHART_PAD.left - 4} y={y + 3} textAnchor="end" className="historyChartAxis" fontSize="9">
+                {formatAxis.format(tick)}
+              </text>
+            </g>
+          );
+        })}
+        {income.map((v, i) => {
+          const slotCenter = CHART_PAD.left + (i + 0.5) * (CHART_INNER_WIDTH / MONTHS_N);
+          const xIncome = slotCenter - barW - gap / 2;
+          const hIncome = max > 0 ? (v / max) * CHART_INNER_HEIGHT : 0;
+          const yIncome = CHART_PAD.top + CHART_INNER_HEIGHT - hIncome;
+          return (
+            <g key={`in-${i}`}>
+              <title>{`${monthLabels[i] ?? ""} — ${incomeLabel}: ${formatTooltip.format(v)} USD`}</title>
+              <rect
+                x={xIncome}
+                y={yIncome}
+                width={barW}
+                height={hIncome}
+                fill="var(--brand-green)"
+                rx={2}
+              />
+            </g>
+          );
+        })}
+        {expenses.map((v, i) => {
+          const slotCenter = CHART_PAD.left + (i + 0.5) * (CHART_INNER_WIDTH / MONTHS_N);
+          const xExp = slotCenter + gap / 2;
+          const hExp = max > 0 ? (v / max) * CHART_INNER_HEIGHT : 0;
+          const yExp = CHART_PAD.top + CHART_INNER_HEIGHT - hExp;
+          return (
+            <g key={`ex-${i}`}>
+              <title>{`${monthLabels[i] ?? ""} — ${expensesLabel}: ${formatTooltip.format(v)} USD`}</title>
+              <rect
+                x={xExp}
+                y={yExp}
+                width={barW}
+                height={hExp}
+                fill="var(--muted)"
+                rx={2}
+              />
+            </g>
+          );
+        })}
+        {monthLabels.map((l, i) => (
+          <text
+            key={i}
+            x={CHART_PAD.left + (i + 0.5) * (CHART_INNER_WIDTH / MONTHS_N)}
+            y={CHART_HEIGHT - 6}
+            textAnchor="middle"
+            className="historyChartAxis"
+            fontSize="9"
+          >
+            {l}
+          </text>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { setHeader, reopenOnboarding, onboardingStep, setOnboardingStep, meLoaded, me } = useAppShell();
   const { year, month } = useAppYearMonth();
@@ -346,6 +582,27 @@ export default function DashboardPage() {
 
   const sourceBadge = annualMonth?.source ?? "computed";
   const isLocked = annualMonth?.isClosed ?? false;
+
+  /* ---------------- Datos para gráficos históricos ---------------- */
+  const { i18n } = useTranslation();
+  const annualMonthsOrdered = useMemo(() => {
+    const raw = annual?.months ?? [];
+    const byMonth = new Map(raw.map((m) => [m.month, m]));
+    return months.map((m) => {
+      const x = byMonth.get(m);
+      return {
+        month: m,
+        incomeUsd: x?.incomeUsd ?? 0,
+        expensesUsd: x?.expensesUsd ?? 0,
+        netWorthUsd: x?.netWorthUsd ?? 0,
+      };
+    });
+  }, [annual]);
+
+  const monthShortLabels = useMemo(() => {
+    const fmt = new Intl.DateTimeFormat(i18n.language?.startsWith("es") ? "es" : "en", { month: "short" });
+    return months.map((m) => fmt.format(new Date(2000, m - 1, 1)));
+  }, [i18n.language]);
 
   return (
     <div className="dash">
@@ -576,6 +833,42 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Gráficos históricos del año */}
+      {annualMonthsOrdered.length > 0 && (
+        <div className="dashTrends">
+          <div className="sectionHead" style={{ marginTop: 16 }}>
+            <div className="sectionTitle">{t("dashboard.annualTrends")}</div>
+            <div className="muted">{year} • USD</div>
+          </div>
+          <div className="historyChartsGrid">
+            <div className="card historyChartCard">
+              <AnnualBarChart
+                data={annualMonthsOrdered.map((m) => m.expensesUsd)}
+                monthLabels={monthShortLabels}
+                title={t("dashboard.expensesByMonth")}
+              />
+            </div>
+            <div className="card historyChartCard">
+              <NetWorthLineChart
+                data={annualMonthsOrdered.map((m) => m.netWorthUsd)}
+                monthLabels={monthShortLabels}
+                title={t("dashboard.netWorthEvolution")}
+              />
+            </div>
+            <div className="card historyChartCard">
+              <IncomeVsExpensesChart
+                income={annualMonthsOrdered.map((m) => m.incomeUsd)}
+                expenses={annualMonthsOrdered.map((m) => m.expensesUsd)}
+                monthLabels={monthShortLabels}
+                title={t("dashboard.incomeVsExpenses")}
+                incomeLabel={t("income.title")}
+                expensesLabel={t("expenses.title")}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .dash{
@@ -987,6 +1280,38 @@ export default function DashboardPage() {
           border: 1px solid var(--brand-green-border);
           border-left: 4px solid var(--brand-green);
           box-shadow: var(--shadow-sm), 0 0 0 1px rgba(34, 197, 94, 0.06);
+        }
+
+        .dashTrends { margin-top: 8px; }
+        .historyChartsGrid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+          margin-top: 10px;
+        }
+        @media (max-width: 1000px) {
+          .historyChartsGrid { grid-template-columns: 1fr; }
+        }
+        .historyChartCard {
+          padding: 12px 14px;
+          min-height: 0;
+        }
+        .historyChart { width: 100%; }
+        .historyChartTitle {
+          font-size: 13px;
+          font-weight: 800;
+          margin-bottom: 8px;
+          color: var(--text);
+        }
+        .historyChartSvg {
+          width: 100%;
+          height: auto;
+          max-height: 140px;
+          display: block;
+        }
+        .historyChartAxis {
+          fill: var(--muted);
+          font-family: var(--font-sans);
         }
       `}</style>
     </div>

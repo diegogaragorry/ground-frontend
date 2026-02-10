@@ -125,7 +125,11 @@
     "annualSavings": "Ahorro anual",
     "sumMonthlyBalances": "Suma de balances mensuales",
     "netWorthEndYear": "Patrimonio (fin de año)",
-    "monthClosed": "El mes está cerrado (bloqueado)"
+    "monthClosed": "El mes está cerrado (bloqueado)",
+    "annualTrends": "Tendencias del año",
+    "expensesByMonth": "Gastos por mes",
+    "netWorthEvolution": "Evolución del patrimonio",
+    "incomeVsExpenses": "Ingresos vs gastos"
   },
   "expenses": {
     "title": "Gastos",

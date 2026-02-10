@@ -125,7 +125,11 @@
     "annualSavings": "Annual savings",
     "sumMonthlyBalances": "Sum of monthly balances",
     "netWorthEndYear": "Net worth (end of year)",
-    "monthClosed": "Month is closed (locked)"
+    "monthClosed": "Month is closed (locked)",
+    "annualTrends": "Annual trends",
+    "expensesByMonth": "Expenses by month",
+    "netWorthEvolution": "Net worth evolution",
+    "incomeVsExpenses": "Income vs expenses"
   },
   "expenses": {
     "title": "Expenses",
