@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
+import { downloadCsv } from "../utils/exportCsv";
 import { getFxDefault } from "../utils/fx";
 
 type Investment = {
@@ -390,6 +391,33 @@ export default function InvestmentsPage() {
     () => months.map((_, i) => (portfolioMonthlyVariation[i] ?? 0) - (flows.series[i] ?? 0)),
     [portfolioMonthlyVariation, flows.series]
   );
+
+  function movementTypeLabel(type: string) {
+    if (type === "deposit") return t("investments.deposit");
+    if (type === "withdrawal") return t("investments.withdrawal");
+    return t("investments.yield");
+  }
+
+  function exportMovementsCsv() {
+    const headers = [
+      t("expenses.date"),
+      t("investments.investment"),
+      t("investments.type"),
+      t("investments.currency"),
+      t("investments.amount"),
+    ];
+    const sorted = [...movements].sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    );
+    const rows = sorted.map((mv) => [
+      (mv.date ?? "").toString().slice(0, 10),
+      mv.investmentName ?? mv.investmentId ?? "",
+      movementTypeLabel(mv.type),
+      mv.currencyId ?? "USD",
+      mv.amount ?? 0,
+    ]);
+    downloadCsv(`movimientos-inversiones-${year}`, headers, rows);
+  }
 
   // MOVEMENTS CRUD
   async function createMovement(draft: { investmentId: string; type: "deposit" | "withdrawal" | "yield"; month: number; amount: number; currencyId: string }) {
@@ -862,6 +890,9 @@ export default function InvestmentsPage() {
             <div style={{ fontWeight: 900 }}>{t("investments.movementsPortfolio")}</div>
             <div className="muted" style={{ fontSize: 12 }}>{t("investments.movementsPortfolioDesc")}</div>
           </div>
+          <button className="btn" type="button" onClick={exportMovementsCsv} aria-label={t("common.exportCsv")}>
+            {t("common.exportCsv")}
+          </button>
         </div>
 
         <form

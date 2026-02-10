@@ -5,6 +5,7 @@ import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
 import { getCategoryDisplayName, getExpenseTypeLabel, getTemplateDescriptionDisplay } from "../utils/categoryI18n";
+import { downloadCsv } from "../utils/exportCsv";
 import { getFxDefault, setFxDefault } from "../utils/fx";
 
 type ExpenseType = "FIXED" | "VARIABLE";
@@ -251,6 +252,38 @@ export default function ExpensesPage() {
 
   const totalUsdMonth = useMemo(() => expenses.reduce((acc, e) => acc + (e.amountUsd ?? 0), 0), [expenses]);
 
+  function exportExpensesCsv() {
+    const headers = [
+      t("expenses.date"),
+      t("expenses.description"),
+      t("expenses.category"),
+      t("expenses.type"),
+      t("expenses.curr"),
+      t("expenses.amount"),
+      t("expenses.amountUsd"),
+      t("expenses.fx"),
+    ];
+    const rows = expenses.map((e) => {
+      const categoryDisplay = e.category
+        ? getCategoryDisplayName(
+            { name: e.category.name, expenseType: e.expenseType },
+            t
+          )
+        : "";
+      return [
+        (e.date ?? "").toString().slice(0, 10),
+        e.description ?? "",
+        categoryDisplay,
+        getExpenseTypeLabel(e.expenseType, t),
+        e.currencyId ?? "",
+        e.amount ?? 0,
+        e.amountUsd ?? 0,
+        e.currencyId === "UYU" && e.usdUyuRate != null ? e.usdUyuRate : "",
+      ];
+    });
+    downloadCsv(`gastos-${year}-${String(month).padStart(2, "0")}`, headers, rows);
+  }
+
   const summaryByCategory = useMemo(() => {
     const rows = summary?.totalsByCategoryAndCurrency ?? [];
     return [...rows].sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
@@ -481,6 +514,9 @@ export default function ExpensesPage() {
             ) : (
               t("common.refresh")
             )}
+            </button>
+            <button className="btn" type="button" onClick={exportExpensesCsv} aria-label={t("common.exportCsv")}>
+              {t("common.exportCsv")}
             </button>
             {info && <div style={{ color: "rgba(15,23,42,0.75)", fontWeight: 650 }}>{info}</div>}
           </div>

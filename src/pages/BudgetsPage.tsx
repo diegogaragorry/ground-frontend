@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
+import { downloadCsv } from "../utils/exportCsv";
 
 type AnnualResp = {
   year: number;
@@ -163,6 +164,25 @@ export default function BudgetsPage() {
     await load();
   }
 
+  function exportBudgetCsv() {
+    const headers = [
+      t("budgets.exportConcept"),
+      ...months12.map((m) => m2(m)),
+      t("budgets.total"),
+    ];
+    const rows = [
+      [t("budgets.income"), ...months.map((m) => m.incomeUsd ?? 0), totals.income],
+      [t("budgets.baseExpenses"), ...months.map((m) => m.baseExpensesUsd ?? 0), totals.base],
+      [t("budgets.otherExpenses"), ...months.map((m) => m.otherExpensesUsd ?? 0), totals.other],
+      [t("budgets.expensesCol"), ...months.map((m) => m.expensesUsd ?? 0), totals.expenses],
+      [t("budgets.investmentEarnings"), ...months.map((m) => m.investmentEarningsUsd ?? 0), totals.earnings],
+      [t("budgets.balance"), ...months.map((m) => m.balanceUsd ?? 0), totals.balance],
+      [t("budgets.netWorthCol"), ...months.map((m) => m.netWorthUsd ?? 0), ""],
+      [t("budgets.exportClosed"), ...months.map((m) => (m.isClosed ? t("common.closed") : t("common.open"))), ""],
+    ];
+    downloadCsv(`presupuesto-${year}`, headers, rows);
+  }
+
   return (
     <div className="grid">
       {/* ✅ Onboarding banner (Step 4) */}
@@ -214,6 +234,9 @@ export default function BudgetsPage() {
             ) : (
               t("common.refresh")
             )}
+            </button>
+            <button className="btn" type="button" onClick={exportBudgetCsv} aria-label={t("common.exportCsv")}>
+              {t("common.exportCsv")}
             </button>
           </div>
         </div>

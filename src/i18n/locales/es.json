@@ -91,7 +91,8 @@
     "mobileWarningMessage": "La experiencia actual de ground fue diseñada para desktop. En dispositivos móviles solo podrás ver el panel y crear gastos. Para acceder a todas las funcionalidades ingresa en una computadora de escritorio.",
     "close": "Cerrar",
     "errorSaving": "Error al guardar",
-    "saved": "Guardado"
+    "saved": "Guardado",
+    "exportCsv": "Exportar CSV"
   },
   "dashboard": {
     "title": "Panel",
@@ -241,7 +242,9 @@
     "incomeMinusExpensesEarnings": "ingresos - gastos + ganancias inversiones",
     "tipBaseExpenses": "Tip: Gastos base = reales si el mes tiene gastos; si no, suma de borradores (plantillas). Otros gastos es tu ajuste manual.",
     "investmentEarnings": "Ganancias de inversiones",
-    "startOfMonth": "Inicio del mes"
+    "startOfMonth": "Inicio del mes",
+    "exportConcept": "Concepto",
+    "exportClosed": "Cerrado"
   },
   "investments": {
     "title": "Inversiones",
@@ -258,6 +261,7 @@
     "typeAccount": "Cuenta",
     "deposit": "Depósito",
     "withdrawal": "Retiro",
+    "yield": "Rendimiento",
     "portfolios": "Portfolios",
     "accounts": "Cuentas",
     "step3Title": "Paso 3 — Configurá tus Cuentas y Fondos",

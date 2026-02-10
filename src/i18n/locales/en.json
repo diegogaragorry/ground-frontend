@@ -91,7 +91,8 @@
     "mobileWarningMessage": "ground's current experience was designed for desktop. On mobile you can only view the dashboard and create expenses. To access all features, use a desktop computer.",
     "close": "Close",
     "errorSaving": "Error saving",
-    "saved": "Saved"
+    "saved": "Saved",
+    "exportCsv": "Export CSV"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -241,7 +242,9 @@
     "incomeMinusExpensesEarnings": "income - expenses + investment earnings",
     "tipBaseExpenses": "Tip: Base expenses = actuals if the month has expenses; otherwise it uses the sum of draft planned expenses (templates). Other expenses is your manual adjustment.",
     "investmentEarnings": "Investment earnings",
-    "startOfMonth": "Start of month"
+    "startOfMonth": "Start of month",
+    "exportConcept": "Concept",
+    "exportClosed": "Closed"
   },
   "investments": {
     "title": "Investments",
@@ -258,6 +261,7 @@
     "typeAccount": "Account",
     "deposit": "Deposit",
     "withdrawal": "Withdrawal",
+    "yield": "Yield",
     "portfolios": "Portfolios",
     "accounts": "Accounts",
     "step3Title": "Step 3 — Set your Accounts and Funds",
