@@ -15,7 +15,7 @@
     "signIn": "Sign in",
     "signingIn": "Signing in…",
     "forgotPassword": "Forgot password?",
-    "newToGround": "New to Ground?",
+    "newToGround": "New to ground?",
     "createAccountLink": "Create your account",
     "passwordResetTitle": "Password reset",
     "passwordResetDone": "Your password has been updated. You can sign in with your new password.",
@@ -88,7 +88,7 @@
     "computed": "Computed",
     "locked": "Locked",
     "mobileWarningTitle": "Desktop-optimized experience",
-    "mobileWarningMessage": "Ground's current experience was designed for desktop. On mobile you can only view the dashboard and create expenses. To access all features, use a desktop computer.",
+    "mobileWarningMessage": "ground's current experience was designed for desktop. On mobile you can only view the dashboard and create expenses. To access all features, use a desktop computer.",
     "close": "Close",
     "errorSaving": "Error saving",
     "saved": "Saved"
@@ -503,7 +503,7 @@
     "others": "Others"
   },
   "onboarding": {
-    "welcome": "Welcome to Ground",
+    "welcome": "Welcome to ground",
     "tagline": "Order your finances, ground your spending, grow your dreams.",
     "checklist": "Your setup checklist",
     "step1Title": "1) Review templates & categories",
@@ -520,7 +520,7 @@
     "notNow": "Not now",
     "skipToDashboard": "Skip setup → Dashboard",
     "hideForNow": "Hide for now (you can reopen it later)",
-    "wizardWelcomeTitle": "Welcome to Ground",
+    "wizardWelcomeTitle": "Welcome to ground",
     "wizardWelcomeSub": "We'll ask you a few questions to set up your budget template. You can add or change anything later.",
     "wizardNext": "Next",
     "wizardBack": "Back",

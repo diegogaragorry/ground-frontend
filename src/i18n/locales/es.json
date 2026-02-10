@@ -15,7 +15,7 @@
     "signIn": "Iniciar sesión",
     "signingIn": "Entrando…",
     "forgotPassword": "¿Olvidaste la contraseña?",
-    "newToGround": "¿Nuevo en Ground?",
+    "newToGround": "¿Nuevo en ground?",
     "createAccountLink": "Crear cuenta",
     "passwordResetTitle": "Contraseña actualizada",
     "passwordResetDone": "Tu contraseña fue actualizada. Podés iniciar sesión con la nueva contraseña.",
@@ -88,7 +88,7 @@
     "computed": "Calculado",
     "locked": "Bloqueado",
     "mobileWarningTitle": "Experiencia diseñada para desktop",
-    "mobileWarningMessage": "La experiencia actual de Ground fue diseñada para desktop. En dispositivos móviles solo podrás ver el panel y crear gastos. Para acceder a todas las funcionalidades ingresa en una computadora de escritorio.",
+    "mobileWarningMessage": "La experiencia actual de ground fue diseñada para desktop. En dispositivos móviles solo podrás ver el panel y crear gastos. Para acceder a todas las funcionalidades ingresa en una computadora de escritorio.",
     "close": "Cerrar",
     "errorSaving": "Error al guardar",
     "saved": "Guardado"
@@ -503,7 +503,7 @@
     "others": "Otros"
   },
   "onboarding": {
-    "welcome": "Bienvenido a Ground",
+    "welcome": "Bienvenido a ground",
     "tagline": "Ordená tus finanzas, controlá tus gastos, hacé crecer tus proyectos.",
     "checklist": "Tu lista de configuración",
     "step1Title": "1) Revisá plantillas y categorías",
@@ -520,7 +520,7 @@
     "notNow": "Ahora no",
     "skipToDashboard": "Omitir → Dashboard",
     "hideForNow": "Ocultar por ahora (podés reabrirlo después)",
-    "wizardWelcomeTitle": "Bienvenido a Ground",
+    "wizardWelcomeTitle": "Bienvenido a ground",
     "wizardWelcomeSub": "Te haremos unas preguntas para armar tu plantilla. Podés sumar o cambiar todo después.",
     "wizardNext": "Siguiente",
     "wizardBack": "Atrás",

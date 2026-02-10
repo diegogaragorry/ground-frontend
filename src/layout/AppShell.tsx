@@ -124,7 +124,7 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
   }, []);
 
   const [header, setHeader] = useState<ShellHeader>({
-    title: "Ground",
+    title: "ground",
     subtitle: "Order your finances, ground your spending, grow your dreams.",
   });
 
