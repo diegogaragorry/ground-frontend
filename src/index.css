@@ -187,9 +187,11 @@ h1 {
   border-right: none;
 }
 
+/* Altura suficiente para que el topbar fijo no tape el aviso mobile (logo + título + controles pueden ser 2 líneas) */
 .topbar-spacer {
-  height: 56px;
+  height: 96px;
   flex-shrink: 0;
+  min-height: 96px;
 }
 
 /* Mensaje de advertencia mobile */
@@ -202,6 +204,12 @@ h1 {
   border: 2px solid rgba(220, 38, 38, 0.3);
   border-radius: 12px;
   margin-bottom: 8px;
+}
+
+@media (max-width: 900px) {
+  .mobile-warning {
+    margin-top: 8px;
+  }
 }
 
 @media (min-width: 901px) {
