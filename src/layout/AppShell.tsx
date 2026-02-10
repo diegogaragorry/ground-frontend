@@ -22,6 +22,7 @@ type Me = {
   role: "USER" | "SUPER_ADMIN";
   forceOnboardingNextLogin?: boolean;
   onboardingStep?: string;
+  mobileWarningDismissed?: boolean;
 };
 
 type OnboardingStep = "welcome" | "admin" | "expenses" | "investments" | "budget" | "dashboard" | "done";
@@ -96,6 +97,9 @@ type AppShellCtx = {
 
   /** Tipo de cambio USD/UYU del servidor (actualizado 1x/día). null hasta que se reciba. */
   serverFxRate: number | null;
+
+  /** Marca el aviso mobile como visto para el usuario actual (persistido en backend). */
+  dismissMobileWarning: () => Promise<void>;
 };
 
 const Ctx = createContext<AppShellCtx | null>(null);
@@ -136,6 +140,12 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
   }, []);
 
   const [serverFxRate, setServerFxRate] = useState<number | null>(null);
+
+  const dismissMobileWarning = React.useCallback(() => {
+    api("/auth/me", { method: "PATCH", body: JSON.stringify({ mobileWarningDismissed: true }) }).then(() => {
+      setMe((prev) => (prev ? { ...prev, mobileWarningDismissed: true } : null));
+    });
+  }, []);
 
   React.useEffect(() => {
     if (!toast) return;
@@ -212,6 +222,7 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
     toast,
     showSuccess,
     serverFxRate,
+    dismissMobileWarning,
   };
 
   return <Ctx.Provider value={value}>{props.children}</Ctx.Provider>;
@@ -238,6 +249,7 @@ export function useAppShell() {
     onboardingTourStep: ctx.onboardingTourStep,
     showSuccess: ctx.showSuccess,
     serverFxRate: ctx.serverFxRate,
+    dismissMobileWarning: ctx.dismissMobileWarning,
   };
 }
 
@@ -255,10 +267,6 @@ export function AppShell(props: { children: React.ReactNode }) {
 
   const { t, i18n } = useTranslation();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [mobileWarningDismissed, setMobileWarningDismissed] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return localStorage.getItem("ground:mobile-warning-dismissed") === "1";
-  });
 
   const locale = i18n.language?.startsWith("es") ? "es" : "en";
   const monthNames = React.useMemo(() => {
@@ -384,7 +392,7 @@ export function AppShell(props: { children: React.ReactNode }) {
             }
           />
           {isMobile && <div className="topbar-spacer" aria-hidden />}
-          {isMobile && ctx.meLoaded && ctx.me && !mobileWarningDismissed && (
+          {isMobile && ctx.meLoaded && ctx.me && !ctx.me.mobileWarningDismissed && (
             <div className="mobile-warning" role="alert">
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 900, marginBottom: 6, color: "var(--danger)" }}>
@@ -396,10 +404,7 @@ export function AppShell(props: { children: React.ReactNode }) {
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  localStorage.setItem("ground:mobile-warning-dismissed", "1");
-                  setMobileWarningDismissed(true);
-                }}
+                onClick={() => ctx.dismissMobileWarning()}
                 style={{
                   background: "none",
                   border: "none",

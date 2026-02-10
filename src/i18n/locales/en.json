@@ -88,7 +88,7 @@
     "computed": "Computed",
     "locked": "Locked",
     "mobileWarningTitle": "Desktop-optimized experience",
-    "mobileWarningMessage": "Ground's current experience was designed for desktop. Future versions will be more mobile-friendly, but for now we recommend using Ground on a computer.",
+    "mobileWarningMessage": "Ground's current experience was designed for desktop. On mobile you can only view the dashboard and create expenses. To access all features, use a desktop computer.",
     "close": "Close",
     "errorSaving": "Error saving",
     "saved": "Saved"

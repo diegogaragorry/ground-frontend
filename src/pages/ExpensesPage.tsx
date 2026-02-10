@@ -354,13 +354,18 @@ export default function ExpensesPage() {
     await loadPlanned();
   }
 
-  async function confirmPlanned(plannedId: string) {
+  async function confirmPlanned(p: PlannedExpense) {
     setError("");
     setInfo("");
     if (isClosed(month)) return setError(t("expenses.monthClosedConfirmDrafts"));
 
+    const body =
+      p.template?.defaultCurrencyId === "UYU" && Number.isFinite(usdUyuRate) && usdUyuRate > 0
+        ? JSON.stringify({ usdUyuRate: usdUyuRate })
+        : undefined;
+
     try {
-      await api(`/plannedExpenses/${plannedId}/confirm`, { method: "POST" });
+      await api(`/plannedExpenses/${p.id}/confirm`, { method: "POST", ...(body ? { body } : {}) });
       await Promise.all([loadPlanned(), loadExpenses(), loadSummary()]);
       setInfo(t("expenses.draftConfirmed"));
       showSuccess(t("expenses.draftConfirmed"));
@@ -377,10 +382,13 @@ export default function ExpensesPage() {
 
     setLoading(true);
     try {
-      // secuencial (menos riesgo de rate limits / locks)
       for (const p of planned) {
+        const body =
+          p.template?.defaultCurrencyId === "UYU" && Number.isFinite(usdUyuRate) && usdUyuRate > 0
+            ? JSON.stringify({ usdUyuRate: usdUyuRate })
+            : undefined;
         // eslint-disable-next-line no-await-in-loop
-        await api(`/plannedExpenses/${p.id}/confirm`, { method: "POST" });
+        await api(`/plannedExpenses/${p.id}/confirm`, { method: "POST", ...(body ? { body } : {}) });
       }
       await Promise.all([loadPlanned(), loadExpenses(), loadSummary()]);
       setInfo(t("expenses.allDraftsConfirmed"));
@@ -763,6 +771,7 @@ export default function ExpensesPage() {
                 <th style={{ width: 90 }}>{t("expenses.curr")}</th>
                 <th className="right" style={{ width: 110 }}>{t("expenses.amount")}</th>
                 <th style={{ width: 100 }}>{t("expenses.fx")}</th>
+                <th className="right" style={{ width: 100 }}>{t("expenses.usd")}</th>
                 <th style={{ width: 220 }}>{t("expenses.actions")}</th>
               </tr>
             </thead>
@@ -872,12 +881,16 @@ export default function ExpensesPage() {
                     </td>
 
                     <td className="right">
+                      <span className="muted" style={{ whiteSpace: "nowrap" }}>{usd0.format(amountUsd)} USD</span>
+                    </td>
+
+                    <td className="right">
                       <div className="row" style={{ justifyContent: "flex-end", gap: 10 }}>
                         <button
                           className="btn primary"
                           type="button"
                           disabled={locked}
-                          onClick={() => confirmPlanned(p.id)}
+                          onClick={() => confirmPlanned(p)}
                           title={locked ? t("expenses.monthClosed") : t("expenses.confirmAndCreateReal")}
                           style={{ height: 34 }}
                         >
@@ -891,7 +904,7 @@ export default function ExpensesPage() {
 
               {planned.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="muted">
+                  <td colSpan={9} className="muted">
                     <div style={{ padding: "8px 0" }}>
                       <div style={{ fontWeight: 800, marginBottom: 4 }}>{t("expenses.noDrafts")}</div>
                       <div className="muted" style={{ fontSize: 13 }}>

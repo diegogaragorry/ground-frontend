@@ -88,7 +88,7 @@
     "computed": "Calculado",
     "locked": "Bloqueado",
     "mobileWarningTitle": "Experiencia diseñada para desktop",
-    "mobileWarningMessage": "La experiencia actual de Ground fue diseñada para desktop. Futuras versiones serán más amigables para móviles, pero por ahora recomendamos usar Ground en una computadora.",
+    "mobileWarningMessage": "La experiencia actual de Ground fue diseñada para desktop. En dispositivos móviles solo podrás ver el panel y crear gastos. Para acceder a todas las funcionalidades ingresa en una computadora de escritorio.",
     "close": "Cerrar",
     "errorSaving": "Error al guardar",
     "saved": "Guardado"
