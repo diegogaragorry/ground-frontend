@@ -672,7 +672,7 @@ function ExpenseTemplatesAdminCard({
               </select>
               <input className="input" type="number" value={editDefaultAmountUsd} onChange={(e) => setEditDefaultAmountUsd(e.target.value)} style={{ width: 82, height: 32, textAlign: "right", flexShrink: 0 }} />
               {editDefaultCurrencyId === "UYU" && (
-                <input className="input" type="number" step="0.001" value={editUsdUyuRate} onChange={(e) => setEditUsdUyuRate(Number(e.target.value))} style={{ width: 72, height: 32, flexShrink: 0 }} title={t("expenses.fx")} />
+                <input className="input" type="number" step="0.001" value={Number.isFinite(editUsdUyuRate) ? editUsdUyuRate.toFixed(2) : ""} onChange={(e) => setEditUsdUyuRate(Number(e.target.value))} style={{ width: 72, height: 32, flexShrink: 0 }} title={t("expenses.fx")} />
               )}
             </div>
           ) : (
@@ -773,7 +773,7 @@ function ExpenseTemplatesAdminCard({
           {createDefaultCurrencyId === "UYU" && (
             <div style={{ minWidth: 140 }}>
               <label className="admin-label">{t("expenses.fx")}</label>
-              <input className="input" type="number" step="0.001" value={createUsdUyuRate} onChange={(e) => setCreateUsdUyuRate(Number(e.target.value))} style={{ width: "100%", marginTop: 4, height: 40 }} />
+              <input className="input" type="number" step="0.001" value={Number.isFinite(createUsdUyuRate) ? createUsdUyuRate.toFixed(2) : ""} onChange={(e) => setCreateUsdUyuRate(Number(e.target.value))} style={{ width: "100%", marginTop: 4, height: 40 }} />
             </div>
           )}
           <button className="btn primary" type="submit" style={{ height: 40 }}>{t("admin.create")}</button>

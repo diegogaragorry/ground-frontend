@@ -183,7 +183,7 @@ function SnapshotRow({
             className="input"
             type="number"
             disabled={disabled}
-            value={rate}
+            value={rate === "" || !Number.isFinite(Number(rate)) ? "" : Number(rate).toFixed(2)}
             onChange={(e) => setRate(Number(e.target.value))}
             style={{ textAlign: "right" }}
           />

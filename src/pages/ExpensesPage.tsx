@@ -673,7 +673,7 @@ export default function ExpensesPage() {
                   className="input"
                   type="number"
                   step="0.001"
-                  value={usdUyuRate}
+                  value={Number.isFinite(usdUyuRate) ? usdUyuRate.toFixed(2) : ""}
                   onChange={(e) => setUsdUyuRate(Number(e.target.value))}
                   style={{ width: 120 }}
                   disabled={createMonthClosed}
@@ -904,7 +904,7 @@ export default function ExpensesPage() {
 
                     <td>
                       {isUyu ? (
-                        <span className="muted" style={{ fontSize: 12 }}>{Number(rate).toFixed(3)}</span>
+                        <span className="muted" style={{ fontSize: 12 }}>{Number(rate).toFixed(2)}</span>
                       ) : (
                         <span className="muted" style={{ fontSize: 12 }}>—</span>
                       )}
@@ -1155,7 +1155,7 @@ function RealExpensesTable(props: {
                       className="input"
                       type="number"
                       step="0.001"
-                      value={Number(currentRate)}
+                      value={Number.isFinite(currentRate) ? Number(currentRate).toFixed(2) : ""}
                       disabled={locked}
                       onChange={(ev) => setDraft(e.id, { usdUyuRate: Number(ev.target.value) })}
                       onBlur={() => {

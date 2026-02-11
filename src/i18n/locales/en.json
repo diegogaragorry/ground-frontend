@@ -541,6 +541,7 @@
     "wizardWelcomeTitle": "Welcome to ground",
     "wizardWelcomeSub": "We'll ask you a few questions to set up your budget template. You can add or change anything later.",
     "wizardDisplayCurrencyQuestion": "In which currency do you want to see your totals?",
+    "wizardDisplayCurrencyDesc": "Totals and summaries will be shown in this currency across the app. You can change it at any time from the side menu.",
     "wizardNext": "Next",
     "wizardBack": "Back",
     "wizardSkip": "Skip setup",

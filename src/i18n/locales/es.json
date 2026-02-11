@@ -541,6 +541,7 @@
     "wizardWelcomeTitle": "Bienvenido a ground",
     "wizardWelcomeSub": "Te haremos unas preguntas para armar tu plantilla. Podés sumar o cambiar todo después.",
     "wizardDisplayCurrencyQuestion": "¿En qué moneda querés ver tus totales?",
+    "wizardDisplayCurrencyDesc": "Los totales y resúmenes se mostrarán en esta moneda en toda la app. Podés cambiarlo en cualquier momento desde el menú lateral.",
     "wizardNext": "Siguiente",
     "wizardBack": "Atrás",
     "wizardSkip": "Omitir configuración",
