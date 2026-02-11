@@ -520,25 +520,26 @@ export function OnboardingWizard(props: {
       <style>{`.onboarding-amount-input::placeholder { font-size: 11px; }`}</style>
       {error && <div style={{ color: "var(--danger)", marginBottom: 12 }}>{error}</div>}
 
-      {/* Step 0: Welcome */}
+      {/* Step 0: Welcome + display currency */}
       {step === 0 && (
         <>
           <div style={{ fontSize: 20, fontWeight: 950, marginBottom: 8 }}>{t("onboarding.wizardWelcomeTitle")}</div>
-          <div className="muted" style={{ fontSize: 14, lineHeight: 1.4, marginBottom: 16 }}>
+          <div className="muted" style={{ fontSize: 14, lineHeight: 1.4, marginBottom: 20 }}>
             {t("onboarding.wizardWelcomeSub")}
           </div>
-          <div className="row" style={{ alignItems: "center", gap: 8, marginBottom: 24 }}>
-            <span className="muted" style={{ fontSize: 13 }}>{t("admin.displayCurrency")}</span>
+          <div style={{ padding: "14px 16px", background: "rgba(15,23,42,0.04)", borderRadius: 10, marginBottom: 24, border: "1px solid var(--border)" }}>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>{t("onboarding.wizardDisplayCurrencyQuestion")}</div>
             <select
               className="select"
               value={wizardDisplayCurrency}
               onChange={(e) => setWizardDisplayCurrency(e.target.value as "USD" | "UYU")}
-              style={{ width: 80, height: 36, fontSize: 11 }}
+              style={{ width: 88, height: 38, fontSize: 13 }}
               aria-label={t("admin.displayCurrency")}
             >
               <option value="USD">USD</option>
               <option value="UYU">UYU</option>
             </select>
+            <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>{t("admin.displayCurrencyDesc")}</div>
           </div>
         </>
       )}

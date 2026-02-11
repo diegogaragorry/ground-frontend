@@ -62,6 +62,7 @@
     "placeholderCode": "6 digits"
   },
   "sidebar": {
+    "language": "Language",
     "dashboard": "Dashboard",
     "expenses": "Expenses",
     "income": "Income",
@@ -539,6 +540,7 @@
     "hideForNow": "Hide for now (you can reopen it later)",
     "wizardWelcomeTitle": "Welcome to ground",
     "wizardWelcomeSub": "We'll ask you a few questions to set up your budget template. You can add or change anything later.",
+    "wizardDisplayCurrencyQuestion": "In which currency do you want to see your totals?",
     "wizardNext": "Next",
     "wizardBack": "Back",
     "wizardSkip": "Skip setup",

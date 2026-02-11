@@ -62,6 +62,7 @@
     "placeholderCode": "6 dígitos"
   },
   "sidebar": {
+    "language": "Idioma",
     "dashboard": "Panel",
     "expenses": "Gastos",
     "income": "Ingresos",
@@ -539,6 +540,7 @@
     "hideForNow": "Ocultar por ahora (podés reabrirlo después)",
     "wizardWelcomeTitle": "Bienvenido a ground",
     "wizardWelcomeSub": "Te haremos unas preguntas para armar tu plantilla. Podés sumar o cambiar todo después.",
+    "wizardDisplayCurrencyQuestion": "¿En qué moneda querés ver tus totales?",
     "wizardNext": "Siguiente",
     "wizardBack": "Atrás",
     "wizardSkip": "Omitir configuración",

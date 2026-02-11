@@ -15,7 +15,7 @@ type SidebarProps = {
 export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
   const nav = useNavigate();
   const { t, i18n } = useTranslation();
-  const { onboardingTourStep } = useAppShell();
+  const { onboardingTourStep, preferredDisplayCurrencyId, updatePreferredDisplayCurrency } = useAppShell();
   const tourHighlightPath = onboardingTourStep != null ? TOUR_STEP_PATH[onboardingTourStep] ?? null : null;
 
   function logout() {
@@ -29,24 +29,25 @@ export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
         <span className="sidebar-wordmark">{t("brand.name")}</span>
         {!isMobile && <span className="sidebar-tagline">{t("brand.tagline")}</span>}
         {!isMobile && (
-          <div className="sidebar-lang" style={{ marginTop: 8 }}>
-            <button
-              type="button"
-              className={i18n.language === "en" ? "lang-btn active" : "lang-btn"}
-              onClick={() => i18n.changeLanguage("en")}
-              aria-label="English"
+          <div className="sidebar-drops" style={{ marginTop: 8, display: "flex", gap: 6, alignItems: "center", flexWrap: "nowrap" }}>
+            <select
+              className="select sidebar-drop"
+              value={i18n.language?.startsWith("es") ? "es" : "en"}
+              onChange={(e) => i18n.changeLanguage(e.target.value)}
+              aria-label={t("sidebar.language")}
             >
-              EN
-            </button>
-            <span style={{ color: "var(--muted)", fontSize: 12 }}>·</span>
-            <button
-              type="button"
-              className={i18n.language === "es" ? "lang-btn active" : "lang-btn"}
-              onClick={() => i18n.changeLanguage("es")}
-              aria-label="Español"
+              <option value="en">EN</option>
+              <option value="es">ES</option>
+            </select>
+            <select
+              className="select sidebar-drop sidebar-drop-currency"
+              value={preferredDisplayCurrencyId}
+              onChange={(e) => updatePreferredDisplayCurrency(e.target.value as "USD" | "UYU")}
+              aria-label={t("income.currencyLabel")}
             >
-              ES
-            </button>
+              <option value="USD">USD</option>
+              <option value="UYU">UYU</option>
+            </select>
           </div>
         )}
       </div>
@@ -135,18 +136,21 @@ export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
           line-height: 1.3;
         }
 
-        .sidebar-lang { display: flex; align-items: center; gap: 6px; }
-        .lang-btn {
-          background: none;
-          border: none;
-          font-size: 0.75rem;
-          font-weight: 600;
-          color: var(--muted);
-          cursor: pointer;
-          padding: 2px 4px;
+        .sidebar-drops { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+        .sidebar-drop {
+          font-size: 10px;
+          height: 24px;
+          padding: 0 4px;
+          width: 48px;
+          min-width: 48px;
+          border-radius: 4px;
+          border: 1px solid var(--border);
         }
-        .lang-btn:hover { color: var(--text); }
-        .lang-btn.active { color: var(--text); }
+        .sidebar-drop-currency {
+          width: 56px;
+          min-width: 56px;
+          padding: 0 6px;
+        }
 
         .sidebar-nav {
           display: grid;
