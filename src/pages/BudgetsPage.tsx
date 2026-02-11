@@ -319,7 +319,7 @@ export default function BudgetsPage() {
                       className="select"
                       value={otherExpensesCurrency}
                       onChange={(e) => setOtherExpensesCurrency(e.target.value as "USD" | "UYU")}
-                      style={{ width: 72, minWidth: 72, height: 32, fontSize: 12, lineHeight: 1.5, padding: "4px 8px", boxSizing: "border-box" }}
+                      style={{ width: 72, minWidth: 72, height: 32, fontSize: 11, lineHeight: 1.5, padding: "4px 8px", boxSizing: "border-box" }}
                       aria-label={t("income.currencyLabel")}
                     >
                       <option value="USD">USD</option>

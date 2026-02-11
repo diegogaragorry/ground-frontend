@@ -155,7 +155,7 @@ function DisplayCurrencyCard() {
         value={preferredDisplayCurrencyId}
         onChange={onChange}
         disabled={saving}
-        style={{ width: 120, height: 40 }}
+        style={{ width: 120, height: 40, fontSize: 11 }}
         aria-label={t("admin.displayCurrency")}
       >
         <option value="USD">USD</option>
@@ -666,7 +666,7 @@ function ExpenseTemplatesAdminCard({
         <td className="right" style={{ minWidth: 248, width: 248 }}>
           {isEditing ? (
             <div className="row" style={{ gap: 6, alignItems: "center", flexWrap: "nowrap" }}>
-              <select className="select" value={editDefaultCurrencyId} onChange={(e) => setEditDefaultCurrencyId(e.target.value as "UYU" | "USD")} style={{ width: 56, height: 32, flexShrink: 0 }}>
+              <select className="select" value={editDefaultCurrencyId} onChange={(e) => setEditDefaultCurrencyId(e.target.value as "UYU" | "USD")} style={{ width: 56, height: 32, fontSize: 11, flexShrink: 0 }}>
                 <option value="UYU">UYU</option>
                 <option value="USD">USD</option>
               </select>
@@ -761,7 +761,7 @@ function ExpenseTemplatesAdminCard({
           </div>
           <div style={{ minWidth: 80 }}>
             <label className="admin-label">{t("expenses.curr")}</label>
-            <select className="select" value={createDefaultCurrencyId} onChange={(e) => setCreateDefaultCurrencyId(e.target.value as "UYU" | "USD")} style={{ width: "100%", marginTop: 4, height: 40 }}>
+            <select className="select" value={createDefaultCurrencyId} onChange={(e) => setCreateDefaultCurrencyId(e.target.value as "UYU" | "USD")} style={{ width: "100%", marginTop: 4, height: 40, fontSize: 11 }}>
               <option value="UYU">UYU</option>
               <option value="USD">USD</option>
             </select>

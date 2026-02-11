@@ -533,7 +533,7 @@ export function OnboardingWizard(props: {
               className="select"
               value={wizardDisplayCurrency}
               onChange={(e) => setWizardDisplayCurrency(e.target.value as "USD" | "UYU")}
-              style={{ width: 80, height: 36 }}
+              style={{ width: 80, height: 36, fontSize: 11 }}
               aria-label={t("admin.displayCurrency")}
             >
               <option value="USD">USD</option>

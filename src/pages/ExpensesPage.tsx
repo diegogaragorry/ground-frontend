@@ -653,6 +653,7 @@ export default function ExpensesPage() {
                 setCurrencyId(v);
                 if (v === "UYU") setUsdUyuRate(getFxDefault());
               }}
+              style={{ fontSize: 11 }}
             >
               <option value="UYU">UYU</option>
               <option value="USD">USD</option>
@@ -1123,7 +1124,7 @@ function RealExpensesTable(props: {
                         patchExpense(e.id, expMonth, { currencyId: v, usdUyuRate: undefined }).then(() => clearDraft(e.id));
                       }
                     }}
-                    style={{ width: 82 }}
+                    style={{ width: 82, fontSize: 11 }}
                     title={locked ? t("expenses.monthClosed") : undefined}
                   >
                     <option value="UYU">UYU</option>

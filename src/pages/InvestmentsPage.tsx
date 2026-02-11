@@ -666,7 +666,7 @@ export default function InvestmentsPage() {
               className="select"
               value={newCurrency}
               onChange={(e) => setNewCurrency(e.target.value as any)}
-              style={{ height: 32, fontSize: 12, padding: "6px 10px" }}
+              style={{ height: 32, fontSize: 11, padding: "6px 10px" }}
             >
               <option value="USD">USD</option>
               <option value="UYU">UYU</option>
