@@ -57,11 +57,6 @@ type AnnualBudgetResp = {
   }>;
 };
 
-const usd0 = new Intl.NumberFormat(undefined, {
-  maximumFractionDigits: 0,
-  minimumFractionDigits: 0,
-});
-
 const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
 function month2(n: number) {

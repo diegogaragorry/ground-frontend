@@ -23,11 +23,8 @@ type SnapshotsResponse = {
   months: SnapshotMonth[];
 };
 
-const usd0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-
 export function InvestmentSnapshotsPanel({ investment }: { investment: Investment }) {
   const { t } = useTranslation();
-  const { formatAmountUsd } = useDisplayCurrency();
   const yearNow = new Date().getFullYear();
   const [year, setYear] = useState(yearNow);
   const [data, setData] = useState<SnapshotsResponse | null>(null);
@@ -141,6 +138,7 @@ function SnapshotRow({
   onClose: (m: number) => void;
 }) {
   const { t } = useTranslation();
+  const { formatAmountUsd } = useDisplayCurrency();
   const [capital, setCapital] = useState<number | "">(month.closingCapital ?? "");
   const [rate, setRate] = useState<number | "">(month.usdUyuRate ?? "");
 

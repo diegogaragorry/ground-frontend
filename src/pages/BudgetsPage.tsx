@@ -27,7 +27,6 @@ type AnnualResp = {
   }>;
 };
 
-const usd0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
 const m2 = (m: number) => String(m).padStart(2, "0");
 const months12 = Array.from({ length: 12 }, (_, i) => i + 1);
 

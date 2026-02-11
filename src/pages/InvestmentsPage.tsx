@@ -53,7 +53,6 @@ type MovementRow = {
 type MonthCloseRow = { year: number; month: number };
 type MonthClosesResp = { year: number; rows: MonthCloseRow[] };
 
-const usd0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
 
 const months = Array.from({ length: 12 }, (_, i) => i + 1);
 const monthLabel = (m: number) => String(m).padStart(2, "0");
