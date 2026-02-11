@@ -291,6 +291,7 @@ export default function InvestmentsPage() {
         [inv.id]: (prev[inv.id] ?? []).map((x) => (x.month === m ? snap : x)),
       }));
       showSuccess("Snapshot saved.");
+      await load();
     } catch (e: any) {
       setError(e?.message ?? t("investments.errorSavingSnapshot"));
     }

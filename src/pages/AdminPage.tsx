@@ -1623,7 +1623,9 @@ export default function AdminPage() {
                 components={{ 1: <strong /> }}
               />
               <br /><br />
-              {t("admin.closeMonthPreviewP3")}
+              {Math.abs((closePreviewData.realBalanceUsd ?? 0) - (closePreviewData.budgetBalanceUsd ?? 0)) < 0.01
+                ? t("admin.closeMonthPreviewP3NoAdjust")
+                : t("admin.closeMonthPreviewP3")}
             </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
               <button type="button" className="btn" onClick={() => setClosePreviewOpen(false)}>

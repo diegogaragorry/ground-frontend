@@ -472,7 +472,8 @@
     "closeMonthConfirm": "Sí, avanzar",
     "closeMonthPreviewP1": "Estás cerrando el mes con un patrimonio real de <1>{{netWorthEndUsd}} USD</1>, habiéndolo comenzado con <1>{{netWorthStartUsd}} USD</1>, lo que da un balance de <1>{{realBalanceUsd}} USD</1> (patrimonio final − inicial).",
     "closeMonthPreviewP2": "El balance calculado en {{budgetTitle}} en base a tus ingresos y gastos da <1>{{budgetBalanceUsd}} USD</1>, lo que tiene una diferencia de <1>{{differenceUsd}} USD</1> con el balance real.",
-    "closeMonthPreviewP3": "Se ajustará \"Otros gastos\" del mes para que cierre. ¿Querés avanzar?"
+    "closeMonthPreviewP3": "Se ajustará \"Otros gastos\" del mes para que cierre. ¿Querés avanzar?",
+    "closeMonthPreviewP3NoAdjust": "¡Felicitaciones! Los balances coinciden. ¿Confirmás el cierre?"
   },
   "categories": {
     "housing": "Vivienda",

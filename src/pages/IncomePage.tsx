@@ -136,19 +136,10 @@ export default function IncomePage() {
   }
 
   async function saveCell(month: number, field: "nominalUsd" | "extraordinaryUsd" | "taxesUsd", value: number) {
-    const row = byMonth.get(month);
-    if (!row) return;
     try {
       await api("/income", {
         method: "PATCH",
-        body: JSON.stringify({
-          year,
-          month,
-          [field]: value,
-          ...(field !== "nominalUsd" ? { nominalUsd: row.nominalUsd } : {}),
-          ...(field !== "extraordinaryUsd" ? { extraordinaryUsd: row.extraordinaryUsd } : {}),
-          ...(field !== "taxesUsd" ? { taxesUsd: row.taxesUsd } : {}),
-        }),
+        body: JSON.stringify({ year, month, [field]: value }),
       });
       await load();
     } catch (e: any) {
