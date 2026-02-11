@@ -514,7 +514,7 @@ export default function LandingPage() {
           <h1 className="landing-headline">{t.headline}</h1>
           <p className="landing-subheadline">{t.subheadline}</p>
           <div className="landing-ctas">
-            <button type="button" className="landing-cta-primary" onClick={showAuth}>
+            <button type="button" className="landing-cta-primary" onClick={() => showAuth()}>
               {t.ctaPrimary}
             </button>
             <button type="button" className="landing-cta-secondary" onClick={scrollToHow}>
@@ -983,7 +983,7 @@ export default function LandingPage() {
         className={`landing-final-cta ${visibleSections.has("final") ? "landing-reveal" : ""}`}
       >
         <h2 className="landing-final-headline">{t.finalHeadline}</h2>
-        <button type="button" className="landing-final-btn" onClick={showAuth}>
+        <button type="button" className="landing-final-btn" onClick={() => showAuth()}>
           {t.finalCta}
         </button>
       </section>
@@ -992,7 +992,7 @@ export default function LandingPage() {
       <footer className="landing-footer">
         <Link to="/" className="landing-footer-brand">ground</Link>
         <div className="landing-footer-links">
-          <button type="button" className="landing-footer-link" onClick={showAuth}>{t.footerLogin}</button>
+          <button type="button" className="landing-footer-link" onClick={() => showAuth()}>{t.footerLogin}</button>
           <button type="button" className="landing-footer-link" onClick={() => showAuth("register")}>{t.footerCreate}</button>
           <Link to="/terms">{t.footerTerms}</Link>
           <Link to="/privacy">{t.footerPrivacy}</Link>
