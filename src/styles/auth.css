@@ -1,0 +1,471 @@
+/*
+ * Auth layout (login / register) — Premium SaaS aesthetic
+ * Scoped under .auth-shell to avoid affecting app pages.
+ * Inspiration: Linear, Vercel, Stripe (minimal, calm, premium)
+ */
+
+/* --- Tokens (auth-scoped) --- */
+.auth-shell {
+  --auth-bg: #fafbfc;
+  --auth-surface: #ffffff;
+  --auth-surface-alt: #f5f7fb;
+  --auth-border: rgba(15, 23, 42, 0.08);
+  --auth-border-focus: rgba(34, 197, 94, 0.5);
+  --auth-text: #0f172a;
+  --auth-muted: #64748b;
+  --auth-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --auth-shadow-card: 0 4px 24px rgba(0, 0, 0, 0.06);
+  --auth-radius: 16px;
+  --auth-radius-input: 12px;
+  --auth-transition: 150ms ease;
+}
+
+/* --- Layout — split 2 cols, max-width 1100–1200px --- */
+.auth-shell.login-root,
+.auth-shell.register-root {
+  min-height: 100vh;
+  background: var(--auth-bg);
+  /* subtle radial gradient for depth */
+  background-image: radial-gradient(
+    ellipse 80% 50% at 50% 0%,
+    rgba(34, 197, 94, 0.04) 0%,
+    transparent 60%
+  );
+}
+
+.auth-shell .login-grid,
+.auth-shell .register-grid {
+  width: 100%;
+  max-width: 1150px;
+  margin: 0 auto;
+  padding: 0 32px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 100vh;
+  align-items: center;
+  gap: 48px;
+}
+
+/* --- Mobile: form first, hero below --- */
+@media (max-width: 900px) {
+  .auth-shell .login-grid,
+  .auth-shell .register-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+    padding: 24px 20px 32px;
+    gap: 32px;
+  }
+
+  /* order: form first (1), hero second (2) */
+  .auth-shell .login-panel,
+  .auth-shell .register-panel {
+    order: 1;
+  }
+
+  .auth-shell .brand-panel {
+    order: 2;
+    padding-top: 0;
+  }
+}
+
+/* --- Hero (left) --- */
+.auth-shell .brand-panel {
+  padding: 48px 24px 48px 0;
+  display: flex;
+  align-items: center;
+  background: transparent;
+}
+
+.auth-shell .brand-panel-inner {
+  max-width: 460px;
+}
+
+.auth-shell .brand-wordmark-block {
+  margin-bottom: 32px;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.auth-shell .brand-wordmark {
+  display: inline-block;
+  font-family: var(--font-sans);
+  font-size: clamp(2.5rem, 5vw, 3.5rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--auth-text);
+  line-height: 1;
+  text-transform: lowercase;
+}
+.auth-shell .brand-wordmark::after {
+  content: ".";
+  color: var(--brand-green);
+}
+
+.auth-shell .brand-headline {
+  font-family: var(--font-sans);
+  font-size: clamp(1.5rem, 2.5vw, 1.85rem);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  margin: 0 0 12px;
+  color: var(--auth-text);
+  max-width: 14ch;
+}
+
+.auth-shell .brand-subline {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--auth-muted);
+  margin: 0 0 24px;
+  max-width: 36ch;
+}
+
+/* --- Badges (chips) --- */
+.auth-shell .brand-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.auth-shell .brand-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--auth-border);
+  background: var(--auth-surface);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--auth-muted);
+  transition: border-color var(--auth-transition), color var(--auth-transition);
+}
+.auth-shell .brand-badge:hover {
+  border-color: var(--brand-green-border);
+  color: var(--auth-text);
+}
+
+/* --- CTA primary + secondary as link --- */
+.auth-shell .brand-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.auth-shell .brand-cta-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 14px 24px;
+  border-radius: var(--auth-radius-input);
+  background: var(--brand-green);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: background var(--auth-transition), transform var(--auth-transition);
+}
+.auth-shell .brand-cta-link:hover {
+  background: var(--brand-green-hover);
+  text-decoration: none;
+}
+.auth-shell .brand-cta-link:active {
+  transform: scale(0.99);
+}
+.auth-shell .brand-cta-link:focus-visible {
+  outline: 2px solid var(--brand-green);
+  outline-offset: 2px;
+}
+
+.auth-shell .brand-cta-secondary {
+  color: var(--auth-muted);
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: color var(--auth-transition), text-decoration var(--auth-transition);
+}
+.auth-shell .brand-cta-secondary:hover {
+  color: var(--auth-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* --- Lang toggle --- */
+.auth-shell .brand-lang {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.auth-shell .brand-lang button {
+  background: none;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  color: var(--auth-muted);
+  transition: color var(--auth-transition);
+}
+.auth-shell .brand-lang button.active,
+.auth-shell .brand-lang button:hover {
+  color: var(--auth-text);
+}
+.auth-shell .brand-lang-sep {
+  color: var(--auth-border);
+  font-size: 10px;
+}
+
+/* --- Login / Register panel (right) --- */
+.auth-shell .login-panel,
+.auth-shell .register-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  background: transparent;
+}
+
+/* --- Card premium --- */
+.auth-shell .login-card,
+.auth-shell .register-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 28px 32px;
+  background: var(--auth-surface);
+  border: 1px solid var(--auth-border);
+  border-radius: var(--auth-radius);
+  box-shadow: var(--auth-shadow-card);
+  transition: box-shadow var(--auth-transition);
+}
+.auth-shell .login-card:hover,
+.auth-shell .register-card:hover {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+.auth-shell .login-card h2,
+.auth-shell .register-card h2 {
+  font-family: var(--font-sans);
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+  color: var(--auth-text);
+}
+
+.auth-shell .login-form,
+.auth-shell .register-form {
+  display: grid;
+  gap: 20px;
+  margin-top: 24px;
+}
+
+.auth-shell .login-card .label,
+.auth-shell .register-card .label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--auth-muted);
+  margin-bottom: 6px;
+}
+
+/* --- Inputs: 44–48px, radius 12–14px, bg #F5F7FB --- */
+.auth-shell .login-card .input,
+.auth-shell .register-card .input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  font-size: 1rem;
+  font-family: var(--font-sans);
+  border: 1px solid var(--auth-border);
+  border-radius: var(--auth-radius-input);
+  background: var(--auth-surface-alt);
+  color: var(--auth-text);
+  transition: border-color var(--auth-transition), box-shadow var(--auth-transition);
+}
+.auth-shell .login-card .input:hover,
+.auth-shell .register-card .input:hover {
+  border-color: rgba(15, 23, 42, 0.15);
+}
+.auth-shell .login-card .input:focus,
+.auth-shell .register-card .input:focus {
+  outline: none;
+  border-color: var(--brand-green);
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.15);
+}
+.auth-shell .login-card .input::placeholder,
+.auth-shell .register-card .input::placeholder {
+  color: var(--auth-muted);
+  opacity: 0.8;
+}
+
+/* --- Password field with toggle --- */
+.auth-shell .auth-input-wrap {
+  position: relative;
+}
+.auth-shell .auth-input-wrap .input {
+  padding-right: 48px;
+}
+.auth-shell .auth-password-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--auth-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: color var(--auth-transition), background var(--auth-transition);
+}
+.auth-shell .auth-password-toggle:hover {
+  color: var(--auth-text);
+  background: rgba(0, 0, 0, 0.04);
+}
+.auth-shell .auth-password-toggle:focus-visible {
+  outline: 2px solid var(--brand-green);
+  outline-offset: 2px;
+}
+
+/* --- Error state: soft pink --- */
+.auth-shell .login-card .error,
+.auth-shell .register-card .error {
+  font-size: 0.875rem;
+  color: #b91c1c;
+  padding: 12px 14px;
+  background: #fef2f2;
+  border: 1px solid rgba(185, 28, 28, 0.2);
+  border-radius: var(--auth-radius-input);
+}
+
+/* --- Success toast --- */
+.auth-shell .login-card .toast-success,
+.auth-shell .register-card .toast-success {
+  padding: 12px 14px;
+  background: var(--brand-green-light);
+  border: 1px solid var(--brand-green-border);
+  border-radius: var(--auth-radius-input);
+  color: #166534;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* --- Primary button full width --- */
+.auth-shell .login-card .btn.primary,
+.auth-shell .register-card .btn.primary {
+  width: 100%;
+  height: 48px;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: var(--auth-radius-input);
+  border: none;
+  background: var(--brand-green);
+  color: #fff;
+  cursor: pointer;
+  transition: background var(--auth-transition), transform var(--auth-transition);
+}
+.auth-shell .login-card .btn.primary:hover:not(:disabled),
+.auth-shell .register-card .btn.primary:hover:not(:disabled) {
+  background: var(--brand-green-hover);
+}
+.auth-shell .login-card .btn.primary:active:not(:disabled),
+.auth-shell .register-card .btn.primary:active:not(:disabled) {
+  transform: scale(0.99);
+}
+.auth-shell .login-card .btn.primary:disabled,
+.auth-shell .register-card .btn.primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+.auth-shell .login-card .btn.primary:focus-visible,
+.auth-shell .register-card .btn.primary:focus-visible {
+  outline: 2px solid var(--brand-green);
+  outline-offset: 2px;
+}
+
+/* --- Muted, center --- */
+.auth-shell .login-card .muted,
+.auth-shell .register-card .muted {
+  color: var(--auth-muted);
+  font-size: 0.9rem;
+}
+.auth-shell .login-card .center,
+.auth-shell .register-card .center {
+  text-align: center;
+}
+
+/* --- Links: understated, hover underline --- */
+.auth-shell .login-card .link,
+.auth-shell .register-card .link {
+  color: var(--auth-text);
+  font-weight: 600;
+  text-decoration: none;
+  text-underline-offset: 3px;
+  transition: color var(--auth-transition);
+}
+.auth-shell .login-card .link:hover,
+.auth-shell .register-card .link:hover {
+  color: var(--brand-green);
+  text-decoration: underline;
+}
+
+.auth-shell .login-card .link-btn,
+.auth-shell .register-card .link-btn {
+  background: none;
+  border: none;
+  color: var(--auth-muted);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: inherit;
+  padding: 0;
+  text-decoration: none;
+  text-underline-offset: 3px;
+  transition: color var(--auth-transition);
+}
+.auth-shell .login-card .link-btn:hover,
+.auth-shell .register-card .link-btn:hover {
+  color: var(--auth-text);
+  text-decoration: underline;
+}
+.auth-shell .login-card .link-btn:focus-visible,
+.auth-shell .register-card .link-btn:focus-visible {
+  outline: 2px solid var(--brand-green);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* --- Responsive --- */
+@media (max-width: 900px) {
+  .auth-shell .brand-panel {
+    padding: 0 0 24px;
+  }
+  .auth-shell .brand-headline {
+    max-width: none;
+  }
+  .auth-shell .brand-subline {
+    max-width: none;
+  }
+  .auth-shell .login-panel,
+  .auth-shell .register-panel {
+    padding: 0;
+  }
+  .auth-shell .login-card,
+  .auth-shell .register-card {
+    padding: 24px 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-shell .login-grid,
+  .auth-shell .register-grid {
+    padding: 16px;
+  }
+  .auth-shell .login-card,
+  .auth-shell .register-card {
+    padding: 20px;
+  }
+}

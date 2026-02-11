@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { APP_BASE } from "../constants";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
@@ -1275,12 +1276,12 @@ export default function AdminPage() {
 
   function markStep1Done() {
     setOnboardingStep("expenses");
-    nav("/expenses", { replace: false });
+    nav(`${APP_BASE}/expenses`, { replace: false });
   }
 
   function skipOnboarding() {
     setOnboardingStep("done");
-    nav("/", { replace: false });
+    nav(APP_BASE, { replace: false });
   }
 
   const tabs: { id: AdminTab; label: string }[] = [

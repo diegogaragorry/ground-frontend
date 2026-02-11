@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { APP_BASE } from "../constants";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
+import "../styles/auth.css";
 
 type LoginResp = {
   token?: string;
@@ -36,6 +39,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [showPassword, setShowPassword] = useState(false);
   const [forgotStep, setForgotStep] = useState<ForgotStep>(null);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotCode, setForgotCode] = useState("");
@@ -45,7 +49,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     const t = localStorage.getItem("token");
-    if (t && t.trim()) nav("/", { replace: true });
+    if (t && t.trim()) nav(APP_BASE, { replace: true });
   }, [nav]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -55,7 +59,7 @@ export default function LoginPage() {
     try {
       const token = await tryLogin(email.trim().toLowerCase(), password);
       localStorage.setItem("token", token);
-      nav("/", { replace: true });
+      nav(APP_BASE, { replace: true });
     } catch (e: any) {
       const msg = e?.message ?? "";
       setError(msg === "Invalid credentials" ? t("login.invalidCredentials") : msg || t("login.invalidCredentials"));
@@ -130,9 +134,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="login-root">
+    <div className="auth-shell login-root">
       <div className="login-grid">
-        {/* IZQUIERDA: copy limpio, mucho blanco (estilo Trustly) */}
+        {/* Hero left — copy + badges + CTAs */}
         <div className="brand-panel">
           <div className="brand-panel-inner">
             <div className="brand-wordmark-block">
@@ -140,13 +144,20 @@ export default function LoginPage() {
             </div>
             <h1 className="brand-headline">{t("brand.headline")}</h1>
             <p className="brand-subline">{t("brand.subline")}</p>
+            <div className="brand-badges">
+              <span className="brand-badge">{t("brand.badgeUsdBase")}</span>
+              <span className="brand-badge">{t("brand.badgeMultiCurrency")}</span>
+              <span className="brand-badge">{t("brand.badgeSetup")}</span>
+              <span className="brand-badge">{t("brand.badgePrivate")}</span>
+            </div>
             <div className="brand-cta">
               <a href="/register" className="brand-cta-link">{t("brand.createAccount")}</a>
+              <Link to="/" className="brand-cta-secondary">{i18n.language === "es" ? "Ir al inicio" : "Back to home"}</Link>
             </div>
-            <div className="brand-lang" style={{ marginTop: 24, display: "flex", alignItems: "center", gap: 8 }}>
-              <button type="button" className="lang-btn-auth" style={{ background: "none", border: "none", fontSize: 14, fontWeight: 600, color: i18n.language === "en" ? "var(--text)" : "var(--muted)", cursor: "pointer" }} onClick={() => i18n.changeLanguage("en")}>EN</button>
-              <span style={{ color: "var(--muted)", fontSize: 12 }}>·</span>
-              <button type="button" className="lang-btn-auth" style={{ background: "none", border: "none", fontSize: 14, fontWeight: 600, color: i18n.language === "es" ? "var(--text)" : "var(--muted)", cursor: "pointer" }} onClick={() => i18n.changeLanguage("es")}>ES</button>
+            <div className="brand-lang">
+              <button type="button" className={i18n.language === "en" ? "active" : ""} onClick={() => i18n.changeLanguage("en")} aria-label="English">EN</button>
+              <span className="brand-lang-sep">·</span>
+              <button type="button" className={i18n.language === "es" ? "active" : ""} onClick={() => i18n.changeLanguage("es")} aria-label="Español">ES</button>
             </div>
           </div>
         </div>
@@ -221,15 +232,30 @@ export default function LoginPage() {
                   </div>
                   <div>
                     <label className="label">{t("login.newPassword")}</label>
-                    <input
-                      className="input"
-                      type="password"
-                      value={forgotNewPassword}
-                      onChange={(e) => setForgotNewPassword(e.target.value)}
-                      placeholder={t("login.placeholderPassword")}
-                      minLength={8}
-                      required
-                    />
+                    <div className="auth-input-wrap">
+                      <input
+                        className="input"
+                        type={showPassword ? "text" : "password"}
+                        value={forgotNewPassword}
+                        onChange={(e) => setForgotNewPassword(e.target.value)}
+                        placeholder={t("login.placeholderPassword")}
+                        minLength={8}
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="auth-password-toggle"
+                        onClick={() => setShowPassword(!showPassword)}
+                        aria-label={showPassword ? (i18n.language === "es" ? "Ocultar contraseña" : "Hide password") : (i18n.language === "es" ? "Mostrar contraseña" : "Show password")}
+                        tabIndex={-1}
+                      >
+                        {showPassword ? (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                        ) : (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                        )}
+                      </button>
+                    </div>
                   </div>
                   {error && <div className="error">{error}</div>}
                   <button className="btn primary" type="submit" disabled={loading}>
@@ -261,14 +287,29 @@ export default function LoginPage() {
 
                   <div>
                     <label className="label">{t("login.password")}</label>
-                    <input
-                      className="input"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder={t("login.placeholderPassword")}
-                      required
-                    />
+                    <div className="auth-input-wrap">
+                      <input
+                        className="input"
+                        type={showPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder={t("login.placeholderPassword")}
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="auth-password-toggle"
+                        onClick={() => setShowPassword(!showPassword)}
+                        aria-label={showPassword ? (i18n.language === "es" ? "Ocultar contraseña" : "Hide password") : (i18n.language === "es" ? "Mostrar contraseña" : "Show password")}
+                        tabIndex={-1}
+                      >
+                        {showPassword ? (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                        ) : (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                        )}
+                      </button>
+                    </div>
                     <div style={{ marginTop: 6 }}>
                       <button
                         type="button"

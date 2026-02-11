@@ -1,6 +1,10 @@
 {
   "brand": {
     "name": "ground",
+    "badgeUsdBase": "USD base",
+    "badgeMultiCurrency": "Multi-currency",
+    "badgeSetup": "Setup in 5 min",
+    "badgePrivate": "Private by design",
     "headline": "Order your finances, ground your spending, grow your dreams.",
     "subline": "Budgets, spending, and net worth in one place. No spreadsheets, no stress.",
     "createAccount": "Create your account →",

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { APP_BASE } from "../constants";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { api } from "../api";
@@ -58,11 +59,11 @@ function writeOnboarding(userId: string, step: OnboardingStep) {
 }
 
 function isOnboardingRouteStep(pathname: string): OnboardingStep | null {
-  if (pathname === "/") return "dashboard";
-  if (pathname.startsWith("/admin")) return "admin";
-  if (pathname.startsWith("/expenses")) return "expenses";
-  if (pathname.startsWith("/investments")) return "investments";
-  if (pathname.startsWith("/budgets")) return "budget";
+  if (pathname === APP_BASE || pathname === `${APP_BASE}/`) return "dashboard";
+  if (pathname.startsWith(`${APP_BASE}/admin`)) return "admin";
+  if (pathname.startsWith(`${APP_BASE}/expenses`)) return "expenses";
+  if (pathname.startsWith(`${APP_BASE}/investments`)) return "investments";
+  if (pathname.startsWith(`${APP_BASE}/budgets`)) return "budget";
   return null;
 }
 
@@ -336,7 +337,7 @@ export function AppShell(props: { children: React.ReactNode }) {
     const params = new URLSearchParams(loc.search);
     if (params.get("resetOnboarding") === "1" || params.get("forceOnboarding") === "1") {
       ctx.reopenOnboarding();
-      nav("/", { replace: true });
+      nav(APP_BASE, { replace: true });
     }
   }, [ctx.meLoaded, ctx.me, loc.search, nav, ctx]);
 
@@ -359,12 +360,12 @@ export function AppShell(props: { children: React.ReactNode }) {
   }, [loc.pathname, ctx.me, ctx.onboardingStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ✅ Show Welcome card ONLY on dashboard and ONLY when step === welcome
-  const showWelcomePanel = ctx.meLoaded && !!ctx.me && ctx.onboardingStep === "welcome" && loc.pathname === "/";
+  const showWelcomePanel = ctx.meLoaded && !!ctx.me && ctx.onboardingStep === "welcome" && (loc.pathname === APP_BASE || loc.pathname === `${APP_BASE}/`);
 
   function skipSetup() {
     if (!ctx || !ctx.me) return;
     ctx.setOnboardingStep("admin");
-    nav("/admin", { replace: false });
+    nav(`${APP_BASE}/admin`, { replace: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -486,7 +487,7 @@ export function AppShell(props: { children: React.ReactNode }) {
                   if (!ctx?.me) return;
                   ctx.setOnboardingStep("expenses");
                   ctx.setOnboardingTourStep(0);
-                  nav("/expenses", { replace: false });
+                  nav(`${APP_BASE}/expenses`, { replace: false });
                   window.scrollTo({ top: 0, behavior: "smooth" });
                 }}
                 onSkip={skipSetup}
@@ -503,13 +504,13 @@ export function AppShell(props: { children: React.ReactNode }) {
                 const s = ctx.onboardingTourStep ?? 0;
                 if (s === 0) {
                   ctx.setOnboardingTourStep(1);
-                  nav("/investments", { replace: false });
+                  nav(`${APP_BASE}/investments`, { replace: false });
                 } else if (s === 1) {
                   ctx.setOnboardingTourStep(2);
-                  nav("/budgets", { replace: false });
+                  nav(`${APP_BASE}/budgets`, { replace: false });
                 } else if (s === 2) {
                   ctx.setOnboardingTourStep(3);
-                  nav("/", { replace: false });
+                  nav(APP_BASE, { replace: false });
                 } else {
                   ctx.setOnboardingTourStep(null);
                   ctx.setOnboardingStep("done");

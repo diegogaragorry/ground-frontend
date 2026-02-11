@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { APP_BASE } from "../constants";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
@@ -750,7 +751,7 @@ export default function DashboardPage() {
 
                 {topCategories.length === 0 && (
                   <div className="muted">
-                    <Trans i18nKey="dashboard.noCategories" components={{ 1: <Link to="/expenses" /> }} />
+                    <Trans i18nKey="dashboard.noCategories" components={{ 1: <Link to={`${APP_BASE}/expenses`} /> }} />
                   </div>
                 )}
               </div>
@@ -813,7 +814,7 @@ export default function DashboardPage() {
 
             {topExpenses.length === 0 && (
               <div className="muted">
-                <Trans i18nKey="dashboard.noExpensesThisMonth" components={{ 1: <Link to="/expenses" /> }} />
+                <Trans i18nKey="dashboard.noExpensesThisMonth" components={{ 1: <Link to={`${APP_BASE}/expenses`} /> }} />
               </div>
             )}
           </div>

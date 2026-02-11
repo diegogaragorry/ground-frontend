@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom";
 import { AppShell, AppShellProvider } from "./layout/AppShell";
+import { APP_BASE } from "./constants";
 
+import LandingPage from "./pages/LandingPage";
 import ExpensesPage from "./pages/ExpensesPage";
 import IncomePage from "./pages/IncomePage";
 import DashboardPage from "./pages/DashboardPage";
@@ -9,10 +11,12 @@ import BudgetsPage from "./pages/BudgetsPage";
 import AdminPage from "./pages/AdminPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import TermsPage from "./pages/TermsPage";
+import PrivacyPage from "./pages/PrivacyPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem("token");
-  if (!token) return <Navigate to="/login" replace />;
+  if (!token) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -31,11 +35,14 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* PUBLIC */}
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
-<Route path="/register" element={<RegisterPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         {/* PROTECTED APP */}
         <Route
-          path="/"
+          path={APP_BASE}
           element={
             <RequireAuth>
               <ShellLayout />

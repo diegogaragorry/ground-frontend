@@ -1,9 +1,10 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAppShell } from "./AppShell";
+import { APP_BASE } from "../constants";
 
 /** Tour step → path to highlight (Expenses → Investments → Budget → Dashboard) */
-const TOUR_STEP_PATH: (string | null)[] = ["/expenses", "/investments", "/budgets", "/"];
+const TOUR_STEP_PATH: (string | null)[] = [`${APP_BASE}/expenses`, `${APP_BASE}/investments`, `${APP_BASE}/budgets`, APP_BASE];
 
 type SidebarProps = {
   /** En móvil solo se muestran Panel, Gastos y Salir */
@@ -20,7 +21,7 @@ export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
 
   function logout() {
     localStorage.removeItem("token");
-    nav("/login", { replace: true });
+    nav("/", { replace: true });
   }
 
   return (
@@ -55,30 +56,30 @@ export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
 
       <nav className="sidebar-nav">
         <NavLink
-          to="/"
+          to={APP_BASE}
           end
-          className={({ isActive }) => [isActive && "active", tourHighlightPath === "/" && "tour-highlight"].filter(Boolean).join(" ") || ""}
+          className={({ isActive }) => [isActive && "active", tourHighlightPath === APP_BASE && "tour-highlight"].filter(Boolean).join(" ") || ""}
           onClick={onNavigateClick}
         >
           {t("sidebar.dashboard")}
         </NavLink>
         {!isMobile && (
-          <NavLink to="/income" className={({ isActive }) => [isActive && "active"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
+          <NavLink to={`${APP_BASE}/income`} className={({ isActive }) => [isActive && "active"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
             {t("sidebar.income")}
           </NavLink>
         )}
-        <NavLink to="/expenses" className={({ isActive }) => [isActive && "active", tourHighlightPath === "/expenses" && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
+        <NavLink to={`${APP_BASE}/expenses`} className={({ isActive }) => [isActive && "active", tourHighlightPath === `${APP_BASE}/expenses` && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
           {t("sidebar.expenses")}
         </NavLink>
         {!isMobile && (
           <>
-            <NavLink to="/investments" className={({ isActive }) => [isActive && "active", tourHighlightPath === "/investments" && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
+            <NavLink to={`${APP_BASE}/investments`} className={({ isActive }) => [isActive && "active", tourHighlightPath === `${APP_BASE}/investments` && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
               {t("sidebar.investments")}
             </NavLink>
-            <NavLink to="/budgets" className={({ isActive }) => [isActive && "active", tourHighlightPath === "/budgets" && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
+            <NavLink to={`${APP_BASE}/budgets`} className={({ isActive }) => [isActive && "active", tourHighlightPath === `${APP_BASE}/budgets` && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
               {t("sidebar.budgets")}
             </NavLink>
-            <NavLink to="/admin" className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
+            <NavLink to={`${APP_BASE}/admin`} className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
               {t("sidebar.admin")}
             </NavLink>
           </>

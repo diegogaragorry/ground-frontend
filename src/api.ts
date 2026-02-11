@@ -40,11 +40,10 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     throw new Error(msg);
   }
 
-  // ✅ si expira token o no es válido, limpiamos y vamos a /login
+  // ✅ si expira token o no es válido, limpiamos y vamos a la landing
   if (res.status === 401) {
     localStorage.removeItem("token");
-    // si ya estás en /login no redirijas de nuevo
-    if (window.location.pathname !== "/login") window.location.href = "/login";
+    if (window.location.pathname !== "/") window.location.href = "/";
   }
 
   if (!res.ok) {

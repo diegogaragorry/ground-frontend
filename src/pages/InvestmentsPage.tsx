@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { APP_BASE } from "../constants";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
@@ -120,11 +121,11 @@ export default function InvestmentsPage() {
   }
   function skipOnboarding() {
     setOnboardingStep("done");
-    nav("/", { replace: false });
+    nav(APP_BASE, { replace: false });
   }
   function markStepDone() {
     setOnboardingStep("budget");
-    nav("/budgets", { replace: false });
+    nav(`${APP_BASE}/budgets`, { replace: false });
   }
 
   useEffect(() => {
