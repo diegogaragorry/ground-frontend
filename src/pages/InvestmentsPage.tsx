@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
-import { useAppShell, useAppYearMonth } from "../layout/AppShell";
+import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
 import { downloadCsv } from "../utils/exportCsv";
 import { getFxDefault } from "../utils/fx";
 
@@ -104,6 +104,7 @@ export default function InvestmentsPage() {
 
   const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess, serverFxRate } = useAppShell();
   const { year } = useAppYearMonth();
+  const { formatAmountUsd, currencyLabel } = useDisplayCurrency();
   const usdUyuRate = serverFxRate ?? getFxDefault();
 
   // scroll targets for onboarding
@@ -584,7 +585,10 @@ export default function InvestmentsPage() {
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontWeight: 900 }}>{t("investments.summaryUsd")}</div>
+            <div style={{ fontWeight: 900 }}>
+              {t("investments.summaryPrefix")} (
+              <span style={{ color: "var(--brand-green)" }}>{currencyLabel}</span>)
+            </div>
             <div className="muted" style={{ fontSize: 12 }}>{t("investments.year")}: {year}</div>
             <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{t("investments.summaryIntro")}</div>
           </div>
@@ -592,7 +596,7 @@ export default function InvestmentsPage() {
         </div>
 
         <div style={{ overflowX: "auto", maxWidth: "100%", marginTop: 10 }} role="region" aria-label="Net worth and returns by month">
-          <table className="table" aria-label="Summary by month (USD)">
+          <table className="table" aria-label={`Summary by month (${currencyLabel})`}>
             <thead>
               <tr>
                 <th style={{ ...thStyle, width: 190 }}></th>
@@ -606,14 +610,14 @@ export default function InvestmentsPage() {
               <tr>
                 <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.totalNetWorth")}</td>
                 {months.map((m, i) => (
-                  <td key={`sum-nw-${m}`} className="right" style={tdStyle}>{usd0.format(totalNetWorthByMonthUsd[i] ?? 0)}</td>
+                  <td key={`sum-nw-${m}`} className="right" style={tdStyle}>{formatAmountUsd(totalNetWorthByMonthUsd[i] ?? 0)}</td>
                 ))}
               </tr>
 
               <tr>
                 <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.realReturnsPortfolioLabel")}</td>
                 {months.map((m, i) => (
-                  <td key={`sum-rr-${m}`} className="right" style={tdStyle}>{usd0.format(portfolioRealReturns[i] ?? 0)}</td>
+                  <td key={`sum-rr-${m}`} className="right" style={tdStyle}>{formatAmountUsd(portfolioRealReturns[i] ?? 0)}</td>
                 ))}
               </tr>
             </tbody>
@@ -852,21 +856,21 @@ export default function InvestmentsPage() {
               <tr>
                 <td style={{ ...tdStyle, fontWeight: 800, textAlign: "left" }}>{t("investments.netWorthPortfolio")}</td>
                 {months.map((m, i) => (
-                  <td key={`ps-nw-${m}`} style={{ ...tdStyle, textAlign: "center" }}>{usd0.format(portfolioNetWorthByMonthUsd[i] ?? 0)}</td>
+                  <td key={`ps-nw-${m}`} style={{ ...tdStyle, textAlign: "center" }}>{formatAmountUsd(portfolioNetWorthByMonthUsd[i] ?? 0)}</td>
                 ))}
               </tr>
 
               <tr>
                 <td style={{ ...tdStyle, fontWeight: 800, textAlign: "left" }}>{t("investments.monthlyVariation")}</td>
                 {months.map((m, i) => (
-                  <td key={`ps-var-${m}`} style={{ ...tdStyle, textAlign: "center" }}>{usd0.format(portfolioMonthlyVariation[i] ?? 0)}</td>
+                  <td key={`ps-var-${m}`} style={{ ...tdStyle, textAlign: "center" }}>{formatAmountUsd(portfolioMonthlyVariation[i] ?? 0)}</td>
                 ))}
               </tr>
 
               <tr>
                 <td style={{ ...tdStyle, fontWeight: 800, textAlign: "left" }}>{t("investments.netFlowsMovements")}</td>
                 {months.map((m, i) => (
-                  <td key={`ps-flow-${m}`} style={{ ...tdStyle, textAlign: "center" }}>{usd0.format(flows.series[i] ?? 0)}</td>
+                  <td key={`ps-flow-${m}`} style={{ ...tdStyle, textAlign: "center" }}>{formatAmountUsd(flows.series[i] ?? 0)}</td>
                 ))}
               </tr>
 
@@ -874,7 +878,7 @@ export default function InvestmentsPage() {
                 <td style={{ ...tdStyle, fontWeight: 900, textAlign: "left" }}>{t("investments.realReturns")}</td>
                 {months.map((m, i) => (
                   <td key={`ps-rr-${m}`} style={{ ...tdStyle, fontWeight: 900, textAlign: "center" }}>
-                    {usd0.format(portfolioRealReturns[i] ?? 0)}
+                    {formatAmountUsd(portfolioRealReturns[i] ?? 0)}
                   </td>
                 ))}
               </tr>

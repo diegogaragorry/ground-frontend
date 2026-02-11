@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
-import { useAppShell, useAppYearMonth } from "../layout/AppShell";
+import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
 import { downloadCsv } from "../utils/exportCsv";
+import { getFxDefault } from "../utils/fx";
+import { formatAmountUsdWith } from "../utils/formatCurrency";
 
 type AnnualResp = {
   year: number;
@@ -45,8 +47,16 @@ export default function BudgetsPage() {
   const nav = useNavigate();
   const { t } = useTranslation();
 
-  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me } = useAppShell();
+  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, serverFxRate } = useAppShell();
   const { year } = useAppYearMonth();
+  const { formatAmountUsd, currencyLabel, preferredDisplayCurrencyId } = useDisplayCurrency();
+
+  const [otherExpensesCurrency, setOtherExpensesCurrency] = useState<"USD" | "UYU">(
+    () => preferredDisplayCurrencyId
+  );
+
+  const otherExpensesRate = serverFxRate ?? getFxDefault();
+  const otherExpensesRateOrNull = otherExpensesCurrency === "UYU" && Number.isFinite(otherExpensesRate) && otherExpensesRate > 0 ? otherExpensesRate : null;
 
   const tableRef = useRef<HTMLDivElement>(null);
   const onboardingActive = meLoaded && !!me && onboardingStep === "budget";
@@ -64,8 +74,16 @@ export default function BudgetsPage() {
   }
 
   useEffect(() => {
-    setHeader({ title: t("budgets.title"), subtitle: t("budgets.subtitle", { year }) });
-  }, [setHeader, year, t]);
+    setHeader({
+      title: t("budgets.title"),
+      subtitle: (
+        <>
+          {t("budgets.subtitlePrefix", { year })} (
+          <span style={{ color: "var(--brand-green)" }}>{currencyLabel}</span>)
+        </>
+      ),
+    });
+  }, [setHeader, year, t, currencyLabel]);
 
   const [data, setData] = useState<AnnualResp | null>(null);
   const [loading, setLoading] = useState(false);
@@ -157,9 +175,13 @@ export default function BudgetsPage() {
 
   async function saveOtherExpenses(month: number, value: number) {
     if (!Number.isFinite(value)) return;
+    const payload =
+      otherExpensesCurrency === "UYU"
+        ? { amount: value, currencyId: "UYU" as const, usdUyuRate: otherExpensesRate }
+        : { otherExpensesUsd: value };
     await api(`/budgets/other-expenses/${year}/${month}`, {
       method: "PUT",
-      body: JSON.stringify({ otherExpensesUsd: value }),
+      body: JSON.stringify(payload),
     });
     await load();
   }
@@ -215,15 +237,18 @@ export default function BudgetsPage() {
       )}
 
       <div className="card" ref={tableRef}>
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 12 }}>
           <div>
-            <div style={{ fontWeight: 850, fontSize: 16 }}>{t("budgets.annualBudget")}</div>
+            <div style={{ fontWeight: 850, fontSize: 16 }}>
+              {t("budgets.annualBudgetPrefix")} (
+              <span style={{ color: "var(--brand-green)" }}>{currencyLabel}</span>)
+            </div>
             <div className="muted" style={{ fontSize: 12 }}>
               {t("budgets.closedMonthsLocked")}
             </div>
           </div>
 
-          <div className="row" style={{ gap: 10, alignItems: "center" }}>
+          <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <Badge>{loading ? t("common.loading") : t("common.ready")}</Badge>
             <button className="btn" type="button" onClick={load}>
               {loading ? (
@@ -265,11 +290,11 @@ export default function BudgetsPage() {
                 <td style={{ fontWeight: 750 }}>{t("budgets.income")}</td>
                 {months.map((m) => (
                   <td key={`inc-${m.month}`} className="right" title={m.source}>
-                    {usd0.format(m.incomeUsd)}
+                    {formatAmountUsd(m.incomeUsd)}
                   </td>
                 ))}
                 <td className="right" style={{ fontWeight: 850 }}>
-                  {usd0.format(totals.income)}
+                  {formatAmountUsd(totals.income)}
                 </td>
               </tr>
 
@@ -278,50 +303,72 @@ export default function BudgetsPage() {
                 <td style={{ fontWeight: 750 }}>{t("budgets.baseExpenses")}</td>
                 {months.map((m) => (
                   <td key={`base-${m.month}`} className="right" title={t("budgets.actualsOrDrafts")}>
-                    {usd0.format(m.baseExpensesUsd ?? 0)}
+                    {formatAmountUsd(m.baseExpensesUsd ?? 0)}
                   </td>
                 ))}
                 <td className="right" style={{ fontWeight: 850 }}>
-                  {usd0.format(totals.base)}
+                  {formatAmountUsd(totals.base)}
                 </td>
               </tr>
 
               {/* Other expenses (manual editable) */}
               <tr>
-                <td style={{ fontWeight: 750 }}>{t("budgets.otherExpenses")}</td>
-                {months.map((m) => (
-                  <td key={`other-${m.month}`} className="right" title={m.source}>
-                    {m.isClosed ? (
-                      usd0.format(m.otherExpensesUsd ?? 0)
-                    ) : (
-                      <input
-                        className="input compact"
-                        value={drafts[m.month]?.other ?? String(Math.round(m.otherExpensesUsd ?? 0))}
-                        style={{ width: 70, textAlign: "right" }}
-                        onChange={(e) => setDraft(m.month, { other: e.target.value })}
-                        onBlur={async () => {
-                          const raw = (drafts[m.month]?.other ?? "").trim();
-                          if (raw === "") return; // allow leaving it empty without saving
+                <td style={{ fontWeight: 750 }}>
+                  <span className="row" style={{ gap: 8, alignItems: "center", flexWrap: "nowrap" }}>
+                    {t("budgets.otherExpenses")}
+                    <select
+                      className="select"
+                      value={otherExpensesCurrency}
+                      onChange={(e) => setOtherExpensesCurrency(e.target.value as "USD" | "UYU")}
+                      style={{ width: 72, minWidth: 72, height: 32, fontSize: 12, lineHeight: 1.5, padding: "4px 8px", boxSizing: "border-box" }}
+                      aria-label={t("income.currencyLabel")}
+                    >
+                      <option value="USD">USD</option>
+                      <option value="UYU">UYU</option>
+                    </select>
+                  </span>
+                </td>
+                {months.map((m) => {
+                  const displayValue =
+                    otherExpensesCurrency === "UYU"
+                      ? Math.round((m.otherExpensesUsd ?? 0) * otherExpensesRate)
+                      : Math.round(m.otherExpensesUsd ?? 0);
+                  return (
+                    <td key={`other-${m.month}`} className="right" title={m.source}>
+                      {m.isClosed ? (
+                        <span className="muted" title={t("common.closed")} style={{ whiteSpace: "nowrap" }}>
+                          {formatAmountUsdWith(m.otherExpensesUsd ?? 0, otherExpensesCurrency, otherExpensesRateOrNull)}
+                        </span>
+                      ) : (
+                        <input
+                          className="input compact"
+                          value={drafts[m.month]?.other ?? String(displayValue)}
+                          style={{ width: 70, textAlign: "right" }}
+                          onChange={(e) => setDraft(m.month, { other: e.target.value })}
+                          onBlur={async () => {
+                            const raw = (drafts[m.month]?.other ?? "").trim();
+                            if (raw === "") return;
 
-                          const n = sanitizeNumber(raw);
-                          if (n == null) return;
+                            const n = sanitizeNumber(raw);
+                            if (n == null) return;
 
-                          try {
-                            await saveOtherExpenses(m.month, n);
-                            clearDraft(m.month);
-                          } catch (err: any) {
-                            setError(err?.message ?? t("budgets.errorSavingOtherExpenses"));
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                        }}
-                      />
-                    )}
-                  </td>
-                ))}
-                <td className="right" style={{ fontWeight: 850 }}>
-                  {usd0.format(totals.other)}
+                            try {
+                              await saveOtherExpenses(m.month, n);
+                              clearDraft(m.month);
+                            } catch (err: any) {
+                              setError(err?.message ?? t("budgets.errorSavingOtherExpenses"));
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                          }}
+                        />
+                      )}
+                    </td>
+                  );
+                })}
+                <td className="right" style={{ fontWeight: 850, whiteSpace: "nowrap" }}>
+                  {formatAmountUsdWith(totals.other, otherExpensesCurrency, otherExpensesRateOrNull)}
                 </td>
               </tr>
 
@@ -330,11 +377,11 @@ export default function BudgetsPage() {
                 <td style={{ fontWeight: 800 }}>{t("budgets.expensesCol")}</td>
                 {months.map((m) => (
                   <td key={`exp-${m.month}`} className="right" title={t("budgets.basePlusOther")} style={{ fontWeight: 800 }}>
-                    {usd0.format(m.expensesUsd ?? 0)}
+                    {formatAmountUsd(m.expensesUsd ?? 0)}
                   </td>
                 ))}
                 <td className="right" style={{ fontWeight: 900 }}>
-                  {usd0.format(totals.expenses)}
+                  {formatAmountUsd(totals.expenses)}
                 </td>
               </tr>
 
@@ -343,11 +390,11 @@ export default function BudgetsPage() {
                 <td style={{ fontWeight: 750 }}>{t("budgets.investmentEarnings")}</td>
                 {months.map((m) => (
                   <td key={`earn-${m.month}`} className="right" style={{ opacity: m.isClosed ? 1 : 0.85 }} title={t("budgets.realReturnsPortfolio")}>
-                    {usd0.format(m.investmentEarningsUsd ?? 0)}
+                    {formatAmountUsd(m.investmentEarningsUsd ?? 0)}
                   </td>
                 ))}
                 <td className="right" style={{ fontWeight: 850 }}>
-                  {usd0.format(totals.earnings)}
+                  {formatAmountUsd(totals.earnings)}
                 </td>
               </tr>
 
@@ -361,11 +408,11 @@ export default function BudgetsPage() {
                     style={{ fontWeight: 900, opacity: m.isClosed ? 1 : 0.9 }}
                     title={t("budgets.incomeMinusExpensesEarnings")}
                   >
-                    {usd0.format(m.balanceUsd ?? 0)}
+                    {formatAmountUsd(m.balanceUsd ?? 0)}
                   </td>
                 ))}
                 <td className="right" style={{ fontWeight: 950 }}>
-                  {usd0.format(totals.balance)}
+                  {formatAmountUsd(totals.balance)}
                 </td>
               </tr>
 
@@ -374,7 +421,7 @@ export default function BudgetsPage() {
                 <td style={{ fontWeight: 750 }}>{t("budgets.netWorthStart")}</td>
                 {months.map((m, idx) => (
                   <td key={`nw-${m.month}`} className="right" title={t("budgets.startOfMonth")}>
-                    {usd0.format(netWorthStartSeries[idx] ?? 0)}
+                    {formatAmountUsd(netWorthStartSeries[idx] ?? 0)}
                   </td>
                 ))}
                 <td className="right muted">—</td>

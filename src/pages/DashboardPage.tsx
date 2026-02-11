@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
-import { useAppShell, useAppYearMonth } from "../layout/AppShell";
+import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
 import { getCategoryDisplayName, getTemplateDescriptionDisplay } from "../utils/categoryI18n";
 
 type Expense = {
@@ -204,11 +204,15 @@ function AnnualBarChart({
   monthLabels,
   title,
   color = "var(--brand-green)",
+  formatTooltipLabel = (v: number) => `${formatTooltip.format(v)} USD`,
+  formatAxisValue = (v: number) => v,
 }: {
   data: number[];
   monthLabels: string[];
   title: string;
   color?: string;
+  formatTooltipLabel?: (v: number) => string;
+  formatAxisValue?: (v: number) => number;
 }) {
   const max = Math.max(1, ...data);
   const barW = (CHART_INNER_WIDTH / MONTHS_N) * 0.7;
@@ -227,7 +231,7 @@ function AnnualBarChart({
             <g key={i}>
               <line x1={CHART_PAD.left} y1={y} x2={CHART_PAD.left + 4} y2={y} stroke="var(--border)" strokeWidth="1" />
               <text x={CHART_PAD.left - 4} y={y + 3} textAnchor="end" className="historyChartAxis" fontSize="9">
-                {formatAxis.format(tick)}
+                {formatAxis.format(formatAxisValue(tick))}
               </text>
             </g>
           );
@@ -238,7 +242,7 @@ function AnnualBarChart({
           const y = CHART_PAD.top + CHART_INNER_HEIGHT - h;
           return (
             <g key={i}>
-              <title>{`${monthLabels[i] ?? ""}: ${formatTooltip.format(v)} USD`}</title>
+              <title>{`${monthLabels[i] ?? ""}: ${formatTooltipLabel(v)}`}</title>
               <rect x={x} y={y} width={barW} height={h} fill={color} rx={2} />
               <text
                 x={x + barW / 2}
@@ -257,7 +261,19 @@ function AnnualBarChart({
   );
 }
 
-function NetWorthLineChart({ data, monthLabels, title }: { data: number[]; monthLabels: string[]; title: string }) {
+function NetWorthLineChart({
+  data,
+  monthLabels,
+  title,
+  formatTooltipLabel = (v: number) => `${formatTooltip.format(v)} USD`,
+  formatAxisValue = (v: number) => v,
+}: {
+  data: number[];
+  monthLabels: string[];
+  title: string;
+  formatTooltipLabel?: (v: number) => string;
+  formatAxisValue?: (v: number) => number;
+}) {
   const min = Math.min(0, ...data);
   const max = Math.max(1, ...data, min + 1);
   const range = max - min;
@@ -281,7 +297,7 @@ function NetWorthLineChart({ data, monthLabels, title }: { data: number[]; month
           <g key={i}>
             <line x1={CHART_PAD.left} y1={yToPx(tick)} x2={CHART_PAD.left + 4} y2={yToPx(tick)} stroke="var(--border)" strokeWidth="1" />
             <text x={CHART_PAD.left - 4} y={yToPx(tick) + 3} textAnchor="end" className="historyChartAxis" fontSize="9">
-              {formatAxis.format(tick)}
+              {formatAxis.format(formatAxisValue(tick))}
             </text>
           </g>
         ))}
@@ -301,7 +317,7 @@ function NetWorthLineChart({ data, monthLabels, title }: { data: number[]; month
           const y = yToPx(v);
           return (
             <g key={i}>
-              <title>{`${monthLabels[i] ?? ""}: ${formatTooltip.format(v)} USD`}</title>
+              <title>{`${monthLabels[i] ?? ""}: ${formatTooltipLabel(v)}`}</title>
               <circle cx={x} cy={y} r={6} fill="transparent" />
               <circle cx={x} cy={y} r={2.5} fill="var(--brand-green)" />
             </g>
@@ -331,6 +347,8 @@ function IncomeVsExpensesChart({
   title,
   incomeLabel,
   expensesLabel,
+  formatTooltipLabel = (v: number) => `${formatTooltip.format(v)} USD`,
+  formatAxisValue = (v: number) => v,
 }: {
   income: number[];
   expenses: number[];
@@ -338,6 +356,8 @@ function IncomeVsExpensesChart({
   title: string;
   incomeLabel: string;
   expensesLabel: string;
+  formatTooltipLabel?: (v: number) => string;
+  formatAxisValue?: (v: number) => number;
 }) {
   const max = Math.max(1, ...income, ...expenses);
   const barW = (CHART_INNER_WIDTH / MONTHS_N) * 0.35;
@@ -356,7 +376,7 @@ function IncomeVsExpensesChart({
             <g key={i}>
               <line x1={CHART_PAD.left} y1={y} x2={CHART_PAD.left + 4} y2={y} stroke="var(--border)" strokeWidth="1" />
               <text x={CHART_PAD.left - 4} y={y + 3} textAnchor="end" className="historyChartAxis" fontSize="9">
-                {formatAxis.format(tick)}
+                {formatAxis.format(formatAxisValue(tick))}
               </text>
             </g>
           );
@@ -368,7 +388,7 @@ function IncomeVsExpensesChart({
           const yIncome = CHART_PAD.top + CHART_INNER_HEIGHT - hIncome;
           return (
             <g key={`in-${i}`}>
-              <title>{`${monthLabels[i] ?? ""} — ${incomeLabel}: ${formatTooltip.format(v)} USD`}</title>
+              <title>{`${monthLabels[i] ?? ""} — ${incomeLabel}: ${formatTooltipLabel(v)}`}</title>
               <rect
                 x={xIncome}
                 y={yIncome}
@@ -387,7 +407,7 @@ function IncomeVsExpensesChart({
           const yExp = CHART_PAD.top + CHART_INNER_HEIGHT - hExp;
           return (
             <g key={`ex-${i}`}>
-              <title>{`${monthLabels[i] ?? ""} — ${expensesLabel}: ${formatTooltip.format(v)} USD`}</title>
+              <title>{`${monthLabels[i] ?? ""} — ${expensesLabel}: ${formatTooltipLabel(v)}`}</title>
               <rect
                 x={xExp}
                 y={yExp}
@@ -419,6 +439,7 @@ function IncomeVsExpensesChart({
 export default function DashboardPage() {
   const { setHeader, reopenOnboarding, onboardingStep, setOnboardingStep, meLoaded, me } = useAppShell();
   const { year, month } = useAppYearMonth();
+  const { formatAmountUsd, displayValue, currencyLabel } = useDisplayCurrency();
 
   const onboardingActive = meLoaded && !!me && onboardingStep === "dashboard";
 
@@ -435,9 +456,14 @@ export default function DashboardPage() {
   useEffect(() => {
     setHeader({
       title: t("dashboard.title"),
-      subtitle: t("dashboard.subtitle"),
+      subtitle: (
+        <>
+          {t("dashboard.subtitlePrefix")} (
+          <span style={{ color: "var(--brand-green)" }}>{currencyLabel}</span>)
+        </>
+      ),
     });
-  }, [setHeader, t]);
+  }, [setHeader, t, currencyLabel]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -664,28 +690,28 @@ export default function DashboardPage() {
       <div className="kpiGrid">
         <div className="card kpi kpiHighlight">
           <div className="kpiLabel">{t("dashboard.monthlyExpenses")}</div>
-          <div className="kpiValue">{usd0.format(monthlyExpenses)}</div>
+          <div className="kpiValue">{formatAmountUsd(monthlyExpenses)}</div>
           <div className="kpiFoot muted">
-            {year}-{month2(month)} • USD
+            {year}-{month2(month)}
           </div>
         </div>
 
         <div className="card kpi">
           <div className="kpiLabel">{t("dashboard.monthlyIncome")}</div>
-          <div className="kpiValue">{usd0.format(monthIncome)}</div>
+          <div className="kpiValue">{formatAmountUsd(monthIncome)}</div>
           <div className="kpiFoot muted">{t("dashboard.fromBudgets")}</div>
         </div>
 
         <div className="card kpi kpiHighlight">
           <div className="kpiLabel">{t("dashboard.monthlySavings")}</div>
-          <div className="kpiValue">{usd0.format(monthBalance)}</div>
+          <div className="kpiValue">{formatAmountUsd(monthBalance)}</div>
           <div className="kpiFoot muted">{t("dashboard.incomeMinusExpenses")}</div>
         </div>
 
         <div className="card kpi">
           <div className="kpiLabel">{t("dashboard.netWorth")}</div>
-          <div className="kpiValue">{usd0.format(netWorthCurrentMonth)}</div>
-          <div className="kpiFoot muted">{t("dashboard.start")}: {usd0.format(netWorthStartMonth)}</div>
+          <div className="kpiValue">{formatAmountUsd(netWorthCurrentMonth)}</div>
+          <div className="kpiFoot muted">{t("dashboard.start")}: {formatAmountUsd(netWorthStartMonth)}</div>
         </div>
       </div>
 
@@ -722,7 +748,7 @@ export default function DashboardPage() {
                           <div className="barFill" style={{ width: `${pct * 100}%` }} />
                         </div>
                       </div>
-                      <div className="rowRight">{usd0.format(c.total ?? 0)}</div>
+                      <div className="rowRight">{formatAmountUsd(c.total ?? 0)}</div>
                     </div>
                   );
                 })}
@@ -785,7 +811,7 @@ export default function DashboardPage() {
                       <div className="barFill" style={{ width: `${pct * 100}%` }} />
                     </div>
                   </div>
-                  <div className="rowRight">{usd0.format(e.amountUsd ?? 0)}</div>
+                  <div className="rowRight">{formatAmountUsd(e.amountUsd ?? 0)}</div>
                 </div>
               );
             })}
@@ -807,28 +833,28 @@ export default function DashboardPage() {
           <div className="yearStack">
             <div className="card yearKpi">
               <div className="kpiLabel">{t("dashboard.totalIncome")}</div>
-              <div className="kpiValueSm">{usd0.format(annualTotals.income)}</div>
+              <div className="kpiValueSm">{formatAmountUsd(annualTotals.income)}</div>
             </div>
 
             <div className="card yearKpi">
               <div className="kpiLabel">{t("dashboard.totalExpenses")}</div>
-              <div className="kpiValueSm">{usd0.format(annualTotals.expenses)}</div>
+              <div className="kpiValueSm">{formatAmountUsd(annualTotals.expenses)}</div>
             </div>
 
             <div className="card yearKpi">
               <div className="kpiLabel">{t("dashboard.investmentEarnings")}</div>
-              <div className="kpiValueSm">{usd0.format(annualTotals.earnings)}</div>
+              <div className="kpiValueSm">{formatAmountUsd(annualTotals.earnings)}</div>
             </div>
 
             <div className="card yearKpi yearHighlight">
               <div className="kpiLabel">{t("dashboard.annualSavings")}</div>
-              <div className="kpiValue">{usd0.format(annualTotals.balance)}</div>
+              <div className="kpiValue">{formatAmountUsd(annualTotals.balance)}</div>
               <div className="kpiFoot muted">{t("dashboard.sumMonthlyBalances")}</div>
             </div>
 
             <div className="card yearKpi">
               <div className="kpiLabel">{t("dashboard.netWorthEndYear")}</div>
-              <div className="kpiValueSm">{usd0.format(annualTotals.netWorthEndYear)}</div>
+              <div className="kpiValueSm">{formatAmountUsd(annualTotals.netWorthEndYear)}</div>
             </div>
           </div>
         </div>
@@ -839,7 +865,7 @@ export default function DashboardPage() {
         <div className="dashTrends">
           <div className="sectionHead" style={{ marginTop: 16 }}>
             <div className="sectionTitle">{t("dashboard.annualTrends")}</div>
-            <div className="muted">{year} • USD</div>
+            <div className="muted">{year}</div>
           </div>
           <div className="historyChartsGrid">
             <div className="card historyChartCard">
@@ -847,6 +873,8 @@ export default function DashboardPage() {
                 data={annualMonthsOrdered.map((m) => m.expensesUsd)}
                 monthLabels={monthShortLabels}
                 title={t("dashboard.expensesByMonth")}
+                formatTooltipLabel={formatAmountUsd}
+                formatAxisValue={displayValue}
               />
             </div>
             <div className="card historyChartCard">
@@ -854,6 +882,8 @@ export default function DashboardPage() {
                 data={annualMonthsOrdered.map((m) => m.netWorthUsd)}
                 monthLabels={monthShortLabels}
                 title={t("dashboard.netWorthEvolution")}
+                formatTooltipLabel={formatAmountUsd}
+                formatAxisValue={displayValue}
               />
             </div>
             <div className="card historyChartCard">
@@ -864,6 +894,8 @@ export default function DashboardPage() {
                 title={t("dashboard.incomeVsExpenses")}
                 incomeLabel={t("income.title")}
                 expensesLabel={t("expenses.title")}
+                formatTooltipLabel={formatAmountUsd}
+                formatAxisValue={displayValue}
               />
             </div>
           </div>

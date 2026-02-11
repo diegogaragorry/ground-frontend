@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
-import { useAppShell, useAppYearMonth } from "../layout/AppShell";
+import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
 import { getCategoryDisplayName, getExpenseTypeLabel, getTemplateDescriptionDisplay } from "../utils/categoryI18n";
 import { getFxDefault } from "../utils/fx";
 
@@ -94,7 +94,7 @@ function ChangePasswordCard({ onDone }: { onDone?: () => void }) {
     <div style={{ marginTop: 14 }}>
       <div style={{ fontWeight: 800, marginBottom: 8 }}>{t("admin.changePassword")}</div>
 
-      <form onSubmit={submit} className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "end" }}>
+      <form onSubmit={submit} className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "end" }} aria-label={t("admin.changePassword")}>
         <div style={{ minWidth: 220 }}>
           <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
             {t("admin.currentPassword")}
@@ -129,6 +129,38 @@ function ChangePasswordCard({ onDone }: { onDone?: () => void }) {
           {msg}
         </div>
       )}
+    </div>
+  );
+}
+
+function DisplayCurrencyCard() {
+  const { t } = useTranslation();
+  const { preferredDisplayCurrencyId, updatePreferredDisplayCurrency } = useAppShell();
+  const [saving, setSaving] = useState(false);
+  async function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const v = e.target.value as "USD" | "UYU";
+    setSaving(true);
+    try {
+      await updatePreferredDisplayCurrency(v);
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <div style={{ marginTop: 20 }}>
+      <div style={{ fontWeight: 800, marginBottom: 8 }}>{t("admin.displayCurrency")}</div>
+      <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.displayCurrencyDesc")}</div>
+      <select
+        className="select"
+        value={preferredDisplayCurrencyId}
+        onChange={onChange}
+        disabled={saving}
+        style={{ width: 120, height: 40 }}
+        aria-label={t("admin.displayCurrency")}
+      >
+        <option value="USD">USD</option>
+        <option value="UYU">UYU</option>
+      </select>
     </div>
   );
 }
@@ -991,6 +1023,7 @@ export default function AdminPage() {
 
   const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess } = useAppShell();
   const { year: appYear } = useAppYearMonth();
+  const { formatAmountUsd } = useDisplayCurrency();
 
   const [meResp, setMeResp] = useState<MeResp | null>(null);
   const [meError, setMeError] = useState<string>("");
@@ -1345,6 +1378,7 @@ export default function AdminPage() {
           {meResp ? `${t("admin.signedInAs")}: ${meResp.email} (${meResp.role})` : t("admin.loadingUser")}
         </div>
         {meError && <div style={{ marginTop: 10, color: "var(--danger)" }}>{meError}</div>}
+        <DisplayCurrencyCard />
         <ChangePasswordCard />
       </div>
       )}
@@ -1530,11 +1564,11 @@ export default function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                <tr><td>{t("budgets.income")}</td><td className="right">{usd0.format(selectedClose.incomeUsd)}</td></tr>
-                <tr><td>{t("budgets.expensesCol")}</td><td className="right">{usd0.format(selectedClose.expensesUsd)}</td></tr>
-                <tr><td>{t("budgets.investmentEarnings")}</td><td className="right">{usd0.format(selectedClose.investmentEarningsUsd)}</td></tr>
-                <tr><td>{t("budgets.balance")}</td><td className="right">{usd0.format(selectedClose.balanceUsd)}</td></tr>
-                <tr><td>{t("budgets.netWorthStart")}</td><td className="right">{usd0.format(selectedClose.netWorthStartUsd)}</td></tr>
+                <tr><td>{t("budgets.income")}</td><td className="right">{formatAmountUsd(selectedClose.incomeUsd)}</td></tr>
+                <tr><td>{t("budgets.expensesCol")}</td><td className="right">{formatAmountUsd(selectedClose.expensesUsd)}</td></tr>
+                <tr><td>{t("budgets.investmentEarnings")}</td><td className="right">{formatAmountUsd(selectedClose.investmentEarningsUsd)}</td></tr>
+                <tr><td>{t("budgets.balance")}</td><td className="right">{formatAmountUsd(selectedClose.balanceUsd)}</td></tr>
+                <tr><td>{t("budgets.netWorthStart")}</td><td className="right">{formatAmountUsd(selectedClose.netWorthStartUsd)}</td></tr>
               </tbody>
             </table>
           </div>
@@ -1571,9 +1605,9 @@ export default function AdminPage() {
               <Trans
                 i18nKey="admin.closeMonthPreviewP1"
                 values={{
-                  netWorthEndUsd: usd0.format(closePreviewData.netWorthEndUsd),
-                  netWorthStartUsd: usd0.format(closePreviewData.netWorthStartUsd),
-                  realBalanceUsd: usd0.format(closePreviewData.realBalanceUsd),
+                  netWorthEndUsd: formatAmountUsd(closePreviewData.netWorthEndUsd),
+                  netWorthStartUsd: formatAmountUsd(closePreviewData.netWorthStartUsd),
+                  realBalanceUsd: formatAmountUsd(closePreviewData.realBalanceUsd),
                 }}
                 components={{ 1: <strong /> }}
               />
@@ -1582,8 +1616,8 @@ export default function AdminPage() {
                 i18nKey="admin.closeMonthPreviewP2"
                 values={{
                   budgetTitle: t("budgets.title"),
-                  budgetBalanceUsd: usd0.format(closePreviewData.budgetBalanceUsd),
-                  differenceUsd: usd0.format(closePreviewData.realBalanceUsd - closePreviewData.budgetBalanceUsd),
+                  budgetBalanceUsd: formatAmountUsd(closePreviewData.budgetBalanceUsd),
+                  differenceUsd: formatAmountUsd(closePreviewData.realBalanceUsd - closePreviewData.budgetBalanceUsd),
                 }}
                 components={{ 1: <strong /> }}
               />

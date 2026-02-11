@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
+import { useDisplayCurrency } from "../layout/AppShell";
 
 type SnapshotMonth = {
   month: number;
@@ -26,6 +27,7 @@ const usd0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
 
 export function InvestmentSnapshotsPanel({ investment }: { investment: Investment }) {
   const { t } = useTranslation();
+  const { formatAmountUsd } = useDisplayCurrency();
   const yearNow = new Date().getFullYear();
   const [year, setYear] = useState(yearNow);
   const [data, setData] = useState<SnapshotsResponse | null>(null);
@@ -175,7 +177,7 @@ function SnapshotRow({
       <td className="right">
         {month.closingCapitalUsd == null
           ? "—"
-          : usd0.format(month.closingCapitalUsd)}
+          : formatAmountUsd(month.closingCapitalUsd)}
       </td>
 
       <td className="right">

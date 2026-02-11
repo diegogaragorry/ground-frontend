@@ -5,6 +5,7 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { api } from "../api";
 import { setFxDefault } from "../utils/fx";
+import { formatAmountUsdWith } from "../utils/formatCurrency";
 import { OnboardingWizard } from "../onboarding/OnboardingWizard";
 import { OnboardingTour } from "../onboarding/OnboardingTour";
 
@@ -14,7 +15,7 @@ import { OnboardingTour } from "../onboarding/OnboardingTour";
 
 type YearMonth = { year: number; month: number };
 
-type ShellHeader = { title: string; subtitle?: string };
+type ShellHeader = { title: string; subtitle?: string | React.ReactNode };
 
 type Me = {
   id: string;
@@ -23,6 +24,7 @@ type Me = {
   forceOnboardingNextLogin?: boolean;
   onboardingStep?: string;
   mobileWarningDismissed?: boolean;
+  preferredDisplayCurrencyId?: string | null;
 };
 
 type OnboardingStep = "welcome" | "admin" | "expenses" | "investments" | "budget" | "dashboard" | "done";
@@ -100,6 +102,11 @@ type AppShellCtx = {
 
   /** Marca el aviso mobile como visto para el usuario actual (persistido en backend). */
   dismissMobileWarning: () => Promise<void>;
+
+  /** Moneda para mostrar totales (USD | UYU). Por defecto USD. */
+  preferredDisplayCurrencyId: "USD" | "UYU";
+  /** Actualiza la moneda de visualización y recarga me. */
+  updatePreferredDisplayCurrency: (currencyId: "USD" | "UYU") => Promise<void>;
 };
 
 const Ctx = createContext<AppShellCtx | null>(null);
@@ -202,6 +209,19 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
     api("/auth/me", { method: "PATCH", body: JSON.stringify({ onboardingStep: "welcome" }) }).catch(() => {});
   }
 
+  const updatePreferredDisplayCurrency = React.useCallback(
+    (currencyId: "USD" | "UYU") => {
+      return api("/auth/me", {
+        method: "PATCH",
+        body: JSON.stringify({ preferredDisplayCurrencyId: currencyId }),
+      }).then(() => api<Me>("/auth/me")).then(setMe);
+    },
+    []
+  );
+
+  const preferredDisplayCurrencyId: "USD" | "UYU" =
+    me?.preferredDisplayCurrencyId === "UYU" ? "UYU" : "USD";
+
   const value: AppShellCtx = {
     year,
     month,
@@ -223,6 +243,8 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
     showSuccess,
     serverFxRate,
     dismissMobileWarning,
+    preferredDisplayCurrencyId,
+    updatePreferredDisplayCurrency,
   };
 
   return <Ctx.Provider value={value}>{props.children}</Ctx.Provider>;
@@ -250,6 +272,24 @@ export function useAppShell() {
     showSuccess: ctx.showSuccess,
     serverFxRate: ctx.serverFxRate,
     dismissMobileWarning: ctx.dismissMobileWarning,
+    preferredDisplayCurrencyId: ctx.preferredDisplayCurrencyId,
+    updatePreferredDisplayCurrency: ctx.updatePreferredDisplayCurrency,
+  };
+}
+
+/** Formatear monto en USD a la moneda de visualización (USD o UYU). */
+export function useDisplayCurrency() {
+  const ctx = useContext(Ctx);
+  if (!ctx) throw new Error("useDisplayCurrency must be used within <AppShellProvider />");
+  const rate = ctx.serverFxRate ?? null;
+  return {
+    preferredDisplayCurrencyId: ctx.preferredDisplayCurrencyId,
+    formatAmountUsd: (amountUsd: number) =>
+      formatAmountUsdWith(amountUsd, ctx.preferredDisplayCurrencyId, rate),
+    /** Valor numérico en moneda de visualización (para ejes de gráficos). */
+    displayValue: (amountUsd: number) =>
+      ctx.preferredDisplayCurrencyId === "UYU" && rate != null && rate > 0 ? amountUsd * rate : amountUsd,
+    currencyLabel: ctx.preferredDisplayCurrencyId,
   };
 }
 

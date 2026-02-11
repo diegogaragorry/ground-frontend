@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
-import { useAppShell, useAppYearMonth } from "../layout/AppShell";
+import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
 import { getCategoryDisplayName, getExpenseTypeLabel, getTemplateDescriptionDisplay } from "../utils/categoryI18n";
 import { downloadCsv } from "../utils/exportCsv";
 import { getFxDefault, setFxDefault } from "../utils/fx";
@@ -105,15 +105,21 @@ export default function ExpensesPage() {
   const { t } = useTranslation();
 
   const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess, isMobile, serverFxRate } = useAppShell();
+  const { formatAmountUsd, currencyLabel } = useDisplayCurrency();
 
   const { year, month } = useAppYearMonth();
 
   useEffect(() => {
     setHeader({
       title: t("expenses.title"),
-      subtitle: t("expenses.subtitle"),
+      subtitle: (
+        <>
+          {t("expenses.subtitlePrefix")} (
+          <span style={{ color: "var(--brand-green)" }}>{currencyLabel}</span>)
+        </>
+      ),
     });
-  }, [setHeader, t]);
+  }, [setHeader, t, currencyLabel]);
 
   // ✅ Step 2 activo = expenses
   const onboardingActive = meLoaded && !!me && onboardingStep === "expenses";
@@ -489,7 +495,10 @@ export default function ExpensesPage() {
         <div className="card">
           <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
             <div>
-              <div style={{ fontWeight: 850, fontSize: 18 }}>{t("expenses.monthlySummary")}</div>
+              <div style={{ fontWeight: 850, fontSize: 18 }}>
+                {t("expenses.monthlySummaryPrefix")} (
+                <span style={{ color: "var(--brand-green)" }}>{currencyLabel}</span>)
+              </div>
               <div className="muted" style={{ fontSize: 12 }}>
                 {t("expenses.viewing")}: {monthLabel} • {t("expenses.status")}:{" "}
                 <span style={{ fontWeight: 850, color: isClosed(month) ? "var(--text)" : "var(--muted)" }}>
@@ -500,7 +509,7 @@ export default function ExpensesPage() {
 
             <div className="right">
               <div className="muted" style={{ fontSize: 12 }}>{t("expenses.totalMonth")}</div>
-              <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{usd0.format(totalUsdMonth)}</div>
+              <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{formatAmountUsd(totalUsdMonth)}</div>
             </div>
           </div>
 
@@ -546,7 +555,7 @@ export default function ExpensesPage() {
                   <tr>
                     {summaryByCategory.map((c) => (
                       <td key={c.categoryId} className="right">
-                        {usd0.format(c.total)}
+                        {formatAmountUsd(c.total)}
                       </td>
                     ))}
                   </tr>

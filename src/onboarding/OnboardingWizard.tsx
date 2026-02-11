@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
+import { useAppShell } from "../layout/AppShell";
 import { getFxDefault } from "../utils/fx";
 
 type ExpenseType = "FIXED" | "VARIABLE";
@@ -17,8 +18,12 @@ export function OnboardingWizard(props: {
 }) {
   const { t } = useTranslation();
   const { onComplete, onSkip } = props;
+  const { updatePreferredDisplayCurrency, preferredDisplayCurrencyId } = useAppShell();
 
   const [step, setStep] = useState(0);
+  const [wizardDisplayCurrency, setWizardDisplayCurrency] = useState<"USD" | "UYU">(
+    () => preferredDisplayCurrencyId
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
@@ -500,8 +505,10 @@ export function OnboardingWizard(props: {
   }
 
   function next() {
-    if (step === 0) setStep(1);
-    else if (step === 7) onComplete();
+    if (step === 0) {
+      updatePreferredDisplayCurrency(wizardDisplayCurrency).catch(() => {});
+      setStep(1);
+    } else if (step === 7) onComplete();
   }
 
   function back() {
@@ -517,8 +524,21 @@ export function OnboardingWizard(props: {
       {step === 0 && (
         <>
           <div style={{ fontSize: 20, fontWeight: 950, marginBottom: 8 }}>{t("onboarding.wizardWelcomeTitle")}</div>
-          <div className="muted" style={{ fontSize: 14, lineHeight: 1.4, marginBottom: 24 }}>
+          <div className="muted" style={{ fontSize: 14, lineHeight: 1.4, marginBottom: 16 }}>
             {t("onboarding.wizardWelcomeSub")}
+          </div>
+          <div className="row" style={{ alignItems: "center", gap: 8, marginBottom: 24 }}>
+            <span className="muted" style={{ fontSize: 13 }}>{t("admin.displayCurrency")}</span>
+            <select
+              className="select"
+              value={wizardDisplayCurrency}
+              onChange={(e) => setWizardDisplayCurrency(e.target.value as "USD" | "UYU")}
+              style={{ width: 80, height: 36 }}
+              aria-label={t("admin.displayCurrency")}
+            >
+              <option value="USD">USD</option>
+              <option value="UYU">UYU</option>
+            </select>
           </div>
         </>
       )}

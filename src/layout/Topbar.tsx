@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 
 export type TopbarProps = {
   title: string;
-  subtitle?: string;
+  subtitle?: string | React.ReactNode;
   onOpenMenu?: () => void;
   isMobileFixed?: boolean;
   right?: React.ReactNode;
