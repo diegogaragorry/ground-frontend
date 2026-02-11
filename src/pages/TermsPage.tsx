@@ -64,8 +64,8 @@ export default function TermsPage() {
             electrónico válido y una contraseña que cumpla los requisitos de seguridad indicados en el formulario.
           </p>
           <p>
-            El Usuario se compromete a proporcionar información veraz, exacta y actualizada, y a mantenerla así
-            durante toda la vigencia de su cuenta.
+            Cada persona física debe utilizar una única cuenta. Queda prohibido crear o mantener múltiples cuentas
+            asociadas a distintas direcciones de correo electrónico para un mismo usuario natural.
           </p>
           <h3>3.2 Seguridad y confidencialidad</h3>
           <p>
@@ -193,6 +193,9 @@ export default function TermsPage() {
             <li>La responsabilidad total del Prestador se limitará al monto efectivamente abonado por el Usuario
               en los doce (12) meses anteriores al hecho que haya originado la reclamación, salvo que la ley
               imperativa disponga lo contrario.</li>
+            <li>El Prestador no será responsable por daños derivados de accesos no autorizados, hackeos, intrusiones
+              o vulnerabilidades explotadas por terceros en el sistema o en la infraestructura que aloja el Servicio,
+              cuando tales hechos no sean consecuencia de negligencia grave o dolo del Prestador.</li>
           </ul>
           <p>
             El Servicio no constituye asesoramiento financiero, fiscal ni legal. El Usuario es exclusivamente
@@ -204,8 +207,13 @@ export default function TermsPage() {
           <h2>9. Modificaciones del Servicio y de los Términos</h2>
           <p>
             El Prestador podrá modificar el Servicio, sus funcionalidades o estos Términos en cualquier momento.
-            Las modificaciones sustanciales serán comunicadas con antelación razonable mediante aviso en el Servicio,
-            por correo electrónico o por otros medios adecuados.
+            Durante la etapa inicial del producto, especialmente en fases como «Early Stage», el Prestador se reserva
+            el derecho de realizar cambios en el sistema sin obligación de comunicarlos con anticipación al Usuario.
+          </p>
+          <p>
+            Las modificaciones sustanciales, cuando así se requiera, podrán ser comunicadas mediante aviso en el
+            Servicio, por correo electrónico o por otros medios adecuados. La ausencia de aviso previo en ciertas
+            etapas no invalidará las modificaciones.
           </p>
           <p>
             El uso continuado del Servicio tras la entrada en vigor de modificaciones se entenderá como aceptación
