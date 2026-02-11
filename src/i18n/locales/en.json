@@ -62,6 +62,7 @@
     "placeholderCode": "6 digits"
   },
   "sidebar": {
+    "displayCurrencyTooltip": "Display currency for panels (totals, summaries, charts)",
     "language": "Language",
     "dashboard": "Dashboard",
     "expenses": "Expenses",

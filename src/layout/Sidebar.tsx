@@ -44,6 +44,7 @@ export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
               value={preferredDisplayCurrencyId}
               onChange={(e) => updatePreferredDisplayCurrency(e.target.value as "USD" | "UYU")}
               aria-label={t("income.currencyLabel")}
+              title={t("sidebar.displayCurrencyTooltip")}
             >
               <option value="USD">USD</option>
               <option value="UYU">UYU</option>

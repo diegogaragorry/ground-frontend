@@ -62,6 +62,7 @@
     "placeholderCode": "6 dígitos"
   },
   "sidebar": {
+    "displayCurrencyTooltip": "Moneda de visualización de los paneles (totales, resúmenes, gráficos)",
     "language": "Idioma",
     "dashboard": "Panel",
     "expenses": "Gastos",
