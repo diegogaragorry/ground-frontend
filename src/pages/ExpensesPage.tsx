@@ -52,6 +52,8 @@ type PlannedExpense = {
   description: string;
 
   amountUsd?: number | null;
+  amount?: number | null;
+  usdUyuRate?: number | null;
   isConfirmed: boolean;
 
   expenseId?: string | null;
@@ -811,9 +813,10 @@ export default function ExpensesPage() {
                 const currentCategoryId = d.categoryId ?? p.categoryId;
                 const enforcedType = categoryTypeOf(currentCategoryId) ?? (d.expenseType ?? p.expenseType);
                 const isUyu = p.template?.defaultCurrencyId === "UYU";
-                const rate = isUyu && Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : 1;
+                const hasLockedUyu = isUyu && p.amount != null && p.usdUyuRate != null && Number.isFinite(p.amount) && p.usdUyuRate > 0;
+                const rate = hasLockedUyu ? p.usdUyuRate! : isUyu && Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : 1;
                 const amountUsd = Number(d.amountUsd ?? p.amountUsd ?? 0) || 0;
-                const displayValue = isUyu ? Math.round(amountUsd * rate) : Math.round(amountUsd);
+                const displayValue = hasLockedUyu ? Math.round(p.amount!) : isUyu ? Math.round(amountUsd * rate) : Math.round(amountUsd);
                 const locked = isClosed(month);
                 const ymDisplay = `${p.year}-${String(p.month).padStart(2, "0")}`;
 
@@ -896,7 +899,10 @@ export default function ExpensesPage() {
                           if (locked) return;
                           const v = Number(d.amountUsd ?? p.amountUsd ?? 0);
                           if (!Number.isFinite(v)) return;
-                          patchPlanned(p.id, { amountUsd: Math.round(v * 100) / 100 }).then(() => clearPlannedDraft(p.id));
+                          const payload = isUyu && Number.isFinite(rate) && rate > 0
+                            ? { amount: Math.round(v * rate), usdUyuRate: rate }
+                            : { amountUsd: Math.round(v * 100) / 100 };
+                          patchPlanned(p.id, payload).then(() => clearPlannedDraft(p.id));
                         }}
                         style={{ width: 100, textAlign: "right" }}
                       />
