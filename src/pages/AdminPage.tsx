@@ -1074,6 +1074,8 @@ export default function AdminPage() {
   const [mcYear, setMcYear] = useState<number>(appYear);
   const [mcMonth, setMcMonth] = useState<number>(1);
   const [monthCloses, setMonthCloses] = useState<MonthCloseRow[]>([]);
+  const [monthClosesLoaded, setMonthClosesLoaded] = useState(false);
+  const mcInitialDefaultSet = useRef(false);
   const [mcError, setMcError] = useState("");
   const [mcInfo, setMcInfo] = useState("");
   const [closePreviewOpen, setClosePreviewOpen] = useState(false);
@@ -1090,6 +1092,22 @@ export default function AdminPage() {
   }, [monthCloses, mcYear, mcMonth]);
 
   const isSelectedClosed = closedSet.has(`${mcYear}-${mcMonth}`);
+
+  useEffect(() => {
+    if (!monthClosesLoaded || mcInitialDefaultSet.current) return;
+    mcInitialDefaultSet.current = true;
+    const rows = monthCloses;
+    if (rows.length > 0) {
+      const last = rows[rows.length - 1];
+      const nextMonth = last.month === 12 ? 1 : last.month + 1;
+      const nextYear = last.month === 12 ? last.year + 1 : last.year;
+      setMcYear(nextYear);
+      setMcMonth(nextMonth);
+    } else {
+      setMcYear(appYear);
+      setMcMonth(1);
+    }
+  }, [monthClosesLoaded, monthCloses, appYear]);
 
   useEffect(() => {
     setHeader({
@@ -1117,6 +1135,7 @@ export default function AdminPage() {
   async function loadMonthCloses(y: number) {
     const r = await api<{ year: number; rows: MonthCloseRow[] }>(`/monthCloses?year=${y}`);
     setMonthCloses(r.rows ?? []);
+    setMonthClosesLoaded(true);
   }
 
   async function loadAll() {
