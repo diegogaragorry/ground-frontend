@@ -1,5 +1,26 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
+const isProduction = () => {
+  try {
+    const url = API_BASE ?? "";
+    return !url.includes("localhost") && !url.startsWith("http://127.");
+  } catch {
+    return false;
+  }
+};
+
+function isNetworkError(err: unknown): boolean {
+  if (err instanceof TypeError) {
+    const m = String((err as Error).message).toLowerCase();
+    return m.includes("fetch") || m.includes("network") || m.includes("failed to fetch") || m.includes("load failed");
+  }
+  if (err instanceof Error) {
+    const m = err.message.toLowerCase();
+    return m.includes("network") || m.includes("failed to fetch") || m.includes("load failed");
+  }
+  return false;
+}
+
 function isJsonResponse(res: Response) {
   const ct = res.headers.get("content-type") || "";
   return ct.includes("application/json");
@@ -34,9 +55,14 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
       headers: mergedHeaders,
     });
   } catch (err) {
-    const msg = err instanceof TypeError && String(err.message).toLowerCase().includes("fetch")
-      ? `No se pudo conectar con el servidor. ¿Está corriendo el backend en ${API_BASE}?`
-      : err instanceof Error ? err.message : "Network error";
+    let msg: string;
+    if (isNetworkError(err)) {
+      msg = isProduction()
+        ? "No se pudo conectar. Revisá tu conexión o intentá de nuevo en unos segundos."
+        : `No se pudo conectar con el servidor. ¿Está corriendo el backend en ${API_BASE}?`;
+    } else {
+      msg = err instanceof Error ? err.message : "Network error";
+    }
     throw new Error(msg);
   }
 
