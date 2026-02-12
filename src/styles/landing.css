@@ -133,9 +133,12 @@
 }
 
 @media (max-width: 900px) {
+  .landing-topbar {
+    margin-bottom: 24px;
+  }
   .landing-hero {
     grid-template-columns: 1fr;
-    padding: 56px 20px 48px;
+    padding: 28px 20px 48px;
     min-height: auto;
     gap: 40px;
   }
