@@ -212,6 +212,7 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
 
   const updatePreferredDisplayCurrency = React.useCallback(
     (currencyId: "USD" | "UYU") => {
+      setMe((prev) => (prev ? { ...prev, preferredDisplayCurrencyId: currencyId } : prev));
       return api("/auth/me", {
         method: "PATCH",
         body: JSON.stringify({ preferredDisplayCurrencyId: currencyId }),
