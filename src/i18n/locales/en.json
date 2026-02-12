@@ -477,8 +477,8 @@
     "closeMonthTitle": "Close month",
     "closeMonthCancel": "Cancel",
     "closeMonthConfirm": "Yes, proceed",
-    "closeMonthPreviewP1": "You are closing the month with a real net worth of <1>{{netWorthEndUsd}} USD</1>, having started with <1>{{netWorthStartUsd}} USD</1>, which gives a balance of <1>{{realBalanceUsd}} USD</1> (end − start net worth).",
-    "closeMonthPreviewP2": "The balance calculated in {{budgetTitle}} based on your income and expenses is <1>{{budgetBalanceUsd}} USD</1>, which differs by <1>{{differenceUsd}} USD</1> from the real balance.",
+    "closeMonthPreviewP1": "You are closing the month with a real net worth of <1>{{netWorthEndUsd}}</1>, having started with <1>{{netWorthStartUsd}}</1>, which gives a balance of <1>{{realBalanceUsd}}</1> (end − start net worth).",
+    "closeMonthPreviewP2": "The balance calculated in {{budgetTitle}} based on your income and expenses is <1>{{budgetBalanceUsd}}</1>, which differs by <1>{{differenceUsd}}</1> from the real balance.",
     "closeMonthPreviewP3": "\"Other expenses\" for the month will be adjusted so it balances. Do you want to proceed?",
     "closeMonthPreviewP3NoAdjust": "Congratulations! The balances match. Confirm close?"
   },

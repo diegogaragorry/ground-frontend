@@ -34,7 +34,7 @@ export function OnboardingWizard(props: {
   const [wizardItemRate, setWizardItemRate] = useState<Record<string, number>>({});
 
   function getItemCurrency(key: string): "UYU" | "USD" {
-    return wizardItemCurrency[key] ?? "USD";
+    return wizardItemCurrency[key] ?? wizardDisplayCurrency;
   }
   function setItemCurrency(key: string, v: "UYU" | "USD") {
     setWizardItemCurrency((prev) => ({ ...prev, [key]: v }));
@@ -566,7 +566,7 @@ export function OnboardingWizard(props: {
                       <option value="USD">USD</option>
                     </select>
                     <input type="number" className="input onboarding-amount-input" placeholder={t("onboarding.wizardOptionalUsd")} value={usd} onChange={(e) => setUsd(e.target.value)} style={{ width: 165, minWidth: 165, flexShrink: 0 }} />
-                    {getItemCurrency(key) === "UYU" && (
+                    {getItemCurrency(key) !== wizardDisplayCurrency && (
                       <span className="row" style={{ alignItems: "center", gap: 4, flexShrink: 0 }}>
                         <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
                         <input type="number" step="0.001" className="input" value={Number.isFinite(getItemRate(key)) ? getItemRate(key).toFixed(2) : ""} onChange={(e) => setItemRate(key, Number(e.target.value))} style={{ width: 90 }} />
@@ -598,7 +598,7 @@ export function OnboardingWizard(props: {
                       <option value="USD">USD</option>
                     </select>
                     <input type="number" className="input onboarding-amount-input" placeholder={t("onboarding.wizardOptionalUsd")} value={transportVehicleUsd} onChange={(e) => setTransportVehicleUsd(e.target.value)} style={{ width: 165, minWidth: 165 }} />
-                    {getItemCurrency("transport.vehicle") === "UYU" && (
+                    {getItemCurrency("transport.vehicle") !== wizardDisplayCurrency && (
                       <span className="row" style={{ alignItems: "center", gap: 4 }}>
                         <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
                         <input type="number" step="0.001" className="input" value={Number.isFinite(getItemRate("transport.vehicle")) ? getItemRate("transport.vehicle").toFixed(2) : ""} onChange={(e) => setItemRate("transport.vehicle", Number(e.target.value))} style={{ width: 90 }} />
@@ -623,7 +623,7 @@ export function OnboardingWizard(props: {
                       <option value="USD">USD</option>
                     </select>
                     <input type="number" className="input onboarding-amount-input" placeholder={t("onboarding.wizardOptionalUsd")} value={usd} onChange={(e) => setUsd(e.target.value)} style={{ width: 165, minWidth: 165 }} />
-                    {getItemCurrency(key) === "UYU" && (
+                    {getItemCurrency(key) !== wizardDisplayCurrency && (
                       <span className="row" style={{ alignItems: "center", gap: 4 }}>
                         <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
                         <input type="number" step="0.001" className="input" value={Number.isFinite(getItemRate(key)) ? getItemRate(key).toFixed(2) : ""} onChange={(e) => setItemRate(key, Number(e.target.value))} style={{ width: 90 }} />
@@ -665,7 +665,7 @@ export function OnboardingWizard(props: {
                         <option value="USD">USD</option>
                       </select>
                       <input type="number" className="input onboarding-amount-input" placeholder={t("onboarding.wizardOptionalUsd")} value={svcUsd[id] ?? ""} onChange={(e) => setSvcUsd((prev) => ({ ...prev, [id]: e.target.value }))} style={{ width: 165, minWidth: 165 }} />
-                      {getItemCurrency(key) === "UYU" && (
+                      {getItemCurrency(key) !== wizardDisplayCurrency && (
                         <span className="row" style={{ alignItems: "center", gap: 4 }}>
                           <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
                           <input type="number" step="0.001" className="input" value={Number.isFinite(getItemRate(key)) ? getItemRate(key).toFixed(2) : ""} onChange={(e) => setItemRate(key, Number(e.target.value))} style={{ width: 90 }} />
@@ -705,7 +705,7 @@ export function OnboardingWizard(props: {
                         <option value="USD">USD</option>
                       </select>
                       <input type="number" className="input onboarding-amount-input" placeholder={t("onboarding.wizardOptionalUsd")} value={healthUsd[id] ?? ""} onChange={(e) => setHealthUsd((prev) => ({ ...prev, [id]: e.target.value }))} style={{ width: 165, minWidth: 165 }} />
-                      {getItemCurrency(key) === "UYU" && (
+                      {getItemCurrency(key) !== wizardDisplayCurrency && (
                         <span className="row" style={{ alignItems: "center", gap: 4 }}>
                           <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
                           <input type="number" step="0.001" className="input" value={Number.isFinite(getItemRate(key)) ? getItemRate(key).toFixed(2) : ""} onChange={(e) => setItemRate(key, Number(e.target.value))} style={{ width: 90 }} />
@@ -748,7 +748,7 @@ export function OnboardingWizard(props: {
                         <option value="USD">USD</option>
                       </select>
                       <input type="number" className="input onboarding-amount-input" placeholder={t("onboarding.wizardOptionalUsd")} value={recUsd[id] ?? ""} onChange={(e) => setRecUsd((prev) => ({ ...prev, [id]: e.target.value }))} style={{ width: 165, minWidth: 165 }} />
-                      {getItemCurrency(itemKey) === "UYU" && (
+                      {getItemCurrency(itemKey) !== wizardDisplayCurrency && (
                         <span className="row" style={{ alignItems: "center", gap: 4 }}>
                           <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
                           <input type="number" step="0.001" className="input" value={Number.isFinite(getItemRate(itemKey)) ? getItemRate(itemKey).toFixed(2) : ""} onChange={(e) => setItemRate(itemKey, Number(e.target.value))} style={{ width: 90 }} />
@@ -771,7 +771,7 @@ export function OnboardingWizard(props: {
           <div style={{ display: "grid", gap: 14 }}>
             <label className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
               <input type="checkbox" checked={incomeWork} onChange={(e) => setIncomeWork(e.target.checked)} />
-              <span style={{ flexShrink: 0 }}>{t("onboarding.wizardIncomeWork")}</span>
+              <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400 }}>{t("onboarding.wizardIncomeWork")}</span>
               {incomeWork && (
                 <>
                   <select className="select" value={getItemCurrency("income.work")} onChange={(e) => setItemCurrency("income.work", e.target.value as "UYU" | "USD")} style={{ width: 72, minWidth: 72, height: 36, fontSize: 12, padding: "4px 6px" }}>
@@ -786,7 +786,7 @@ export function OnboardingWizard(props: {
                     onChange={(e) => setIncomeWorkUsd(e.target.value)}
                     style={{ width: 165, minWidth: 165 }}
                   />
-                  {getItemCurrency("income.work") === "UYU" && (
+                  {getItemCurrency("income.work") !== wizardDisplayCurrency && (
                     <span className="row" style={{ alignItems: "center", gap: 4 }}>
                       <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
                       <input type="number" step="0.001" className="input" value={Number.isFinite(getItemRate("income.work")) ? getItemRate("income.work").toFixed(2) : ""} onChange={(e) => setItemRate("income.work", Number(e.target.value))} style={{ width: 72, height: 36, fontSize: 11 }} min={0} />
@@ -807,7 +807,7 @@ export function OnboardingWizard(props: {
             </label>
             <label className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
               <input type="checkbox" checked={incomeSavings} onChange={(e) => setIncomeSavings(e.target.checked)} />
-              <span>{t("onboarding.wizardIncomeSavings")}</span>
+              <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400 }}>{t("onboarding.wizardIncomeSavings")}</span>
               {incomeSavings && (
                 <>
                   <select className="select" value={getItemCurrency("income.savings")} onChange={(e) => setItemCurrency("income.savings", e.target.value as "UYU" | "USD")} style={{ width: 72, minWidth: 72, height: 36, fontSize: 12, padding: "4px 6px" }}>
@@ -817,12 +817,12 @@ export function OnboardingWizard(props: {
                   <input
                     type="number"
                     className="input onboarding-amount-input"
-                    placeholder={t("onboarding.wizardIncomeSavingsPlaceholder", { currency: getItemCurrency("income.savings") })}
+                    placeholder={t("onboarding.wizardOptionalUsd")}
                     value={incomeSavingsUsd}
                     onChange={(e) => setIncomeSavingsUsd(e.target.value)}
                     style={{ width: 165, minWidth: 165 }}
                   />
-                  {getItemCurrency("income.savings") === "UYU" && (
+                  {getItemCurrency("income.savings") !== wizardDisplayCurrency && (
                     <span className="row" style={{ alignItems: "center", gap: 4 }}>
                       <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
                       <input type="number" step="0.001" className="input" value={Number.isFinite(getItemRate("income.savings")) ? getItemRate("income.savings").toFixed(2) : ""} onChange={(e) => setItemRate("income.savings", Number(e.target.value))} style={{ width: 72, height: 36, fontSize: 11 }} min={0} />
@@ -831,9 +831,9 @@ export function OnboardingWizard(props: {
                 </>
               )}
             </label>
-            <label className="row" style={{ alignItems: "center", gap: 10, cursor: "pointer" }}>
+            <label className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
               <input type="checkbox" checked={incomeInvestments} onChange={(e) => setIncomeInvestments(e.target.checked)} />
-              <span>{t("onboarding.wizardIncomeInvestments")}</span>
+              <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400 }}>{t("onboarding.wizardIncomeInvestments")}</span>
             </label>
             {incomeInvestments && (
               <div style={{ paddingLeft: 28, display: "grid", gap: 10 }}>
@@ -871,8 +871,8 @@ export function OnboardingWizard(props: {
                     </select>
                     <input
                       type="number"
-                      className="input"
-                      placeholder={inv.currencyId === "UYU" ? t("onboarding.wizardIncomeInvestAmountUyu") : t("onboarding.wizardIncomeInvestAmount")}
+                      className="input onboarding-amount-input"
+                      placeholder={t("onboarding.wizardOptionalUsd")}
                       value={inv.amountUsd}
                       onChange={(e) =>
                         setInvestmentsList((prev) => {
@@ -881,13 +881,13 @@ export function OnboardingWizard(props: {
                           return next;
                         })
                       }
-                      style={{ width: "100%", minWidth: 0 }}
+                      style={{ width: "100%", minWidth: 0, fontSize: 12 }}
                       min={0}
                     />
                     <div className="row" style={{ alignItems: "center", gap: 6 }}>
                       <input
                         type="number"
-                        className="input"
+                        className="input onboarding-amount-input"
                         placeholder={t("onboarding.wizardIncomeInvestReturn")}
                         value={inv.returnPct}
                         onChange={(e) =>
@@ -897,10 +897,10 @@ export function OnboardingWizard(props: {
                             return next;
                           })
                         }
-                        style={{ width: 200 }}
+                        style={{ width: 200, fontSize: 12 }}
                         title={t("onboarding.wizardIncomeInvestReturn")}
                       />
-                      <span className="muted" style={{ fontSize: 14 }}>%</span>
+                      <span className="muted" style={{ fontSize: 12 }}>%</span>
                     </div>
                   </div>
                 ))}
