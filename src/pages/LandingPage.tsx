@@ -211,6 +211,8 @@ export default function LandingPage() {
   const [topBarPassword, setTopBarPassword] = useState("");
   const [topBarLoading, setTopBarLoading] = useState(false);
   const [topBarError, setTopBarError] = useState("");
+  const [topBarFormExpanded, setTopBarFormExpanded] = useState(false);
+  const [isTopBarMobile, setIsTopBarMobile] = useState(false);
 
   const [showAuthBox, setShowAuthBox] = useState(false);
   const [authEmail, setAuthEmail] = useState("");
@@ -240,6 +242,14 @@ export default function LandingPage() {
   useEffect(() => {
     i18n.changeLanguage(lang);
   }, [lang, i18n]);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 900px)");
+    const update = () => setIsTopBarMobile(mql.matches);
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, []);
 
   async function onTopBarLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -478,29 +488,40 @@ export default function LandingPage() {
       <header className="landing-topbar">
         <div className="landing-topbar-inner">
           <span className="landing-topbar-brand">ground</span>
-          <form className="landing-topbar-form" onSubmit={onTopBarLogin}>
-            <input
-              type="email"
-              className="landing-topbar-input"
-              placeholder={t.topBarEmail}
-              value={topBarEmail}
-              onChange={(e) => setTopBarEmail(e.target.value)}
-              autoComplete="email"
-              aria-label={t.topBarEmail}
-            />
-            <input
-              type="password"
-              className="landing-topbar-input"
-              placeholder={t.topBarPassword}
-              value={topBarPassword}
-              onChange={(e) => setTopBarPassword(e.target.value)}
-              autoComplete="current-password"
-              aria-label={t.topBarPassword}
-            />
-            <button type="submit" className="landing-topbar-btn" disabled={topBarLoading}>
-              {topBarLoading ? "…" : t.topBarSignIn}
+          {isTopBarMobile && !topBarFormExpanded ? (
+            <button
+              type="button"
+              className="landing-topbar-btn"
+              onClick={() => setTopBarFormExpanded(true)}
+              style={{ marginLeft: "auto" }}
+            >
+              {t.topBarSignIn}
             </button>
-          </form>
+          ) : (
+            <form className="landing-topbar-form" onSubmit={onTopBarLogin}>
+              <input
+                type="email"
+                className="landing-topbar-input"
+                placeholder={t.topBarEmail}
+                value={topBarEmail}
+                onChange={(e) => setTopBarEmail(e.target.value)}
+                autoComplete="email"
+                aria-label={t.topBarEmail}
+              />
+              <input
+                type="password"
+                className="landing-topbar-input"
+                placeholder={t.topBarPassword}
+                value={topBarPassword}
+                onChange={(e) => setTopBarPassword(e.target.value)}
+                autoComplete="current-password"
+                aria-label={t.topBarPassword}
+              />
+              <button type="submit" className="landing-topbar-btn" disabled={topBarLoading}>
+                {topBarLoading ? "…" : t.topBarSignIn}
+              </button>
+            </form>
+          )}
           {topBarError && <span className="landing-topbar-error" role="alert">{topBarError}</span>}
         </div>
       </header>
