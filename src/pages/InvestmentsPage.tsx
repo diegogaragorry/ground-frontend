@@ -137,6 +137,8 @@ export default function InvestmentsPage() {
   const [movements, setMovements] = useState<MovementRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [editNameId, setEditNameId] = useState<string | null>(null);
+  const [editNameDraft, setEditNameDraft] = useState("");
 
   // closed months (only for snapshots/movements edits)
   const [closedMonths, setClosedMonths] = useState<Set<number>>(new Set());
@@ -330,6 +332,52 @@ export default function InvestmentsPage() {
       showSuccess(t("common.saved"));
     } catch (e: any) {
       setError(e?.message ?? t("investments.errorSavingTargetReturn"));
+    }
+  }
+
+  function investmentHasClosedMonthsWithAmount(inv: Investment): boolean {
+    const snaps = snapshots[inv.id] ?? [];
+    return snaps.some(
+      (s) =>
+        s.isClosed &&
+        ((s.closingCapital != null && s.closingCapital !== 0) || (s.closingCapitalUsd != null && s.closingCapitalUsd !== 0))
+    );
+  }
+
+  async function deleteInvestment(inv: Investment) {
+    if (investmentHasClosedMonthsWithAmount(inv)) {
+      setError(t("investments.deleteBlockedClosedMonths"));
+      return;
+    }
+    if (!confirm(t("investments.deleteInvestmentConfirm", { name: inv.name }))) return;
+    setError("");
+    try {
+      await api(`/investments/${inv.id}`, { method: "DELETE" });
+      await load();
+      showSuccess(inv.type === "PORTFOLIO" ? t("investments.portfolioDeleted") : t("investments.accountDeleted"));
+    } catch (e: any) {
+      setError(e?.message ?? t("common.error"));
+    }
+  }
+
+  async function saveInvestmentName(inv: Investment, newName: string) {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === inv.name) {
+      setEditNameId(null);
+      return;
+    }
+    setError("");
+    try {
+      const updated = await api<Investment>(`/investments/${inv.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ name: trimmed }),
+      });
+      setInvestments((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
+      setEditNameId(null);
+      setEditNameDraft("");
+      showSuccess(t("investments.nameUpdated"));
+    } catch (e: any) {
+      setError(e?.message ?? t("common.error"));
     }
   }
 
@@ -747,9 +795,66 @@ export default function InvestmentsPage() {
                 const snaps = snapshots[inv.id] ?? [];
                 const byM = snapsByMonth(snaps);
 
+                const isEditingName = editNameId === inv.id;
+                const hasClosedWithAmount = investmentHasClosedMonthsWithAmount(inv);
                 return (
                   <tr key={inv.id}>
-                    <td style={{ ...tdStyle, ...stickyCell, fontWeight: 700, textAlign: "center", verticalAlign: "middle" }}>{inv.name}</td>
+                    <td style={{ ...tdStyle, ...stickyCell, fontWeight: 700, verticalAlign: "middle" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0 }}>
+                        {isEditingName ? (
+                          <input
+                            className="input"
+                            value={editNameDraft}
+                            onChange={(e) => setEditNameDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveInvestmentName(inv, editNameDraft);
+                              if (e.key === "Escape") { setEditNameId(null); setEditNameDraft(""); }
+                            }}
+                            onBlur={() => saveInvestmentName(inv, editNameDraft)}
+                            style={{ flex: 1, minWidth: 0, height: 28, fontSize: 11 }}
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => { setEditNameId(inv.id); setEditNameDraft(inv.name); }}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditNameId(inv.id); setEditNameDraft(inv.name); } }}
+                            style={{ cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}
+                            title={t("investments.editName")}
+                          >
+                            {inv.name}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => deleteInvestment(inv)}
+                          title={hasClosedWithAmount ? t("investments.deleteBlockedClosedMonths") : t("investments.deleteLabel")}
+                          disabled={hasClosedWithAmount}
+                          style={{
+                            flexShrink: 0,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 22,
+                            height: 22,
+                            padding: 0,
+                            border: "none",
+                            background: "none",
+                            cursor: hasClosedWithAmount ? "not-allowed" : "pointer",
+                            color: hasClosedWithAmount ? "var(--muted)" : "#c53030",
+                          }}
+                          aria-label={t("investments.deleteLabel")}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            <line x1="10" y1="11" x2="10" y2="17" />
+                            <line x1="14" y1="11" x2="14" y2="17" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
                     <td style={{ ...tdStyle, textAlign: "center", verticalAlign: "middle" }}>
                       <select
                         className="select"
@@ -1140,10 +1245,67 @@ export default function InvestmentsPage() {
               {accounts.map((inv) => {
                 const snaps = snapshots[inv.id] ?? [];
                 const byM = snapsByMonth(snaps);
+                const isEditingName = editNameId === inv.id;
+                const hasClosedWithAmount = investmentHasClosedMonthsWithAmount(inv);
 
                 return (
                   <tr key={inv.id}>
-                    <td style={{ ...tdStyle, ...stickyCell, fontWeight: 700 }}>{inv.name}</td>
+                    <td style={{ ...tdStyle, ...stickyCell, fontWeight: 700 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0 }}>
+                        {isEditingName ? (
+                          <input
+                            className="input"
+                            value={editNameDraft}
+                            onChange={(e) => setEditNameDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveInvestmentName(inv, editNameDraft);
+                              if (e.key === "Escape") { setEditNameId(null); setEditNameDraft(""); }
+                            }}
+                            onBlur={() => saveInvestmentName(inv, editNameDraft)}
+                            style={{ flex: 1, minWidth: 0, height: 28, fontSize: 11 }}
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => { setEditNameId(inv.id); setEditNameDraft(inv.name); }}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditNameId(inv.id); setEditNameDraft(inv.name); } }}
+                            style={{ cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}
+                            title={t("investments.editName")}
+                          >
+                            {inv.name}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => deleteInvestment(inv)}
+                          title={hasClosedWithAmount ? t("investments.deleteBlockedClosedMonths") : t("investments.deleteLabel")}
+                          disabled={hasClosedWithAmount}
+                          style={{
+                            flexShrink: 0,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 22,
+                            height: 22,
+                            padding: 0,
+                            border: "none",
+                            background: "none",
+                            cursor: hasClosedWithAmount ? "not-allowed" : "pointer",
+                            color: hasClosedWithAmount ? "var(--muted)" : "#c53030",
+                          }}
+                          aria-label={t("investments.deleteLabel")}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            <line x1="10" y1="11" x2="10" y2="17" />
+                            <line x1="14" y1="11" x2="14" y2="17" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
                     <td style={tdStyle}>
                       <select
                         className="select"

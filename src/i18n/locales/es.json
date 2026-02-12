@@ -337,7 +337,14 @@
     "capitalPerMonthLocked": "Capital por mes (bloqueado cuando está cerrado)",
     "monthLabel": "Mes",
     "capitalWithCurrency": "Capital ({{currency}})",
-    "defaultBankAccountName": "Cuenta bancaria"
+    "defaultBankAccountName": "Cuenta bancaria",
+    "editName": "Editar nombre",
+    "nameUpdated": "Nombre actualizado",
+    "deleteLabel": "Eliminar",
+    "deleteInvestmentConfirm": "¿Eliminar \"{{name}}\"? Se borrarán todos los movimientos y snapshots. No se puede deshacer.",
+    "deleteBlockedClosedMonths": "Tiene montos en meses cerrados. Reabrí esos meses en Admin, mové los fondos y volvé a intentar eliminar.",
+    "portfolioDeleted": "Portfolio eliminado.",
+    "accountDeleted": "Cuenta eliminada."
   },
   "admin": {
     "title": "Admin",
@@ -607,7 +614,7 @@
     "wizardIncomeWorkTypeLiquid": "Líquido",
     "wizardIncomeWorkTaxes": "Impuestos/Deducibles",
     "wizardIncomeSavings": "Ahorros en cuentas bancarias",
-    "wizardIncomeSavingsPlaceholder": "Est. total en USD",
+    "wizardIncomeSavingsPlaceholder": "Est. total en {{currency}}",
     "wizardIncomeInvestments": "Tengo inversiones",
     "wizardIncomeInvestWhere": "¿Dónde? (ej. broker, fondo)",
     "wizardIncomeInvestAmount": "Monto (USD)",

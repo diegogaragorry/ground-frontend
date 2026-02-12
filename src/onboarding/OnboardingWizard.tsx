@@ -817,7 +817,7 @@ export function OnboardingWizard(props: {
                   <input
                     type="number"
                     className="input onboarding-amount-input"
-                    placeholder={t("onboarding.wizardIncomeSavingsPlaceholder")}
+                    placeholder={t("onboarding.wizardIncomeSavingsPlaceholder", { currency: getItemCurrency("income.savings") })}
                     value={incomeSavingsUsd}
                     onChange={(e) => setIncomeSavingsUsd(e.target.value)}
                     style={{ width: 165, minWidth: 165 }}
