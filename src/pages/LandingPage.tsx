@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
-import { APP_BASE } from "../constants";
+import { APP_BASE, CONTACT_WHATSAPP_URL } from "../constants";
 import "./../styles/landing.css";
 import "./../styles/auth.css";
 
@@ -68,6 +68,7 @@ const COPY = {
     finalCta: "Crear cuenta / Iniciar sesión",
     footerLogin: "Iniciar sesión",
     footerCreate: "Crear cuenta",
+    footerContact: "Contacto",
     footerTerms: "Términos",
     footerPrivacy: "Privacidad",
     previewTitle: "Vista previa",
@@ -150,6 +151,7 @@ const COPY = {
     finalCta: "Create account / Sign in",
     footerLogin: "Sign in",
     footerCreate: "Create account",
+    footerContact: "Contact",
     footerTerms: "Terms",
     footerPrivacy: "Privacy",
     previewTitle: "Preview",
@@ -1015,6 +1017,7 @@ export default function LandingPage() {
         <div className="landing-footer-links">
           <button type="button" className="landing-footer-link" onClick={() => showAuth()}>{t.footerLogin}</button>
           <button type="button" className="landing-footer-link" onClick={() => showAuth("register")}>{t.footerCreate}</button>
+          <a href={CONTACT_WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="landing-footer-link">{t.footerContact}</a>
           <Link to="/terms">{t.footerTerms}</Link>
           <Link to="/privacy">{t.footerPrivacy}</Link>
         </div>
