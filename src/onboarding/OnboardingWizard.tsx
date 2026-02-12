@@ -516,7 +516,7 @@ export function OnboardingWizard(props: {
   }
 
   return (
-    <div className="card" style={{ padding: 20, maxWidth: 640, width: "100%" }}>
+    <div className="card" style={{ padding: 20, maxWidth: 760, width: "100%" }}>
       <style>{`.onboarding-amount-input::placeholder { font-size: 11px; } .onboarding-amount-input { min-width: 165px; }`}</style>
       {error && <div style={{ color: "var(--danger)", marginBottom: 12 }}>{error}</div>}
 
@@ -556,18 +556,18 @@ export function OnboardingWizard(props: {
               { key: "housing.fees", checked: housingFees, set: setHousingFees, usd: housingFeesUsd, setUsd: setHousingFeesUsd, label: "wizardHousingFees" },
               { key: "housing.taxes", checked: housingTaxes, set: setHousingTaxes, usd: housingTaxesUsd, setUsd: setHousingTaxesUsd, label: "wizardHousingTaxes" },
             ].map(({ key, checked, set, usd, setUsd, label }) => (
-              <label key={key} className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
+              <label key={key} className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "nowrap" }}>
                 <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} />
-                <span>{t(`onboarding.${label}`)}</span>
+                <span style={{ flexShrink: 0 }}>{t(`onboarding.${label}`)}</span>
                 {checked && (
                   <>
-                    <select className="select" value={getItemCurrency(key)} onChange={(e) => setItemCurrency(key, e.target.value as "UYU" | "USD")} style={{ width: 72, minWidth: 72, height: 36, fontSize: 12, padding: "4px 6px" }}>
+                    <select className="select" value={getItemCurrency(key)} onChange={(e) => setItemCurrency(key, e.target.value as "UYU" | "USD")} style={{ width: 72, minWidth: 72, height: 36, fontSize: 12, padding: "4px 6px", flexShrink: 0 }}>
                       <option value="UYU">UYU</option>
                       <option value="USD">USD</option>
                     </select>
-                    <input type="number" className="input onboarding-amount-input" placeholder={t("onboarding.wizardOptionalUsd")} value={usd} onChange={(e) => setUsd(e.target.value)} style={{ width: 165, minWidth: 165 }} />
+                    <input type="number" className="input onboarding-amount-input" placeholder={t("onboarding.wizardOptionalUsd")} value={usd} onChange={(e) => setUsd(e.target.value)} style={{ width: 165, minWidth: 165, flexShrink: 0 }} />
                     {getItemCurrency(key) === "UYU" && (
-                      <span className="row" style={{ alignItems: "center", gap: 4 }}>
+                      <span className="row" style={{ alignItems: "center", gap: 4, flexShrink: 0 }}>
                         <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
                         <input type="number" step="0.001" className="input" value={Number.isFinite(getItemRate(key)) ? getItemRate(key).toFixed(2) : ""} onChange={(e) => setItemRate(key, Number(e.target.value))} style={{ width: 90 }} />
                       </span>
