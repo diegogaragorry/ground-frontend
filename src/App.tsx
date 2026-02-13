@@ -9,6 +9,7 @@ import DashboardPage from "./pages/DashboardPage";
 import InvestmentsPage from "./pages/InvestmentsPage";
 import BudgetsPage from "./pages/BudgetsPage";
 import AdminPage from "./pages/AdminPage";
+import HelpPage from "./pages/HelpPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import TermsPage from "./pages/TermsPage";
@@ -55,6 +56,7 @@ export default function App() {
           <Route path="investments" element={<InvestmentsPage />} />
           <Route path="budgets" element={<BudgetsPage />} />
           <Route path="admin" element={<AdminPage />} />
+          <Route path="help" element={<HelpPage />} />
         </Route>
 
         {/* FALLBACK */}

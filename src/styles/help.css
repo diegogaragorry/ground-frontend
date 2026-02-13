@@ -1,0 +1,81 @@
+/*
+ * Help page — tour CTA + FAQ accordion
+ */
+
+.help-page {
+  max-width: 640px;
+  padding: 0 0 48px;
+}
+
+.help-title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin: 0 0 12px;
+  letter-spacing: -0.02em;
+}
+
+.help-intro {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin: 0 0 24px;
+}
+
+.help-actions {
+  margin-bottom: 40px;
+}
+
+.help-faq-section {
+  margin-top: 8px;
+}
+
+.help-faq-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 16px;
+}
+
+.help-faq {
+  border-top: 1px solid var(--border);
+}
+
+.help-faq-item {
+  border-bottom: 1px solid var(--border);
+}
+
+.help-faq-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 0;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.help-faq-toggle:hover {
+  color: var(--brand-green, var(--accent));
+}
+
+.help-faq-toggle[aria-expanded="true"] .help-faq-icon {
+  transform: rotate(180deg);
+}
+
+.help-faq-icon {
+  flex-shrink: 0;
+  margin-left: 12px;
+  color: var(--muted);
+  transition: transform 0.2s;
+}
+
+.help-faq-content {
+  padding: 0 0 18px;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--muted);
+}

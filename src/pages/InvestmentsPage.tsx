@@ -103,7 +103,7 @@ export default function InvestmentsPage() {
   const { t } = useTranslation();
 
   const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess, serverFxRate } = useAppShell();
-  const { year } = useAppYearMonth();
+  const { year, month: currentMonth } = useAppYearMonth();
   const { formatAmountUsd, currencyLabel } = useDisplayCurrency();
   const usdUyuRate = serverFxRate ?? getFxDefault();
 
@@ -416,10 +416,11 @@ export default function InvestmentsPage() {
     });
   }, [portfolioNetWorthByMonthUsd, portfolios, snapshots]);
 
-  // MOVEMENTS FLOWS (PORTFOLIO, USD ONLY)
+  // MOVEMENTS FLOWS (PORTFOLIO) — USD + UYU converted to USD
   const flows = useMemo(() => {
     const series = months.map(() => 0);
     const invById = new Map(investments.map((i) => [i.id, i]));
+    const fx = Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : null;
 
     for (const mv of movements) {
       const m = mv.month ?? toMonthFromIso(mv.date);
@@ -428,19 +429,34 @@ export default function InvestmentsPage() {
       const inv = invById.get(mv.investmentId);
       if (!inv || inv.type !== "PORTFOLIO") continue;
 
-      if ((mv.currencyId ?? "") !== "USD") continue;
-
       const sign = mv.type === "deposit" ? 1 : mv.type === "withdrawal" ? -1 : 0;
-      series[m - 1] += sign * (mv.amount ?? 0);
+      const amount = mv.amount ?? 0;
+      const currency = (mv.currencyId ?? "USD").toUpperCase();
+
+      if (currency === "USD") {
+        series[m - 1] += sign * amount;
+      } else if (currency === "UYU" && fx) {
+        series[m - 1] += sign * (amount / fx);
+      }
     }
 
     return { series };
-  }, [movements, investments]);
+  }, [movements, investments, usdUyuRate]);
 
   const portfolioRealReturns = useMemo(
     () => months.map((_, i) => (portfolioMonthlyVariation[i] ?? 0) - (flows.series[i] ?? 0)),
     [portfolioMonthlyVariation, flows.series]
   );
+
+  const realReturnsYearTotal = useMemo(
+    () => portfolioRealReturns.reduce((acc, v) => acc + (v ?? 0), 0),
+    [portfolioRealReturns]
+  );
+
+  const totalNetWorthMonthlyVariation = useMemo(() => {
+    const total = totalNetWorthByMonthUsd;
+    return months.map((_, i) => (i >= 1 ? (total[i] ?? 0) - (total[i - 1] ?? 0) : null));
+  }, [totalNetWorthByMonthUsd]);
 
   function movementTypeLabel(type: string) {
     if (type === "deposit") return t("investments.deposit");
@@ -550,7 +566,7 @@ export default function InvestmentsPage() {
 
   // ✅ ADD FUND FORM
   const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState<"PORTFOLIO" | "ACCOUNT">("PORTFOLIO");
+  const [newType, setNewType] = useState<"PORTFOLIO" | "ACCOUNT">("ACCOUNT");
   const [newCurrency, setNewCurrency] = useState<"USD" | "UYU">("USD");
   const [newTargetPct, setNewTargetPct] = useState<string>("8");
   const [newYieldFrom, setNewYieldFrom] = useState<number>(1);
@@ -639,7 +655,7 @@ export default function InvestmentsPage() {
               <span style={{ color: "var(--brand-green)" }}>{currencyLabel}</span>)
             </div>
             <div className="muted" style={{ fontSize: 12 }}>{t("investments.year")}: {year}</div>
-            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{t("investments.summaryIntro")}</div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{portfolios.length > 0 ? t("investments.summaryIntro") : t("investments.summaryIntroNoFunds")}</div>
           </div>
           <button className="btn" type="button" onClick={load}>{t("common.refresh")}</button>
         </div>
@@ -650,31 +666,238 @@ export default function InvestmentsPage() {
               <tr>
                 <th style={{ ...thStyle, width: 190 }}></th>
                 {months.map((m) => (
-                  <th key={`sum-h-${m}`} className="right" style={thStyle}>{monthLabel(m)}</th>
+                  <th
+                    key={`sum-h-${m}`}
+                    className="right"
+                    style={{
+                      ...thStyle,
+                      ...(m === currentMonth ? { background: "var(--bg)", fontWeight: 700 } : {}),
+                    }}
+                    title={m === currentMonth ? t("investments.summaryCurrentMonth") : undefined}
+                  >
+                    {monthLabel(m)}{m === currentMonth ? " ★" : ""}
+                  </th>
                 ))}
               </tr>
             </thead>
 
             <tbody>
               <tr>
+                <td style={{ ...tdStyle }}>{t("investments.netWorthAccounts")}</td>
+                {months.map((m, i) => (
+                  <td
+                    key={`sum-ac-${m}`}
+                    className="right"
+                    style={{ ...tdStyle, ...(m === currentMonth ? { background: "var(--bg)", fontWeight: 600 } : {}) }}
+                  >
+                    {formatAmountUsd(accountsNetWorthByMonthUsd[i] ?? 0)}
+                  </td>
+                ))}
+              </tr>
+              {portfolios.length > 0 && (
+              <tr>
+                <td style={{ ...tdStyle }}>{t("investments.netWorthFunds")}</td>
+                {months.map((m, i) => (
+                  <td
+                    key={`sum-pf-${m}`}
+                    className="right"
+                    style={{ ...tdStyle, ...(m === currentMonth ? { background: "var(--bg)", fontWeight: 600 } : {}) }}
+                  >
+                    {formatAmountUsd(portfolioNetWorthByMonthUsd[i] ?? 0)}
+                  </td>
+                ))}
+              </tr>
+              )}
+              <tr>
                 <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.totalNetWorth")}</td>
                 {months.map((m, i) => (
-                  <td key={`sum-nw-${m}`} className="right" style={tdStyle}>{formatAmountUsd(totalNetWorthByMonthUsd[i] ?? 0)}</td>
+                  <td
+                    key={`sum-nw-${m}`}
+                    className="right"
+                    style={{ ...tdStyle, fontWeight: 800, ...(m === currentMonth ? { background: "var(--bg)" } : {}) }}
+                  >
+                    {formatAmountUsd(totalNetWorthByMonthUsd[i] ?? 0)}
+                  </td>
                 ))}
               </tr>
 
               <tr>
-                <td style={{ ...tdStyle, fontWeight: 800 }}>{t("investments.realReturnsPortfolioLabel")}</td>
+                <td style={{ ...tdStyle }}>{t("investments.monthlyVariationTotal")}</td>
                 {months.map((m, i) => (
-                  <td key={`sum-rr-${m}`} className="right" style={tdStyle}>{formatAmountUsd(portfolioRealReturns[i] ?? 0)}</td>
+                  <td
+                    key={`sum-var-${m}`}
+                    className="right"
+                    style={{ ...tdStyle, ...(m === currentMonth ? { background: "var(--bg)" } : {}) }}
+                  >
+                    {totalNetWorthMonthlyVariation[i] != null ? formatAmountUsd(totalNetWorthMonthlyVariation[i]!) : "—"}
+                  </td>
                 ))}
               </tr>
+
+              {portfolios.length > 0 && (
+                <tr>
+                  <td style={{ ...tdStyle }}>{t("investments.realReturnsPortfolioLabel")}</td>
+                  {months.map((m, i) => (
+                    <td
+                      key={`sum-rr-${m}`}
+                      className="right"
+                      style={{ ...tdStyle, ...(m === currentMonth ? { background: "var(--bg)" } : {}) }}
+                    >
+                      {formatAmountUsd(portfolioRealReturns[i] ?? 0)}
+                    </td>
+                  ))}
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
 
-        <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-          {t("investments.monthlyVariationNote")}
+        <div className="muted" style={{ marginTop: 8, fontSize: 11 }}>
+          {t("investments.summaryIntroNote")}
+        </div>
+        <div className="muted" style={{ marginTop: 4, fontSize: 11 }}>
+          {portfolios.length > 0 ? t("investments.monthlyVariationNote") : t("investments.monthlyVariationNoteNoFunds")}
+        </div>
+      </div>
+
+      {/* ACCOUNTS */}
+      <div className="card" ref={accountsRef}>
+        <div style={{ fontWeight: 900 }}>{t("investments.accounts")}</div>
+        <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{t("investments.accountsDesc")}</div>
+
+        <div style={{ overflowX: "auto", maxWidth: "100%", marginTop: 10 }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th style={{ ...thStyle, ...stickyHead }}>{t("investments.account")}</th>
+                <th style={thStyle}>{t("investments.cur")}</th>
+                {months.map((m) => (
+                  <th key={`a-h-${m}`} className="right" style={thStyle} title={t("investments.valueAtStartOfMonth")}>{monthLabel(m)}</th>
+                ))}
+              </tr>
+              <tr>
+                <th colSpan={2 + months.length} className="muted" style={{ ...thStyle, fontSize: 10, borderTop: "none", paddingTop: 0, fontWeight: 500, textAlign: "left" }}>
+                  {t("investments.valueAtStartOfMonth")}
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {accounts.map((inv) => {
+                const snaps = snapshots[inv.id] ?? [];
+                const byM = snapsByMonth(snaps);
+                const isEditingName = editNameId === inv.id;
+                const hasClosedWithAmount = investmentHasClosedMonthsWithAmount(inv);
+
+                return (
+                  <tr key={inv.id}>
+                    <td style={{ ...tdStyle, ...stickyCell, fontWeight: 700 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0 }}>
+                        {isEditingName ? (
+                          <input
+                            className="input"
+                            value={editNameDraft}
+                            onChange={(e) => setEditNameDraft(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveInvestmentName(inv, editNameDraft);
+                              if (e.key === "Escape") { setEditNameId(null); setEditNameDraft(""); }
+                            }}
+                            onBlur={() => saveInvestmentName(inv, editNameDraft)}
+                            style={{ flex: 1, minWidth: 0, height: 28, fontSize: 11 }}
+                            autoFocus
+                          />
+                        ) : (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => { setEditNameId(inv.id); setEditNameDraft(inv.name); }}
+                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditNameId(inv.id); setEditNameDraft(inv.name); } }}
+                            style={{ cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}
+                            title={t("investments.editName")}
+                          >
+                            {inv.name}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => deleteInvestment(inv)}
+                          title={hasClosedWithAmount ? t("investments.deleteBlockedClosedMonths") : t("investments.deleteLabel")}
+                          disabled={hasClosedWithAmount}
+                          style={{
+                            flexShrink: 0,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 22,
+                            height: 22,
+                            padding: 0,
+                            border: "none",
+                            background: "none",
+                            cursor: hasClosedWithAmount ? "not-allowed" : "pointer",
+                            color: hasClosedWithAmount ? "var(--muted)" : "#c53030",
+                          }}
+                          aria-label={t("investments.deleteLabel")}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            <line x1="10" y1="11" x2="10" y2="17" />
+                            <line x1="14" y1="11" x2="14" y2="17" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                    <td style={tdStyle}>
+                      <select
+                        className="select"
+                        style={{ height: 28, fontSize: 11, padding: "4px 6px", margin: 0, minWidth: 56 }}
+                        value={inv.currencyId ?? "USD"}
+                        onChange={(e) => saveCurrency(inv, e.target.value)}
+                      >
+                        <option value="USD">USD</option>
+                        <option value="UYU">UYU</option>
+                      </select>
+                    </td>
+
+                    {months.map((m) => {
+                      const s = byM[m];
+                      const hasReal = s?.closingCapital != null;
+                      const display = capitalOrigAccountCarry(inv, snaps, m);
+                      const prevMonthClosed = m >= 2 && isClosed(m - 1);
+                      const locked = isClosed(m) || prevMonthClosed;
+
+                      return (
+                        <td key={`a-${inv.id}-${m}`} className="right" style={tdStyle}>
+                          <input
+                            className="input"
+                            style={{ ...inputStyle, opacity: locked ? 0.6 : hasReal ? 1 : 0.75 }}
+                            disabled={locked}
+                            title={locked ? t("investments.closedMonth") : undefined}
+                            defaultValue={display == null ? "" : String(Math.round(display))}
+                            onBlur={(e) => {
+                              if (locked) return;
+                              const raw = (e.target as HTMLInputElement).value.trim();
+                              if (!raw) return;
+                              saveCell(inv, m, Number(raw));
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                            }}
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+
+              {accounts.length === 0 && !loading && (
+                <tr>
+                  <td colSpan={2 + months.length} className="muted" style={tdStyle}>{t("investments.noAccountsYet")}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -757,11 +980,13 @@ export default function InvestmentsPage() {
             style={{ height: 32, padding: "6px 12px" }}
             disabled={!newName.trim()}
           >
-            {t("investments.add")}
+            {newType === "ACCOUNT" ? t("investments.addAccount") : t("investments.addPortfolio")}
           </button>
         </div>
       </div>
 
+      {portfolios.length > 0 && (
+      <>
       {/* PORTFOLIO */}
       <div className="card">
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap" }}>
@@ -940,7 +1165,7 @@ export default function InvestmentsPage() {
               {portfolios.length === 0 && !loading && (
                 <tr>
                   <td colSpan={4 + months.length} className="muted" style={{ ...tdStyle, textAlign: "center" }}>
-                    {t("investments.noPortfolioYet")}
+                    {t("investments.noPortfolioYetHint")}
                   </td>
                 </tr>
               )}
@@ -1218,147 +1443,8 @@ export default function InvestmentsPage() {
           {t("investments.notesMovements")}
         </div>
       </div>
-
-      {/* ACCOUNTS */}
-      <div className="card" ref={accountsRef}>
-        <div style={{ fontWeight: 900 }}>{t("investments.accounts")}</div>
-        <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{t("investments.accountsDesc")}</div>
-
-        <div style={{ overflowX: "auto", maxWidth: "100%", marginTop: 10 }}>
-          <table className="table">
-            <thead>
-              <tr>
-                <th style={{ ...thStyle, ...stickyHead }}>{t("investments.account")}</th>
-                <th style={thStyle}>{t("investments.cur")}</th>
-                {months.map((m) => (
-                  <th key={`a-h-${m}`} className="right" style={thStyle} title={t("investments.valueAtStartOfMonth")}>{monthLabel(m)}</th>
-                ))}
-              </tr>
-              <tr>
-                <th colSpan={2 + months.length} className="muted" style={{ ...thStyle, fontSize: 10, borderTop: "none", paddingTop: 0, fontWeight: 500, textAlign: "left" }}>
-                  {t("investments.valueAtStartOfMonth")}
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {accounts.map((inv) => {
-                const snaps = snapshots[inv.id] ?? [];
-                const byM = snapsByMonth(snaps);
-                const isEditingName = editNameId === inv.id;
-                const hasClosedWithAmount = investmentHasClosedMonthsWithAmount(inv);
-
-                return (
-                  <tr key={inv.id}>
-                    <td style={{ ...tdStyle, ...stickyCell, fontWeight: 700 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0 }}>
-                        {isEditingName ? (
-                          <input
-                            className="input"
-                            value={editNameDraft}
-                            onChange={(e) => setEditNameDraft(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") saveInvestmentName(inv, editNameDraft);
-                              if (e.key === "Escape") { setEditNameId(null); setEditNameDraft(""); }
-                            }}
-                            onBlur={() => saveInvestmentName(inv, editNameDraft)}
-                            style={{ flex: 1, minWidth: 0, height: 28, fontSize: 11 }}
-                            autoFocus
-                          />
-                        ) : (
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => { setEditNameId(inv.id); setEditNameDraft(inv.name); }}
-                            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditNameId(inv.id); setEditNameDraft(inv.name); } }}
-                            style={{ cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}
-                            title={t("investments.editName")}
-                          >
-                            {inv.name}
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => deleteInvestment(inv)}
-                          title={hasClosedWithAmount ? t("investments.deleteBlockedClosedMonths") : t("investments.deleteLabel")}
-                          disabled={hasClosedWithAmount}
-                          style={{
-                            flexShrink: 0,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            width: 22,
-                            height: 22,
-                            padding: 0,
-                            border: "none",
-                            background: "none",
-                            cursor: hasClosedWithAmount ? "not-allowed" : "pointer",
-                            color: hasClosedWithAmount ? "var(--muted)" : "#c53030",
-                          }}
-                          aria-label={t("investments.deleteLabel")}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="3 6 5 6 21 6" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            <line x1="10" y1="11" x2="10" y2="17" />
-                            <line x1="14" y1="11" x2="14" y2="17" />
-                          </svg>
-                        </button>
-                      </div>
-                    </td>
-                    <td style={tdStyle}>
-                      <select
-                        className="select"
-                        style={{ height: 28, fontSize: 11, padding: "4px 6px", margin: 0, minWidth: 56 }}
-                        value={inv.currencyId ?? "USD"}
-                        onChange={(e) => saveCurrency(inv, e.target.value)}
-                      >
-                        <option value="USD">USD</option>
-                        <option value="UYU">UYU</option>
-                      </select>
-                    </td>
-
-                    {months.map((m) => {
-                      const s = byM[m];
-                      const hasReal = s?.closingCapital != null;
-                      const display = capitalOrigAccountCarry(inv, snaps, m);
-                      const prevMonthClosed = m >= 2 && isClosed(m - 1);
-                      const locked = isClosed(m) || prevMonthClosed;
-
-                      return (
-                        <td key={`a-${inv.id}-${m}`} className="right" style={tdStyle}>
-                          <input
-                            className="input"
-                            style={{ ...inputStyle, opacity: locked ? 0.6 : hasReal ? 1 : 0.75 }}
-                            disabled={locked}
-                            title={locked ? t("investments.closedMonth") : undefined}
-                            defaultValue={display == null ? "" : String(Math.round(display))}
-                            onBlur={(e) => {
-                              if (locked) return;
-                              const raw = (e.target as HTMLInputElement).value.trim();
-                              if (!raw) return;
-                              saveCell(inv, m, Number(raw));
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                            }}
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-
-              {accounts.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={2 + months.length} className="muted" style={tdStyle}>{t("investments.noAccountsYet")}</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      </>
+      )}
 
       <style>{`
         .investments-page { max-width: 100%; overflow-x: hidden; }

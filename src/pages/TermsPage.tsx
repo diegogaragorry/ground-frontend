@@ -168,6 +168,12 @@ export default function TermsPage() {
             causa que, a juicio del Prestador, justifique dicha medida.
           </p>
           <p>
+            El Prestador se reserva asimismo el derecho de discontinuar el Servicio en su totalidad en cualquier
+            momento. En caso de cierre definitivo del Servicio, comunicará la decisión con un aviso razonable
+            (no inferior a treinta (30) días) y facilitará a los Usuarios la exportación de sus datos antes de la
+            cesación efectiva. La limitación de responsabilidad prevista en el apartado 8 será de aplicación.
+          </p>
+          <p>
             El Usuario podrá dar por terminada su cuenta en cualquier momento solicitando la baja a través de los
             canales habilitados. En tal caso, dispondrá de un plazo razonable para exportar sus datos antes de que
             se proceda a su eliminación definitiva, salvo que la legislación aplicable establezca plazos distintos.

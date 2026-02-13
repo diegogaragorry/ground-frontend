@@ -34,19 +34,28 @@ const COPY = {
     trust2: "Guía simple de configuración",
     trust3: "Tus datos son tuyos",
     pricing: "Planes",
-    pricingSub: "Registrate ahora y empezá con 4 meses gratis",
+    pricingSub: "Registrate ahora y empezá con 2 meses gratis",
     earlyStage: "Early Stage",
     earlyStageBadge: "Actual",
-    earlyStageDesc: "Registrate ahora",
-    earlyStagePrice: "4 meses gratis",
-    earlyStage1: "Todas las funcionalidades incluidas",
-    earlyStage2: "Después: plan pago o descargá todos tus datos",
-    pro: "Pro",
+    earlyStageCta: "Registrate ahora",
+    earlyStagePrice: "2 meses gratis",
+    earlyStage1: "Acceso completo",
+    earlyStage2: "Este grupo tendrá acceso prioritario al Pro Early cuando esté disponible",
+    earlyStage3: "Capacidad de descargar todos tus datos en cualquier momento.",
+    pro: "Pro Early",
     proBadge: "Próximamente",
-    proPriceTrial: "45 días gratis",
+    proExclusive: "Solo para usuarios Early Stage y un grupo limitado",
+    proPriceTrial: "1 mes gratis",
     proPriceAmount: "USD 3.99/mes",
-    pro1: "Todas las funcionalidades incluidas",
-    pro2: "Sin permanencia",
+    proPriceNote: "a partir del 2º mes",
+    pro1: "Lo mismo que Early Stage +",
+    pro2: "Cancelá cuando quieras",
+    pro3: "Exportá tus datos cuando quieras",
+    proStandard: "Pro estándar",
+    proStandardPrice: "USD 5.99/mes",
+    proStandard1: "Acceso completo",
+    proStandard2: "Precio de lista cuando se acaben los cupos de Pro Early",
+    proStandard3: "Cancelá cuando quieras",
     faq: "Preguntas frecuentes",
     faq1Q: "¿Es una integración bancaria?",
     faq1A: "No. Ingresás tus datos manualmente. Así mantenés el control y la privacidad.",
@@ -54,7 +63,7 @@ const COPY = {
     faq2A: "Multi-moneda con tipo de cambio actualizado automáticamente. Podés registrar gastos, ingresos e inversiones en las monedas soportadas.",
     faq3Q: "¿Cómo es el onboarding?",
     faq3A: "Un wizard simple: categorías, plantillas de gastos fijos, cuenta bancaria e inversiones. Podés saltar pasos y completar después.",
-    faq4Q: "¿Qué pasa después de los 4 meses gratis?",
+    faq4Q: "¿Qué pasa después de los 2 meses gratis?",
     faq4A: "Tenés dos opciones: pasás al plan Pro (cuando esté disponible) o descargás todos tus datos en CSV/Excel antes de que termine el periodo.",
     faq5Q: "¿Puedo exportar mis datos?",
     faq5A: "Sí. Podés exportar gastos, presupuesto y movimientos a CSV o Excel para análisis, backup o compartir con tu contador.",
@@ -117,19 +126,28 @@ const COPY = {
     trust2: "Simple setup guide",
     trust3: "Data stays yours",
     pricing: "Plans",
-    pricingSub: "Sign up now and start with 4 months free",
+    pricingSub: "Sign up now and start with 2 months free",
     earlyStage: "Early Stage",
     earlyStageBadge: "Current",
-    earlyStageDesc: "Sign up now",
-    earlyStagePrice: "4 months free",
-    earlyStage1: "Full access to all features",
-    earlyStage2: "After: upgrade to paid or download all your data",
-    pro: "Pro",
+    earlyStageCta: "Sign up now",
+    earlyStagePrice: "2 months free",
+    earlyStage1: "Full access",
+    earlyStage2: "This group gets priority access to Pro Early when available",
+    earlyStage3: "Download all your data anytime.",
+    pro: "Pro Early",
     proBadge: "Coming soon",
-    proPriceTrial: "45 days free",
+    proExclusive: "Only for Early Stage users and a limited group",
+    proPriceTrial: "1 month free",
     proPriceAmount: "USD 3.99/mo",
-    pro1: "Full access to all features",
+    proPriceNote: "from month 2",
+    pro1: "Same as Early Stage +",
     pro2: "Cancel anytime",
+    pro3: "Export your data anytime",
+    proStandard: "Pro standard",
+    proStandardPrice: "USD 5.99/mo",
+    proStandard1: "Full access",
+    proStandard2: "List price when Pro Early slots run out",
+    proStandard3: "Cancel anytime",
     faq: "FAQ",
     faq1Q: "Is this a bank integration?",
     faq1A: "No. You enter your data manually. That keeps you in control and your data private.",
@@ -137,7 +155,7 @@ const COPY = {
     faq2A: "Multi-currency with automatically updated exchange rates. You can record expenses, income, and investments in supported currencies.",
     faq3Q: "How does onboarding work?",
     faq3A: "A simple wizard: categories, fixed expense templates, bank account, and investments. You can skip steps and complete them later.",
-    faq4Q: "What happens after the 4 free months?",
+    faq4Q: "What happens after the 2 free months?",
     faq4A: "You have two options: upgrade to Pro (when available) or download all your data in CSV/Excel before the period ends.",
     faq5Q: "Can I export my data?",
     faq5A: "Yes. You can export expenses, budget, and movements to CSV or Excel for analysis, backup, or sharing with your accountant.",
@@ -935,21 +953,36 @@ export default function LandingPage() {
             <h3 className="landing-price-name">{t.earlyStage}</h3>
             <p className="landing-price-amount">{t.earlyStagePrice}</p>
             <p className="landing-price-desc">
-              <button type="button" className="landing-price-desc-link" onClick={() => showAuth("register")}>{t.earlyStageDesc}</button>
+              <button type="button" className="landing-price-cta-btn" onClick={() => showAuth("register")}>{t.earlyStageCta}</button>
             </p>
             <ul className="landing-price-features">
               <li>{t.earlyStage1}</li>
               <li>{t.earlyStage2}</li>
+              <li>{t.earlyStage3}</li>
             </ul>
           </div>
-          <div className="landing-price-card landing-price-card-muted">
+          <div className="landing-price-card landing-price-card-muted landing-price-card-pro">
             <span className="landing-price-badge landing-price-badge-muted">{t.proBadge}</span>
             <h3 className="landing-price-name">{t.pro}</h3>
             <p className="landing-price-trial">{t.proPriceTrial}</p>
             <p className="landing-price-amount">{t.proPriceAmount}</p>
+            <p className="landing-price-note">{t.proPriceNote}</p>
+            <p className="landing-price-exclusive">{t.proExclusive}</p>
             <ul className="landing-price-features">
               <li>{t.pro1}</li>
               <li>{t.pro2}</li>
+              <li>{t.pro3}</li>
+            </ul>
+          </div>
+          <div className="landing-price-card landing-price-card-muted landing-price-card-standard">
+            <span className="landing-price-badge landing-price-badge-muted landing-price-spacer" aria-hidden>{t.proBadge}</span>
+            <h3 className="landing-price-name">{t.proStandard}</h3>
+            <p className="landing-price-trial landing-price-spacer" aria-hidden>{t.proPriceTrial}</p>
+            <p className="landing-price-amount">{t.proStandardPrice}</p>
+            <ul className="landing-price-features">
+              <li>{t.proStandard1}</li>
+              <li>{t.proStandard2}</li>
+              <li>{t.proStandard3}</li>
             </ul>
           </div>
         </div>

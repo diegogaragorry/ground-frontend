@@ -8,6 +8,8 @@ import { getFxDefault } from "../utils/fx";
 type ExpenseType = "FIXED" | "VARIABLE";
 type Category = { id: string; name: string; expenseType: ExpenseType };
 
+const WIZARD_TOTAL_STEPS = 8; // 0: welcome, 1: housing, 2: transport, 3: services, 4: health, 5: recurrent, 6: income, 7: done
+
 function findCategory(cats: Category[], name: string, type: ExpenseType): Category | undefined {
   return cats.find((c) => c.name === name && c.expenseType === type);
 }
@@ -519,6 +521,34 @@ export function OnboardingWizard(props: {
     <div className="card" style={{ padding: 20, maxWidth: 760, width: "100%" }}>
       <style>{`.onboarding-amount-input::placeholder { font-size: 11px; } .onboarding-amount-input { min-width: 165px; }`}</style>
       {error && <div style={{ color: "var(--danger)", marginBottom: 12 }}>{error}</div>}
+
+      {step < 7 && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span className="muted" style={{ fontSize: 13 }}>
+              {t("onboarding.wizardProgress", { current: step + 1, total: WIZARD_TOTAL_STEPS })}
+            </span>
+          </div>
+          <div
+            style={{
+              height: 6,
+              background: "var(--border)",
+              borderRadius: 3,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${((step + 1) / WIZARD_TOTAL_STEPS) * 100}%`,
+                background: "var(--brand-green)",
+                borderRadius: 3,
+                transition: "width 0.3s ease",
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Step 0: Welcome + display currency */}
       {step === 0 && (

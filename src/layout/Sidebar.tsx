@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 import { useAppShell } from "./AppShell";
 import { APP_BASE, CONTACT_WHATSAPP_URL } from "../constants";
 
-/** Tour step → path to highlight (Expenses → Investments → Budget → Dashboard) */
-const TOUR_STEP_PATH: (string | null)[] = [`${APP_BASE}/expenses`, `${APP_BASE}/investments`, `${APP_BASE}/budgets`, APP_BASE];
+/** Tour step → path to highlight (Expenses → Investments → Income → Budget → Dashboard) */
+const TOUR_STEP_PATH: (string | null)[] = [`${APP_BASE}/expenses`, `${APP_BASE}/investments`, `${APP_BASE}/income`, `${APP_BASE}/budgets`, APP_BASE];
 
 type SidebarProps = {
   /** En móvil solo se muestran Panel, Gastos y Salir */
@@ -81,6 +81,9 @@ export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
             </NavLink>
             <NavLink to={`${APP_BASE}/admin`} className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
               {t("sidebar.admin")}
+            </NavLink>
+            <NavLink to={`${APP_BASE}/help`} className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
+              {t("sidebar.help")}
             </NavLink>
           </>
         )}

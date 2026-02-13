@@ -1,7 +1,7 @@
 // Tooltip tour after wizard: Expenses → Investments → Budget → Dashboard
 import { useTranslation } from "react-i18next";
 
-const TOUR_STEPS = 4;
+const TOUR_STEPS = 5; // Expenses → Investments → Income → Budget → Dashboard
 const SIDEBAR_WIDTH_DESKTOP = 220;
 
 export function OnboardingTour(props: {

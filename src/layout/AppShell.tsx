@@ -271,6 +271,7 @@ export function useAppShell() {
     setOnboardingStep: ctx.setOnboardingStep,
     reopenOnboarding: ctx.reopenOnboarding,
     onboardingTourStep: ctx.onboardingTourStep,
+    setOnboardingTourStep: ctx.setOnboardingTourStep,
     showSuccess: ctx.showSuccess,
     serverFxRate: ctx.serverFxRate,
     dismissMobileWarning: ctx.dismissMobileWarning,
@@ -508,9 +509,12 @@ export function AppShell(props: { children: React.ReactNode }) {
                   nav(`${APP_BASE}/investments`, { replace: false });
                 } else if (s === 1) {
                   ctx.setOnboardingTourStep(2);
-                  nav(`${APP_BASE}/budgets`, { replace: false });
+                  nav(`${APP_BASE}/income`, { replace: false });
                 } else if (s === 2) {
                   ctx.setOnboardingTourStep(3);
+                  nav(`${APP_BASE}/budgets`, { replace: false });
+                } else if (s === 3) {
+                  ctx.setOnboardingTourStep(4);
                   nav(APP_BASE, { replace: false });
                 } else {
                   ctx.setOnboardingTourStep(null);
