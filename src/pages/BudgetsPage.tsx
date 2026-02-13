@@ -48,7 +48,7 @@ export default function BudgetsPage() {
   const { t } = useTranslation();
 
   const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, serverFxRate } = useAppShell();
-  const { year } = useAppYearMonth();
+  const { year, month: currentMonth } = useAppYearMonth();
   const { formatAmountUsd, currencyLabel, preferredDisplayCurrencyId } = useDisplayCurrency();
 
   const [otherExpensesCurrency, setOtherExpensesCurrency] = useState<"USD" | "UYU">(
@@ -236,22 +236,36 @@ export default function BudgetsPage() {
         </div>
       )}
 
-      <div className="card" ref={tableRef}>
+      {/* Card Resumen (como Gastos) */}
+      <div className="card budgets-page budgets-summary-card-standalone">
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 12 }}>
           <div>
-            <div style={{ fontWeight: 850, fontSize: 16 }}>
-              {t("budgets.annualBudgetPrefix")} (
-              <span style={{ color: "var(--brand-green)" }}>{currencyLabel}</span>)
+            <div style={{ fontWeight: 850, fontSize: 18 }}>
+              {t("budgets.summaryPrefix")} (<span style={{ color: "var(--brand-green)" }}>{currencyLabel}</span>)
             </div>
-            <div className="muted" style={{ fontSize: 12 }}>
-              {t("budgets.closedMonthsLocked")}
+            <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{t("budgets.closedMonthsLocked")}</div>
+          </div>
+          <div className="row" style={{ gap: 16, alignItems: "baseline", flexWrap: "wrap" }}>
+            <div>
+              <div className="muted" style={{ fontSize: 12 }}>{t("budgets.summaryBalanceLabel")}</div>
+              <div style={{ fontSize: 22, fontWeight: 900, lineHeight: 1.2, color: (totals.balance ?? 0) >= 0 ? "var(--brand-green)" : "var(--danger)" }}>
+                {formatAmountUsd(totals.balance ?? 0)}
+              </div>
+            </div>
+            <div>
+              <div className="muted" style={{ fontSize: 12 }}>{t("budgets.summaryIncomeLabel")}</div>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>{formatAmountUsd(totals.income)}</div>
+            </div>
+            <div>
+              <div className="muted" style={{ fontSize: 12 }}>{t("budgets.summaryExpensesLabel")}</div>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>{formatAmountUsd(totals.expenses)}</div>
             </div>
           </div>
-
-          <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <Badge>{loading ? t("common.loading") : t("common.ready")}</Badge>
-            <button className="btn" type="button" onClick={load}>
-              {loading ? (
+        </div>
+        <div className="row" style={{ gap: 10, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <Badge>{loading ? t("common.loading") : t("common.ready")}</Badge>
+          <button className="btn" type="button" onClick={load}>
+            {loading ? (
               <span className="loading-inline">
                 <span className="loading-spinner" aria-hidden />
                 {t("common.loading")}
@@ -259,26 +273,47 @@ export default function BudgetsPage() {
             ) : (
               t("common.refresh")
             )}
-            </button>
-            <button className="btn" type="button" onClick={exportBudgetCsv} aria-label={t("common.exportCsv")}>
-              {t("common.exportCsv")}
-            </button>
+          </button>
+          <button className="btn" type="button" onClick={exportBudgetCsv} aria-label={t("common.exportCsv")}>
+            {t("common.exportCsv")}
+          </button>
+          {error && <div style={{ color: "var(--danger)" }}>{error}</div>}
+        </div>
+      </div>
+
+      {/* Card Presupuesto anual */}
+      <div className="card budgets-page" ref={tableRef}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <div style={{ fontWeight: 900, fontSize: 16 }}>
+              {t("budgets.annualBudgetPrefix")} (<span style={{ color: "var(--brand-green)" }}>{currencyLabel}</span>)
+            </div>
+            <div className="muted" style={{ fontSize: 12 }}>{t("budgets.closedMonthsLocked")}</div>
           </div>
         </div>
 
-        {error && <div style={{ marginTop: 10, color: "var(--danger)" }}>{error}</div>}
+        {totals.income === 0 && totals.base === 0 && !loading && (
+          <div className="muted" style={{ marginTop: 12, padding: 12, background: "var(--bg)", borderRadius: "var(--radius-md)", fontSize: 12 }}>
+            {t("budgets.emptyStateBudget")}
+          </div>
+        )}
 
-        <div style={{ overflowX: "auto", marginTop: 12 }} role="region" aria-label="Annual budget by month">
-          <table className="table compact" aria-label="Budget grid: income, expenses, balance by month">
+        <div className="budgets-table-wrap" style={{ overflowX: "auto", marginTop: 12 }} role="region" aria-label="Annual budget by month">
+          <table className="table compact budgets-table" aria-label="Budget grid: income, expenses, balance by month">
             <thead>
               <tr>
-                <th style={{ width: 150 }}></th>
+                <th className="budgets-th-label" style={{ width: 180 }}></th>
                 {months.map((m) => (
-                  <th key={`h-${m.month}`} className="right" title={m.isClosed ? t("common.closed") : t("common.open")} style={{ minWidth: 60 }}>
-                    {m2(m.month)}
+                  <th
+                    key={`h-${m.month}`}
+                    className={`right ${m.month === currentMonth ? "budgets-th-current" : ""}`}
+                    title={m.isClosed ? t("common.closed") : m.month === currentMonth ? t("investments.summaryCurrentMonth") : t("common.open")}
+                    style={{ minWidth: 76 }}
+                  >
+                    {m2(m.month)}{m.month === currentMonth ? " ★" : ""}
                   </th>
                 ))}
-                <th className="right" style={{ width: 110 }}>
+                <th className="right budgets-th-total" style={{ width: 110 }}>
                   {t("budgets.total")}
                 </th>
               </tr>
@@ -286,41 +321,62 @@ export default function BudgetsPage() {
 
             <tbody>
               {/* Income (read-only; edited in Ingresos tab) */}
-              <tr>
-                <td style={{ fontWeight: 750 }}>{t("budgets.income")}</td>
+              <tr className="budgets-tr-income">
+                <td className="budgets-td-label" style={{ fontWeight: 750 }}>
+                  <span
+                    className="budgets-label-with-hint"
+                    title={t("budgets.editInIncomeHint")}
+                  >
+                    {t("budgets.income")}
+                  </span>
+                </td>
                 {months.map((m) => (
-                  <td key={`inc-${m.month}`} className="right" title={m.source}>
+                  <td
+                    key={`inc-${m.month}`}
+                    className={`right ${m.month === currentMonth ? "budgets-td-current" : ""}`}
+                    title={m.source}
+                  >
                     {formatAmountUsd(m.incomeUsd)}
                   </td>
                 ))}
-                <td className="right" style={{ fontWeight: 850 }}>
+                <td className="right budgets-td-total" style={{ fontWeight: 850 }}>
                   {formatAmountUsd(totals.income)}
                 </td>
               </tr>
 
               {/* Base expenses (actuals if any, else drafts planned) */}
-              <tr>
-                <td style={{ fontWeight: 750 }}>{t("budgets.baseExpenses")}</td>
+              <tr className="budgets-tr-base">
+                <td className="budgets-td-label" style={{ fontWeight: 750 }}>
+                  <span
+                    className="budgets-label-with-hint"
+                    title={t("budgets.editInExpensesHint")}
+                  >
+                    {t("budgets.baseExpenses")}
+                  </span>
+                </td>
                 {months.map((m) => (
-                  <td key={`base-${m.month}`} className="right" title={t("budgets.actualsOrDrafts")}>
+                  <td
+                    key={`base-${m.month}`}
+                    className={`right ${m.month === currentMonth ? "budgets-td-current" : ""}`}
+                    title={t("budgets.actualsOrDrafts")}
+                  >
                     {formatAmountUsd(m.baseExpensesUsd ?? 0)}
                   </td>
                 ))}
-                <td className="right" style={{ fontWeight: 850 }}>
+                <td className="right budgets-td-total" style={{ fontWeight: 850 }}>
                   {formatAmountUsd(totals.base)}
                 </td>
               </tr>
 
               {/* Other expenses (manual editable) */}
-              <tr>
-                <td style={{ fontWeight: 750 }}>
-                  <span className="row" style={{ gap: 8, alignItems: "center", flexWrap: "nowrap" }}>
-                    {t("budgets.otherExpenses")}
+              <tr className="budgets-tr-other">
+                <td className="budgets-td-label" style={{ fontWeight: 750 }} title={t("budgets.otherExpensesDesc")}>
+                  <span className="row budgets-otros-row" style={{ gap: 6, alignItems: "center", flexWrap: "nowrap" }}>
+                    <span>{t("budgets.otherExpenses")}</span>
                     <select
-                      className="select"
+                      className="select budgets-otros-select"
                       value={otherExpensesCurrency}
                       onChange={(e) => setOtherExpensesCurrency(e.target.value as "USD" | "UYU")}
-                      style={{ width: 72, minWidth: 72, height: 32, fontSize: 11, lineHeight: 1.5, padding: "4px 8px", boxSizing: "border-box" }}
                       aria-label={t("income.currencyLabel")}
                     >
                       <option value="USD">USD</option>
@@ -333,17 +389,17 @@ export default function BudgetsPage() {
                     otherExpensesCurrency === "UYU"
                       ? Math.round((m.otherExpensesUsd ?? 0) * otherExpensesRate)
                       : Math.round(m.otherExpensesUsd ?? 0);
-                  return (
-                    <td key={`other-${m.month}`} className="right" title={m.source}>
+                    return (
+                    <td key={`other-${m.month}`} className={`right ${m.month === currentMonth ? "budgets-td-current" : ""}`} title={m.source}>
                       {m.isClosed ? (
                         <span className="muted" title={t("common.closed")} style={{ whiteSpace: "nowrap" }}>
                           {formatAmountUsdWith(m.otherExpensesUsd ?? 0, otherExpensesCurrency, otherExpensesRateOrNull)}
                         </span>
                       ) : (
                         <input
-                          className="input compact"
+                          className="input compact budgets-input-other"
                           value={drafts[m.month]?.other ?? String(displayValue)}
-                          style={{ width: 70, textAlign: "right" }}
+                          style={{ width: 72, minWidth: 72, textAlign: "right" }}
                           onChange={(e) => setDraft(m.month, { other: e.target.value })}
                           onBlur={async () => {
                             const raw = (drafts[m.month]?.other ?? "").trim();
@@ -367,76 +423,172 @@ export default function BudgetsPage() {
                     </td>
                   );
                 })}
-                <td className="right" style={{ fontWeight: 850, whiteSpace: "nowrap" }}>
+                <td className="right budgets-td-total" style={{ fontWeight: 850, whiteSpace: "nowrap" }}>
                   {formatAmountUsdWith(totals.other, otherExpensesCurrency, otherExpensesRateOrNull)}
                 </td>
               </tr>
 
               {/* Total expenses */}
-              <tr>
-                <td style={{ fontWeight: 800 }}>{t("budgets.expensesCol")}</td>
+              <tr className="budgets-tr-expenses">
+                <td className="budgets-td-label" style={{ fontWeight: 800 }}>{t("budgets.expensesCol")}</td>
                 {months.map((m) => (
-                  <td key={`exp-${m.month}`} className="right" title={t("budgets.basePlusOther")} style={{ fontWeight: 800 }}>
+                  <td key={`exp-${m.month}`} className={`right ${m.month === currentMonth ? "budgets-td-current" : ""}`} title={t("budgets.basePlusOther")} style={{ fontWeight: 800 }}>
                     {formatAmountUsd(m.expensesUsd ?? 0)}
                   </td>
                 ))}
-                <td className="right" style={{ fontWeight: 900 }}>
+                <td className="right budgets-td-total" style={{ fontWeight: 900 }}>
                   {formatAmountUsd(totals.expenses)}
                 </td>
               </tr>
 
-              {/* Investment earnings */}
-              <tr>
-                <td style={{ fontWeight: 750 }}>{t("budgets.investmentEarnings")}</td>
+              {totals.earnings !== 0 && (
+              <tr className="budgets-tr-earnings">
+                <td className="budgets-td-label" style={{ fontWeight: 750 }}>{t("budgets.investmentEarnings")}</td>
                 {months.map((m) => (
-                  <td key={`earn-${m.month}`} className="right" style={{ opacity: m.isClosed ? 1 : 0.85 }} title={t("budgets.realReturnsPortfolio")}>
+                  <td key={`earn-${m.month}`} className={`right ${m.month === currentMonth ? "budgets-td-current" : ""}`}
+                    style={{ opacity: m.isClosed ? 1 : 0.85 }}
+                    title={t("budgets.realReturnsPortfolio")}>
                     {formatAmountUsd(m.investmentEarningsUsd ?? 0)}
                   </td>
                 ))}
-                <td className="right" style={{ fontWeight: 850 }}>
+                <td className="right budgets-td-total" style={{ fontWeight: 850 }}>
                   {formatAmountUsd(totals.earnings)}
                 </td>
               </tr>
+              )}
 
-              {/* Balance */}
-              <tr>
-                <td style={{ fontWeight: 900 }}>{t("budgets.balance")}</td>
+              {/* Balance — separador visual */}
+              <tr className="budgets-tr-balance">
+                <td className="budgets-td-label" style={{ fontWeight: 900 }}>{t("budgets.balance")}</td>
                 {months.map((m) => (
                   <td
                     key={`bal-${m.month}`}
-                    className="right"
-                    style={{ fontWeight: 900, opacity: m.isClosed ? 1 : 0.9 }}
+                    className={`right ${m.month === currentMonth ? "budgets-td-current" : ""}`}
+                    style={{
+                      fontWeight: 900,
+                      opacity: m.isClosed ? 1 : 0.9,
+                      color: (m.balanceUsd ?? 0) < 0 ? "var(--danger)" : undefined,
+                    }}
                     title={t("budgets.incomeMinusExpensesEarnings")}
                   >
                     {formatAmountUsd(m.balanceUsd ?? 0)}
                   </td>
                 ))}
-                <td className="right" style={{ fontWeight: 950 }}>
+                <td className="right budgets-td-total" style={{ fontWeight: 950, color: totals.balance < 0 ? "var(--danger)" : undefined }}>
                   {formatAmountUsd(totals.balance)}
                 </td>
               </tr>
 
               {/* Net worth (start) */}
-              <tr>
-                <td style={{ fontWeight: 750 }}>{t("budgets.netWorthStart")}</td>
+              <tr className="budgets-tr-networth">
+                <td className="budgets-td-label" style={{ fontWeight: 750 }}>{t("budgets.netWorthStart")}</td>
                 {months.map((m, idx) => (
-                  <td key={`nw-${m.month}`} className="right" title={t("budgets.startOfMonth")}>
+                  <td key={`nw-${m.month}`} className={`right ${m.month === currentMonth ? "budgets-td-current" : ""}`} title={t("budgets.startOfMonth")}>
                     {formatAmountUsd(netWorthStartSeries[idx] ?? 0)}
                   </td>
                 ))}
-                <td className="right muted">—</td>
+                <td className="right budgets-td-total muted">—</td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+        <div className="budgets-tip" style={{ marginTop: 16 }}>
           {t("budgets.tipBaseExpenses")}
         </div>
 
         <style>{`
-          .table.compact th, .table.compact td { padding: 6px 8px; }
-          .input.compact { padding: 6px 8px; border-radius: var(--radius-md); }
+          /* Table: compact, smaller fonts, no wrap */
+          .budgets-page .budgets-table.compact th,
+          .budgets-page .budgets-table.compact td {
+            padding: 6px 8px;
+            font-size: 12px;
+          }
+          .budgets-page .budgets-table.compact td.right,
+          .budgets-page .budgets-table.compact th.right {
+            white-space: nowrap;
+          }
+          .budgets-page .budgets-table-wrap {
+            position: relative;
+          }
+          .budgets-page .budgets-th-label,
+          .budgets-page .budgets-td-label {
+            position: sticky;
+            left: 0;
+            z-index: 1;
+            background: var(--card) !important;
+          }
+          .budgets-page .budgets-th-label {
+            background: var(--bg) !important;
+          }
+          .budgets-page .budgets-table tbody tr:nth-child(even) .budgets-td-label {
+            background: rgba(15,23,42,0.03) !important;
+          }
+          .budgets-page .budgets-table tbody tr.budgets-tr-balance .budgets-td-label,
+          .budgets-page .budgets-table tbody tr.budgets-tr-networth .budgets-td-label {
+            background: rgba(15,23,42,0.04) !important;
+          }
+          .budgets-page .budgets-table tbody tr:nth-child(even).budgets-tr-balance .budgets-td-label,
+          .budgets-page .budgets-table tbody tr:nth-child(even).budgets-tr-networth .budgets-td-label {
+            background: rgba(15,23,42,0.05) !important;
+          }
+          .budgets-page .budgets-table tbody tr:nth-child(even) td:not(.budgets-td-label) {
+            background: rgba(15,23,42,0.03);
+          }
+          /* Mes actual: como Patrimonio (★ + var(--bg)) */
+          .budgets-page .budgets-th-current {
+            background: var(--bg) !important;
+            font-weight: 700;
+          }
+          .budgets-page .budgets-td-current {
+            background: var(--bg) !important;
+          }
+          .budgets-page .budgets-th-total {
+            background: rgba(15,23,42,0.05) !important;
+            font-weight: 700;
+          }
+          .budgets-page .budgets-td-total {
+            background: rgba(15,23,42,0.05) !important;
+          }
+          .budgets-page .budgets-tr-balance {
+            border-top: 1px solid rgba(15,23,42,0.12);
+          }
+
+          /* Label con tooltip */
+          .budgets-page .budgets-label-with-hint {
+            border-bottom: 1px dotted var(--muted);
+          }
+
+          /* Otros gastos: label + select en una línea */
+          .budgets-page .budgets-otros-select {
+            width: 56px;
+            min-width: 56px;
+            height: 26px;
+            font-size: 11px;
+            padding: 2px 6px;
+            line-height: 1.3;
+          }
+
+          /* Input focus for other expenses */
+          .budgets-page .budgets-input-other:focus {
+            outline: 2px solid var(--brand-green);
+            outline-offset: 1px;
+          }
+          .budgets-page .budgets-input-other {
+            font-size: 11px;
+            min-width: 56px;
+          }
+
+          /* Tip: fondo gris */
+          .budgets-page .budgets-tip {
+            padding: 10px 12px;
+            background: rgba(15,23,42,0.04);
+            border-left: 3px solid var(--muted);
+            border-radius: 0 var(--radius-md) var(--radius-md) 0;
+            font-size: 11px;
+          }
+
+          .input.compact { padding: 4px 6px; font-size: 11px; border-radius: var(--radius-md); }
         `}</style>
       </div>
     </div>
