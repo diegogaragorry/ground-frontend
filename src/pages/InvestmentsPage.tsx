@@ -448,11 +448,6 @@ export default function InvestmentsPage() {
     [portfolioMonthlyVariation, flows.series]
   );
 
-  const realReturnsYearTotal = useMemo(
-    () => portfolioRealReturns.reduce((acc, v) => acc + (v ?? 0), 0),
-    [portfolioRealReturns]
-  );
-
   const totalNetWorthMonthlyVariation = useMemo(() => {
     const total = totalNetWorthByMonthUsd;
     return months.map((_, i) => (i >= 1 ? (total[i] ?? 0) - (total[i - 1] ?? 0) : null));
