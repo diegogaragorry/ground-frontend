@@ -695,7 +695,7 @@ export default function DashboardPage() {
         <div className="card kpi">
           <div className="kpiLabel">{t("dashboard.monthlyIncome")}</div>
           <div className="kpiValue">{formatAmountUsd(monthIncome)}</div>
-          <div className="kpiFoot muted">{t("dashboard.fromBudgets")}</div>
+          <div className="kpiFoot muted">{t("dashboard.fromIncome")}</div>
         </div>
 
         <div className="card kpi kpiHighlight">
