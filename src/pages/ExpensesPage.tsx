@@ -380,17 +380,61 @@ export default function ExpensesPage() {
     await loadPlanned();
   }
 
+  /** Build patch from draft so backend has latest values before confirm (e.g. if user edited amount without blur). */
+  function buildPlannedDraftPatch(p: PlannedExpense, d: PlannedDraft): Record<string, unknown> | null {
+    const patch: Record<string, unknown> = {};
+    if (d.categoryId !== undefined) patch.categoryId = d.categoryId;
+    if (d.expenseType !== undefined) patch.expenseType = d.expenseType;
+    if (d.description !== undefined && d.description.trim()) patch.description = d.description.trim();
+
+    const hasAmountDraft = d.amountUsd !== undefined;
+    if (hasAmountDraft) {
+      const v = Number(d.amountUsd ?? 0);
+      if (!Number.isFinite(v) || v <= 0) {
+        if (Object.keys(patch).length === 0) return null;
+        return patch;
+      }
+      const isUyu = p.template?.defaultCurrencyId === "UYU";
+      const hasLockedUyu =
+        isUyu &&
+        p.amount != null &&
+        p.usdUyuRate != null &&
+        Number.isFinite(p.amount) &&
+        Number.isFinite(p.usdUyuRate) &&
+        p.usdUyuRate > 0;
+      const rate = hasLockedUyu
+        ? p.usdUyuRate!
+        : isUyu && Number.isFinite(usdUyuRate) && usdUyuRate > 0
+          ? usdUyuRate
+          : 1;
+      if (isUyu && Number.isFinite(rate) && rate > 0) {
+        patch.amount = Math.round(v * rate);
+        patch.usdUyuRate = rate;
+      } else {
+        patch.amountUsd = Math.round(v * 100) / 100;
+      }
+    }
+    return Object.keys(patch).length === 0 ? null : patch;
+  }
+
   async function confirmPlanned(p: PlannedExpense) {
     setError("");
     setInfo("");
     if (isClosed(month)) return setError(t("expenses.monthClosedConfirmDrafts"));
 
-    const body =
-      p.template?.defaultCurrencyId === "UYU" && Number.isFinite(usdUyuRate) && usdUyuRate > 0
-        ? JSON.stringify({ usdUyuRate: usdUyuRate })
-        : undefined;
-
     try {
+      const d = getPlannedDraft(p.id);
+      const patch = buildPlannedDraftPatch(p, d);
+      if (patch && Object.keys(patch).length > 0) {
+        await patchPlanned(p.id, patch);
+        clearPlannedDraft(p.id);
+      }
+
+      const body =
+        p.template?.defaultCurrencyId === "UYU" && Number.isFinite(usdUyuRate) && usdUyuRate > 0
+          ? JSON.stringify({ usdUyuRate: usdUyuRate })
+          : undefined;
+
       await api(`/plannedExpenses/${p.id}/confirm`, { method: "POST", ...(body ? { body } : {}) });
       await Promise.all([loadPlanned(), loadExpenses(), loadSummary()]);
       setInfo(t("expenses.draftConfirmed"));
@@ -409,11 +453,17 @@ export default function ExpensesPage() {
     setLoading(true);
     try {
       for (const p of planned) {
+        const d = getPlannedDraft(p.id);
+        const patch = buildPlannedDraftPatch(p, d);
+        if (patch && Object.keys(patch).length > 0) {
+          await patchPlanned(p.id, patch);
+          clearPlannedDraft(p.id);
+        }
+
         const body =
           p.template?.defaultCurrencyId === "UYU" && Number.isFinite(usdUyuRate) && usdUyuRate > 0
             ? JSON.stringify({ usdUyuRate: usdUyuRate })
             : undefined;
-        // eslint-disable-next-line no-await-in-loop
         await api(`/plannedExpenses/${p.id}/confirm`, { method: "POST", ...(body ? { body } : {}) });
       }
       await Promise.all([loadPlanned(), loadExpenses(), loadSummary()]);
@@ -495,7 +545,7 @@ export default function ExpensesPage() {
 
       {/* Monthly summary (hidden on mobile) */}
       {!isMobile && (
-        <div className="card">
+        <div className="card" style={{ minWidth: 0 }}>
           <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
             <div>
               <div style={{ fontWeight: 850, fontSize: 18 }}>
@@ -535,7 +585,7 @@ export default function ExpensesPage() {
 
           {error && <div style={{ marginTop: 10, color: "var(--danger)" }}>{error}</div>}
 
-          <div style={{ marginTop: 12, overflowX: "auto" }}>
+          <div style={{ marginTop: 12, overflowX: "auto", maxWidth: "100%" }}>
             {summaryByCategory.length === 0 ? (
               <div className="muted">
                 {t("expenses.noExpensesYet")}
@@ -749,6 +799,9 @@ export default function ExpensesPage() {
           removeExpense={removeExpense}
           fallbackMonth={month}
         />
+        <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+          {t("expenses.monthStoredNote")}
+        </div>
       </div>
 
       {/* Drafts (hidden on mobile) */}
@@ -1209,10 +1262,6 @@ function RealExpensesTable(props: {
           )}
         </tbody>
       </table>
-
-      <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
-        {t("expenses.monthStoredNote")}
-      </div>
     </div>
   );
 }
