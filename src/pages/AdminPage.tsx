@@ -1642,7 +1642,7 @@ export default function AdminPage() {
                 components={{ 1: <strong /> }}
               />
               <br /><br />
-              {Math.abs((closePreviewData.realBalanceUsd ?? 0) - (closePreviewData.budgetBalanceUsd ?? 0)) < 0.01
+              {Math.abs((closePreviewData.realBalanceUsd ?? 0) - (closePreviewData.budgetBalanceUsd ?? 0)) < 0.50
                 ? t("admin.closeMonthPreviewP3NoAdjust")
                 : t("admin.closeMonthPreviewP3")}
             </div>
