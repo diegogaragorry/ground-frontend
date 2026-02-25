@@ -8,7 +8,7 @@ const AES_KEY_LEN = 256;
 const IV_LEN = 12;
 const TAG_LEN = 16;
 
-function base64ToBuf(b64: string): Uint8Array {
+export function base64ToBuf(b64: string): Uint8Array {
   const bin = atob(b64);
   const buf = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
@@ -22,12 +22,12 @@ function bufToBase64(buf: ArrayBuffer | Uint8Array): string {
   return btoa(bin);
 }
 
-/**
- * Derive an AES-GCM CryptoKey from password and salt (base64).
- * Used at login once; key is kept in memory and reused for encrypt/decrypt.
- */
-export async function deriveEncryptionKey(password: string, saltBase64: string): Promise<CryptoKey> {
+export async function deriveEncryptionKey(
+  password: string,
+  saltBase64: string
+): Promise<CryptoKey> {
   const salt = base64ToBuf(saltBase64);
+
   const passwordKey = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(password),
@@ -35,7 +35,8 @@ export async function deriveEncryptionKey(password: string, saltBase64: string):
     false,
     ["deriveKey"]
   );
-  return crypto.subtle.deriveKey(
+
+  const aesKey = await crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
       salt: salt as BufferSource,
@@ -44,58 +45,49 @@ export async function deriveEncryptionKey(password: string, saltBase64: string):
     },
     passwordKey,
     { name: "AES-GCM", length: AES_KEY_LEN },
-    true,
+    false,
     ["encrypt", "decrypt"]
   );
+
+  return aesKey;
 }
 
-/**
- * Encrypt plaintext (string) with CryptoKey. Returns base64(IV || ciphertext || tag).
- */
-export async function encryptWithKey(plaintext: string, cryptoKey: CryptoKey): Promise<string> {
+export async function encryptWithKey(
+  plaintext: string,
+  cryptoKey: CryptoKey
+): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(IV_LEN));
   const encoded = new TextEncoder().encode(plaintext);
+
   const cipher = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv: iv as BufferSource, tagLength: TAG_LEN * 8 },
     cryptoKey,
     encoded
   );
+
   const combined = new Uint8Array(iv.length + cipher.byteLength);
-  combined.set(iv as Uint8Array, 0);
+  combined.set(iv, 0);
   combined.set(new Uint8Array(cipher), iv.length);
+
   return bufToBase64(combined);
 }
 
-/**
- * Decrypt ciphertext (base64 of IV||ciphertext||tag) with CryptoKey. Returns plaintext string.
- */
-export async function decryptWithKey(ciphertextBase64: string, cryptoKey: CryptoKey): Promise<string> {
+export async function decryptWithKey(
+  ciphertextBase64: string,
+  cryptoKey: CryptoKey
+): Promise<string> {
   const combined = base64ToBuf(ciphertextBase64);
-  if (combined.length < IV_LEN + TAG_LEN + 1) throw new Error("Invalid ciphertext");
+
   const iv = combined.subarray(0, IV_LEN);
   const cipher = combined.subarray(IV_LEN);
+
   const plain = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv: iv as BufferSource, tagLength: TAG_LEN * 8 },
     cryptoKey,
     cipher as BufferSource
   );
-  return new TextDecoder().decode(plain);
-}
 
-/**
- * Import a 32-byte base64 key (e.g. from server after login) into a CryptoKey.
- * Call once when setting key from API; do not use inside encrypt/decrypt.
- */
-export async function importKeyFromBase64(keyBase64: string): Promise<CryptoKey> {
-  const keyBuf = base64ToBuf(keyBase64);
-  if (keyBuf.length !== 32) throw new Error("Key must be 32 bytes");
-  return crypto.subtle.importKey(
-    "raw",
-    keyBuf as BufferSource,
-    { name: "AES-GCM" },
-    false,
-    ["encrypt", "decrypt"]
-  );
+  return new TextDecoder().decode(plain);
 }
 
 /**

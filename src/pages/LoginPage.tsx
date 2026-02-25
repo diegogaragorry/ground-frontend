@@ -5,7 +5,7 @@ import { APP_BASE } from "../constants";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useEncryption } from "../context/EncryptionContext";
-import { deriveEncryptionKey, importKeyFromBase64 } from "../utils/crypto";
+import { deriveEncryptionKey } from "../utils/crypto";
 import "../styles/auth.css";
 
 type LoginUser = { id: string; email: string; role: string; encryptionSalt?: string; recoveryEnabled?: boolean; encryptionKey?: string };
@@ -60,14 +60,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const { token, user } = await tryLogin(email.trim().toLowerCase(), password);
-      if (user?.encryptionKey) {
-        try {
-          const k = await importKeyFromBase64(user.encryptionKey);
-          setEncryptionKey(k);
-        } catch {
-          setEncryptionKey(null);
-        }
-      } else if (user?.encryptionSalt) {
+      if (user?.encryptionSalt) {
         try {
           const k = await deriveEncryptionKey(password, user.encryptionSalt);
           setEncryptionKey(k);
