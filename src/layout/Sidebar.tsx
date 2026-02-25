@@ -82,6 +82,9 @@ export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
             <NavLink to={`${APP_BASE}/admin`} className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
               {t("sidebar.admin")}
             </NavLink>
+            <NavLink to={`${APP_BASE}/account`} className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
+              {t("sidebar.account")}
+            </NavLink>
             <NavLink to={`${APP_BASE}/help`} className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
               {t("sidebar.help")}
             </NavLink>

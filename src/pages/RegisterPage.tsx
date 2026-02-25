@@ -5,6 +5,7 @@ import { APP_BASE } from "../constants";
 import "../styles/auth.css";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
+import { generateEncryptionSalt } from "../utils/crypto";
 
 type Step = "request" | "verify";
 
@@ -71,9 +72,10 @@ export default function RegisterPage() {
 
     setLoading(true);
     try {
+      const encryptionSalt = generateEncryptionSalt();
       const r = await api<{ token: string }>("/auth/register/verify", {
         method: "POST",
-        body: JSON.stringify({ email: em, code: c, password: pw }),
+        body: JSON.stringify({ email: em, code: c, password: pw, encryptionSalt }),
       });
 
       localStorage.setItem("token", r.token);

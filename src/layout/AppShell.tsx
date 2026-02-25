@@ -1,10 +1,12 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import React, { createContext, useContext, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { APP_BASE } from "../constants";
+import { useEncryption } from "../context/EncryptionContext";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { api } from "../api";
+import { getMigrationStatus, runMigration } from "../utils/migrateToE2EE";
 import { setFxDefault } from "../utils/fx";
 import { formatAmountUsdWith } from "../utils/formatCurrency";
 import { OnboardingWizard } from "../onboarding/OnboardingWizard";
@@ -309,7 +311,9 @@ export function AppShell(props: { children: React.ReactNode }) {
   const isMobile = ctx.isMobile;
 
   const { t, i18n } = useTranslation();
+  const { hasEncryptionSupport, encryptPayload } = useEncryption();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const migrationAutoRunDoneRef = useRef(false);
 
   const locale = i18n.language?.startsWith("es") ? "es" : "en";
   const monthNames = React.useMemo(() => {
@@ -332,6 +336,22 @@ export function AppShell(props: { children: React.ReactNode }) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  // Auto-run E2EE migration when user has encryption and there are plain items (once per session)
+  React.useEffect(() => {
+    if (!ctx.meLoaded || !ctx.me || !hasEncryptionSupport || !encryptPayload || migrationAutoRunDoneRef.current) return;
+    migrationAutoRunDoneRef.current = true;
+    getMigrationStatus(api)
+      .then((status) => {
+        if (status.total === 0) return;
+        ctx.showSuccess(t("account.migrationAutoStart"));
+        return runMigration(api, encryptPayload).then((result) => {
+          if (result.ok) ctx.showSuccess(t("account.migrationDone"));
+          else if (result.errorCount > 0) ctx.showSuccess(t("account.migrationPartialFailure", { count: result.errorCount }));
+        });
+      })
+      .catch(() => {});
+  }, [ctx.meLoaded, ctx.me, hasEncryptionSupport, encryptPayload, ctx.showSuccess, t]);
 
   // Force onboarding: ?resetOnboarding=1 o ?forceOnboarding=1 (p. ej. para testing o si el backend no devolvió el flag)
   React.useEffect(() => {

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { APP_BASE } from "../constants";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
+import { useEncryption } from "../context/EncryptionContext";
 import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
 import { getCategoryDisplayName, getExpenseTypeLabel, getTemplateDescriptionDisplay } from "../utils/categoryI18n";
 import { getFxDefault } from "../utils/fx";
@@ -19,6 +20,9 @@ type MonthCloseRow = {
   investmentEarningsUsd: number;
   balanceUsd: number;
   netWorthStartUsd: number;
+  netWorthEndUsd?: number | null;
+  encryptedPayload?: string | null;
+  isClosed?: boolean;
   closedAt: string;
 };
 
@@ -29,6 +33,10 @@ type ClosePreviewResp = {
   otherExpensesProposed: number;
   netWorthStartUsd: number;
   netWorthEndUsd: number;
+  incomeUsd?: number;
+  baseExpensesUsd?: number;
+  expensesUsd?: number;
+  investmentEarningsUsd?: number;
   message: string;
 };
 
@@ -46,6 +54,7 @@ type ExpenseTemplateRow = {
   showInExpenses?: boolean;
   createdAt: string;
   updatedAt: string;
+  encryptedPayload?: string | null;
   category?: { id: string; name: string; expenseType?: ExpenseType; nameKey?: string | null };
 };
 
@@ -62,108 +71,6 @@ function editNumberOrNull(v: string): number | null {
   if (!s) return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
-}
-
-/* ---------------------------------------------------------
-   Change password card
---------------------------------------------------------- */
-
-function ChangePasswordCard({ onDone }: { onDone?: () => void }) {
-  const { t } = useTranslation();
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [msg, setMsg] = useState<string>("");
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setMsg("");
-    try {
-      await api("/admin/me/password", {
-        method: "POST",
-        body: JSON.stringify({ currentPassword, newPassword }),
-      });
-      setCurrentPassword("");
-      setNewPassword("");
-      setMsg(t("admin.passwordUpdated"));
-      onDone?.();
-    } catch (err: any) {
-      setMsg(err?.message ?? t("common.error"));
-    }
-  }
-
-  return (
-    <div style={{ marginTop: 14 }}>
-      <div style={{ fontWeight: 800, marginBottom: 8 }}>{t("admin.changePassword")}</div>
-
-      <form onSubmit={submit} className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "end" }} aria-label={t("admin.changePassword")}>
-        <div style={{ minWidth: 220 }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
-            {t("admin.currentPassword")}
-          </div>
-          <input
-            className="input"
-            type="password"
-            value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-          />
-        </div>
-
-        <div style={{ minWidth: 220 }}>
-          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
-            {t("admin.newPassword")}
-          </div>
-          <input className="input" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-        </div>
-
-        <button className="btn primary" type="submit" style={{ height: 42 }}>
-          {t("admin.update")}
-        </button>
-      </form>
-
-      {msg && (
-        <div
-          style={{
-            marginTop: 10,
-            color: msg.toLowerCase().includes("updated") ? "rgba(15,23,42,0.75)" : "var(--danger)",
-          }}
-        >
-          {msg}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DisplayCurrencyCard() {
-  const { t } = useTranslation();
-  const { preferredDisplayCurrencyId, updatePreferredDisplayCurrency } = useAppShell();
-  const [saving, setSaving] = useState(false);
-  async function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const v = e.target.value as "USD" | "UYU";
-    setSaving(true);
-    try {
-      await updatePreferredDisplayCurrency(v);
-    } finally {
-      setSaving(false);
-    }
-  }
-  return (
-    <div style={{ marginTop: 20 }}>
-      <div style={{ fontWeight: 800, marginBottom: 8 }}>{t("admin.displayCurrency")}</div>
-      <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.displayCurrencyDesc")}</div>
-      <select
-        className="select"
-        value={preferredDisplayCurrencyId}
-        onChange={onChange}
-        disabled={saving}
-        style={{ width: 120, height: 40, fontSize: 11 }}
-        aria-label={t("admin.displayCurrency")}
-      >
-        <option value="USD">USD</option>
-        <option value="UYU">UYU</option>
-      </select>
-    </div>
-  );
 }
 
 /* ---------------------------------------------------------
@@ -406,6 +313,7 @@ function ExpenseTemplatesAdminCard({
 }) {
   const { t } = useTranslation();
   const { showSuccess } = useAppShell();
+  const { encryptPayload, decryptPayload, hasEncryptionSupport } = useEncryption();
   const [rows, setRows] = useState<ExpenseTemplateRow[]>([]);
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
@@ -436,7 +344,25 @@ function ExpenseTemplatesAdminCard({
     setErr("");
     setInfo("");
     const r = await api<{ rows: ExpenseTemplateRow[] }>("/admin/expenseTemplates");
-    setRows(r.rows ?? []);
+    const raw = r.rows ?? [];
+    const resolved: ExpenseTemplateRow[] = [];
+    for (const row of raw) {
+      if (row.encryptedPayload) {
+        const pl = await decryptPayload<{ description?: string; defaultAmountUsd?: number | null }>(row.encryptedPayload);
+        if (pl != null && typeof pl.description === "string") {
+          resolved.push({
+            ...row,
+            description: pl.description,
+            defaultAmountUsd: pl.defaultAmountUsd ?? null,
+          });
+        } else {
+          resolved.push({ ...row, description: "—", defaultAmountUsd: null });
+        }
+      } else {
+        resolved.push(row);
+      }
+    }
+    setRows(resolved);
   }
 
   useEffect(() => {
@@ -490,15 +416,23 @@ function ExpenseTemplatesAdminCard({
       return setErr(createDefaultCurrencyId === "UYU" ? t("expenses.fx") : t("common.error"));
 
     try {
+      const body: Record<string, unknown> = {
+        expenseType,
+        categoryId,
+        defaultCurrencyId: createDefaultCurrencyId,
+      };
+      if (hasEncryptionSupport) {
+        const enc = await encryptPayload({ description: desc, defaultAmountUsd: defaultAmountUsdValue });
+        if (enc) body.encryptedPayload = enc;
+        else { body.description = desc; body.defaultAmountUsd = defaultAmountUsdValue; }
+      } else {
+        body.description = desc;
+        body.defaultAmountUsd = defaultAmountUsdValue;
+      }
+
       await api("/admin/expenseTemplates", {
         method: "POST",
-        body: JSON.stringify({
-          expenseType,
-          categoryId,
-          description: desc,
-          defaultAmountUsd: defaultAmountUsdValue,
-          defaultCurrencyId: createDefaultCurrencyId,
-        }),
+        body: JSON.stringify(body),
       });
 
       setDescription("");
@@ -566,15 +500,22 @@ function ExpenseTemplatesAdminCard({
     }
 
     try {
+      const body: Record<string, unknown> = {
+        expenseType: editExpenseType,
+        categoryId: editCategoryId,
+        defaultCurrencyId: editDefaultCurrencyId,
+      };
+      if (hasEncryptionSupport) {
+        const enc = await encryptPayload({ description: descToSend, defaultAmountUsd: amountUsdValue });
+        if (enc) body.encryptedPayload = enc;
+        else { body.description = descToSend; body.defaultAmountUsd = amountUsdValue; }
+      } else {
+        body.description = descToSend;
+        body.defaultAmountUsd = amountUsdValue;
+      }
       await api(`/admin/expenseTemplates/${id}`, {
         method: "PUT",
-        body: JSON.stringify({
-          expenseType: editExpenseType,
-          categoryId: editCategoryId,
-          description: descToSend,
-          defaultAmountUsd: amountUsdValue,
-          defaultCurrencyId: editDefaultCurrencyId,
-        }),
+        body: JSON.stringify(body),
       });
       setEditingId(null);
       await loadTemplates();
@@ -1022,16 +963,18 @@ export default function AdminPage() {
   const nav = useNavigate();
   const { t } = useTranslation();
 
-  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess } = useAppShell();
+  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess, serverFxRate } = useAppShell();
   const { year: appYear } = useAppYearMonth();
   const { formatAmountUsd } = useDisplayCurrency();
+  const { encryptPayload, decryptPayload, hasEncryptionSupport } = useEncryption();
+  const usdUyuRate = serverFxRate ?? getFxDefault();
 
   const [meResp, setMeResp] = useState<MeResp | null>(null);
-  const [meError, setMeError] = useState<string>("");
+  const [_meError, setMeError] = useState<string>("");
 
   const isSuperAdmin = meResp?.role === "SUPER_ADMIN";
 
-  type AdminTab = "account" | "categories" | "templates" | "monthClose" | "users";
+  type AdminTab = "categories" | "templates" | "monthClose" | "users";
   const [activeTab, setActiveTab] = useState<AdminTab>("templates");
 
   /**
@@ -1083,7 +1026,9 @@ export default function AdminPage() {
 
   const closedSet = useMemo(() => {
     const s = new Set<string>();
-    for (const r of monthCloses) s.add(`${r.year}-${r.month}`);
+    for (const r of monthCloses) {
+      if (r.isClosed !== false) s.add(`${r.year}-${r.month}`);
+    }
     return s;
   }, [monthCloses]);
 
@@ -1134,7 +1079,32 @@ export default function AdminPage() {
 
   async function loadMonthCloses(y: number) {
     const r = await api<{ year: number; rows: MonthCloseRow[] }>(`/monthCloses?year=${y}`);
-    setMonthCloses(r.rows ?? []);
+    const raw = r.rows ?? [];
+    const resolved: MonthCloseRow[] = await Promise.all(
+      raw.map(async (row) => {
+        if (!row.encryptedPayload) return row;
+        const pl = await decryptPayload<{
+          incomeUsd?: number;
+          expensesUsd?: number;
+          investmentEarningsUsd?: number;
+          balanceUsd?: number;
+          netWorthStartUsd?: number;
+          netWorthEndUsd?: number | null;
+        }>(row.encryptedPayload);
+        if (pl != null)
+          return {
+            ...row,
+            incomeUsd: pl.incomeUsd ?? 0,
+            expensesUsd: pl.expensesUsd ?? 0,
+            investmentEarningsUsd: pl.investmentEarningsUsd ?? 0,
+            balanceUsd: pl.balanceUsd ?? 0,
+            netWorthStartUsd: pl.netWorthStartUsd ?? 0,
+            netWorthEndUsd: pl.netWorthEndUsd ?? null,
+          };
+        return { ...row, incomeUsd: 0, expensesUsd: 0, investmentEarningsUsd: 0, balanceUsd: 0, netWorthStartUsd: 0, netWorthEndUsd: null };
+      })
+    );
+    setMonthCloses(resolved);
     setMonthClosesLoaded(true);
   }
 
@@ -1229,6 +1199,166 @@ export default function AdminPage() {
     }
   }
 
+  /** Construye en cliente ingresos, gastos, ganancias, balance y patrimonio (inicio/fin mes) para el preview y el cierre con E2EE. */
+  async function buildClosePreviewClient(): Promise<{
+    incomeUsd: number;
+    expensesUsd: number;
+    investmentEarningsUsd: number;
+    balanceUsd: number;
+    netWorthStartUsd: number;
+    netWorthEndUsd: number;
+    realBalanceUsd: number;
+    budgetBalanceUsd: number;
+  }> {
+    type InvLite = { id: string; type?: string; currencyId?: string | null; targetAnnualReturn?: number | null; yieldStartYear?: number | null; yieldStartMonth?: number | null };
+    type SnapRow = { month: number; closingCapital?: number | null; closingCapitalUsd?: number | null; encryptedPayload?: string | null; _decryptedZero?: boolean };
+    const year = mcYear;
+    const m = mcMonth;
+    const [incomeResp, expensesList, annualResp, invsResp] = await Promise.all([
+      api<{ year: number; rows: Array<{ month: number; totalUsd?: number; encryptedPayload?: string }> }>(`/income?year=${year}`),
+      api<Array<{ amountUsd?: number; encryptedPayload?: string | null }>>(`/expenses?year=${year}&month=${m}`),
+      api<{ year: number; months: Array<{ month: number; otherExpensesUsd?: number; otherExpensesEncryptedPayload?: string; investmentEarningsUsd?: number; netWorthUsd?: number }> }>(`/budgets/annual?year=${year}`),
+      api<InvLite[]>("/investments"),
+    ]);
+    let incomeUsd = 0;
+    const incomeRow = (incomeResp.rows ?? []).find((r) => r.month === m);
+    if (incomeRow?.encryptedPayload) {
+      const pl = await decryptPayload<{ nominalUsd?: number; extraordinaryUsd?: number; taxesUsd?: number }>(incomeRow.encryptedPayload);
+      if (pl) incomeUsd = (pl.nominalUsd ?? 0) + (pl.extraordinaryUsd ?? 0) - (pl.taxesUsd ?? 0);
+    } else if (incomeRow) {
+      incomeUsd = incomeRow.totalUsd ?? 0;
+    }
+    let baseExpensesUsd = 0;
+    for (const e of expensesList ?? []) {
+      if (e.encryptedPayload) {
+        const pl = await decryptPayload<{ amountUsd?: number }>(e.encryptedPayload);
+        if (pl != null && typeof pl.amountUsd === "number") baseExpensesUsd += pl.amountUsd;
+      } else {
+        baseExpensesUsd += e.amountUsd ?? 0;
+      }
+    }
+    const monthData = (annualResp.months ?? []).find((x) => x.month === m);
+    let otherExpensesUsd = monthData?.otherExpensesUsd ?? 0;
+    if (monthData?.otherExpensesEncryptedPayload) {
+      const pl = await decryptPayload<{ otherExpensesUsd?: number }>(monthData.otherExpensesEncryptedPayload);
+      if (pl != null && typeof pl.otherExpensesUsd === "number") otherExpensesUsd = pl.otherExpensesUsd;
+    }
+    const expensesUsd = baseExpensesUsd + otherExpensesUsd;
+
+    const invs = invsResp ?? [];
+    const portfolios = invs.filter((i) => i.type === "PORTFOLIO");
+    const snapsByInvId: Record<string, SnapRow[]> = {};
+    for (const inv of invs) {
+      const r = await api<{ months?: SnapRow[]; data?: { months?: SnapRow[] } }>(`/investments/${inv.id}/snapshots?year=${year}`).catch(() => ({}));
+      const raw = (r.months ?? r.data?.months ?? []).slice();
+      const decrypted = await Promise.all(
+        raw.map(async (s) => {
+          if (s.encryptedPayload) {
+            const pl = await decryptPayload<{ closingCapital?: number; closingCapitalUsd?: number }>(s.encryptedPayload);
+            if (pl != null) {
+              const cap = pl.closingCapital ?? null;
+              const capUsd = typeof pl.closingCapitalUsd === "number" ? pl.closingCapitalUsd : (typeof pl.closingCapital === "number" ? pl.closingCapital : null);
+              const isZero = (cap === 0 || cap === null) && (capUsd === 0 || capUsd === null);
+              return { ...s, closingCapital: cap, closingCapitalUsd: capUsd, _decryptedZero: isZero };
+            }
+            return { ...s, closingCapital: null, closingCapitalUsd: null };
+          }
+          return s;
+        })
+      );
+      decrypted.sort((a, b) => (Number(a.month) ?? 99) - (Number(b.month) ?? 99));
+      const filled: SnapRow[] = [];
+      for (let i = 0; i < 12; i++) {
+        const monthNum = i + 1;
+        const existing = decrypted.find((x) => Number(x.month) === monthNum);
+        filled.push(existing ?? { month: monthNum, closingCapital: null, closingCapitalUsd: null });
+      }
+      snapsByInvId[inv.id] = filled;
+    }
+    function valueUsdSnap(snap: SnapRow | undefined, currencyId: string): number | null {
+      if (!snap) return null;
+      const hasEnc = !!snap.encryptedPayload;
+      const bothZero = (snap.closingCapitalUsd === 0 && snap.closingCapital === 0) || (snap.closingCapitalUsd == null && snap.closingCapital == null);
+      if (hasEnc && bothZero && !snap._decryptedZero) return null;
+      if (snap.closingCapitalUsd != null && typeof snap.closingCapitalUsd === "number") return snap.closingCapitalUsd;
+      if (currencyId === "USD" && snap.closingCapital != null && typeof snap.closingCapital === "number") return snap.closingCapital;
+      return null;
+    }
+    function capitalUsdInv(inv: InvLite, snaps: SnapRow[], monthNum: number): number {
+      const idx = monthNum - 1;
+      const s = snaps[idx];
+      const direct = valueUsdSnap(s, inv.currencyId ?? "USD");
+      if (direct != null) return direct;
+      const monthlyFactor = 1 + (inv.targetAnnualReturn ?? 0) / 12;
+      const yieldStart = inv.yieldStartYear != null && inv.yieldStartYear > year ? 13 : inv.yieldStartYear === year ? (inv.yieldStartMonth ?? 1) : 1;
+      for (let i = monthNum - 2; i >= 0; i--) {
+        const prevVal = valueUsdSnap(snaps[i], inv.currencyId ?? "USD");
+        if (prevVal != null) {
+          const start = Math.max(yieldStart, i + 1);
+          const diff = monthNum - start;
+          if (diff <= 0) return prevVal;
+          return prevVal * Math.pow(monthlyFactor, diff);
+        }
+      }
+      return 0;
+    }
+    const portfolioNW = Array.from({ length: 12 }, (_, i) =>
+      portfolios.reduce((acc, inv) => acc + capitalUsdInv(inv, snapsByInvId[inv.id] ?? [], i + 1), 0)
+    );
+    const projectedNextJan = portfolios.reduce((acc, inv) => {
+      const snaps = snapsByInvId[inv.id] ?? [];
+      const decCap = capitalUsdInv(inv, snaps, 12);
+      return acc + decCap * (1 + (inv.targetAnnualReturn ?? 0) / 12);
+    }, 0);
+    const totalNW = Array.from({ length: 12 }, (_, i) =>
+      invs.reduce((acc, inv) => acc + capitalUsdInv(inv, snapsByInvId[inv.id] ?? [], i + 1), 0)
+    );
+    const movResp = await api<{ year: number; rows: Array<{ month?: number; date?: string; investmentId: string; type: string; amount?: number; currencyId?: string; encryptedPayload?: string | null }> }>(`/investments/movements?year=${year}`).catch(() => ({ rows: [] }));
+    const movementRows = movResp?.rows ?? [];
+    const movementsDecrypted = await Promise.all(
+      movementRows.map(async (mv) => {
+        let amount = mv.amount ?? 0;
+        if (mv.encryptedPayload) {
+          const pl = await decryptPayload<{ amount?: number }>(mv.encryptedPayload);
+          if (pl != null && typeof pl.amount === "number") amount = pl.amount;
+        }
+        const movMonth = mv.month ?? (mv.date ? new Date(mv.date).getUTCMonth() + 1 : 0);
+        return { ...mv, amount, month: movMonth };
+      })
+    );
+    const flows = Array.from({ length: 12 }, () => 0);
+    const invById = new Map(portfolios.map((i) => [i.id, i]));
+    const fx = Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : null;
+    for (const mv of movementsDecrypted) {
+      const movM = mv.month ?? 0;
+      if (movM < 1 || movM > 12) continue;
+      const inv = invById.get(mv.investmentId);
+      if (!inv || inv.type !== "PORTFOLIO") continue;
+      const sign = mv.type === "deposit" ? 1 : mv.type === "withdrawal" ? -1 : 0;
+      const amount = mv.amount ?? 0;
+      const cur = (mv.currencyId ?? "USD").toUpperCase();
+      if (cur === "USD") flows[movM - 1] += sign * amount;
+      else if (cur === "UYU" && fx) flows[movM - 1] += sign * (amount / fx);
+    }
+    const variation = Array.from({ length: 12 }, (_, i) =>
+      i < 11 ? (portfolioNW[i + 1] ?? 0) - (portfolioNW[i] ?? 0) : projectedNextJan - (portfolioNW[11] ?? 0)
+    );
+    const investmentEarningsUsd = (variation[m - 1] ?? 0) - (flows[m - 1] ?? 0);
+    const balanceUsd = incomeUsd - expensesUsd + investmentEarningsUsd;
+    const netWorthStartUsd = totalNW[m - 1] ?? 0;
+    const netWorthEndUsd = m < 12 ? (totalNW[m] ?? 0) : netWorthStartUsd + balanceUsd;
+    return {
+      incomeUsd,
+      expensesUsd,
+      investmentEarningsUsd,
+      balanceUsd,
+      netWorthStartUsd,
+      netWorthEndUsd,
+      realBalanceUsd: balanceUsd,
+      budgetBalanceUsd: balanceUsd,
+    };
+  }
+
   // ---------- Month close handlers ----------
   async function closeMonth() {
     setMcError("");
@@ -1241,13 +1371,28 @@ export default function AdminPage() {
           method: "POST",
           body: JSON.stringify({ year: mcYear, month: mcMonth }),
         });
+        // E2EE: siempre calcular valores en cliente para que el modal no muestre 0 (el servidor no puede descifrar)
+        if (hasEncryptionSupport) {
+          const clientPreview = await buildClosePreviewClient();
+          setClosePreviewData({ ...preview, ...clientPreview });
+          setClosePreviewOpen(true);
+          return;
+        }
         if (preview?.message != null) {
           setClosePreviewData(preview);
           setClosePreviewOpen(true);
           return;
         }
       } catch (previewErr: any) {
-        // 403 o error → cerrar sin modal (comportamiento anterior)
+        // Con E2EE intentar igualmente construir y enviar el payload para no guardar 0
+        if (hasEncryptionSupport) {
+          try {
+            await buildEncryptedSnapshotAndClose();
+          } catch (buildErr: any) {
+            setMcError(buildErr?.message ?? "Error closing month");
+          }
+          return;
+        }
         await doCloseMonth();
         return;
       }
@@ -1257,18 +1402,40 @@ export default function AdminPage() {
     }
   }
 
-  async function doCloseMonth() {
-    await api(`/monthCloses/close`, { method: "POST", body: JSON.stringify({ year: mcYear, month: mcMonth }) });
+  async function doCloseMonth(encryptedPayload?: string | null) {
+    const body: { year: number; month: number; encryptedPayload?: string } = { year: mcYear, month: mcMonth };
+    if (encryptedPayload) body.encryptedPayload = encryptedPayload;
+    await api(`/monthCloses/close`, { method: "POST", body: JSON.stringify(body) });
     await loadMonthCloses(mcYear);
     setMcInfo(`Month ${m2(mcMonth)}/${mcYear} closed.`);
     showSuccess(t("admin.monthClosedSuccess"));
+  }
+
+  /** Construye snapshot cifrado (ingresos, gastos, patrimonio, ganancias) y cierra el mes. Usado con E2EE. Valores siempre desde cliente. */
+  async function buildEncryptedSnapshotAndClose() {
+    const client = await buildClosePreviewClient();
+    const snapshot = {
+      incomeUsd: client.incomeUsd,
+      expensesUsd: client.expensesUsd,
+      investmentEarningsUsd: client.investmentEarningsUsd,
+      balanceUsd: client.balanceUsd,
+      netWorthStartUsd: client.netWorthStartUsd,
+      netWorthEndUsd: client.netWorthEndUsd,
+    };
+    const enc = await encryptPayload(snapshot);
+    if (enc) await doCloseMonth(enc);
+    else await doCloseMonth();
   }
 
   async function confirmCloseMonth() {
     if (!closePreviewData) return;
     setMcError("");
     try {
-      await doCloseMonth();
+      if (hasEncryptionSupport) {
+        await buildEncryptedSnapshotAndClose();
+      } else {
+        await doCloseMonth();
+      }
       setClosePreviewOpen(false);
       setClosePreviewData(null);
     } catch (err: any) {
@@ -1307,7 +1474,6 @@ export default function AdminPage() {
     { id: "templates", label: t("admin.tabTemplates") },
     { id: "categories", label: t("admin.tabCategories") },
     { id: "monthClose", label: t("admin.tabMonthClose") },
-    { id: "account", label: t("admin.tabAccount") },
     ...(isSuperAdmin ? [{ id: "users" as const, label: t("admin.tabUsers") }] : []),
   ];
 
@@ -1388,20 +1554,6 @@ export default function AdminPage() {
           border-bottom-color: var(--text);
         }
       `}</style>
-
-      {/* ===== Tab: Account ===== */}
-      {activeTab === "account" && (
-      <div className="card">
-        <div style={{ fontWeight: 900 }}>{t("admin.tabAccount")}</div>
-        <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{t("admin.accountIntro")}</div>
-        <div className="muted" style={{ fontSize: 12, marginTop: 10 }}>
-          {meResp ? `${t("admin.signedInAs")}: ${meResp.email} (${meResp.role})` : t("admin.loadingUser")}
-        </div>
-        {meError && <div style={{ marginTop: 10, color: "var(--danger)" }}>{meError}</div>}
-        <DisplayCurrencyCard />
-        <ChangePasswordCard />
-      </div>
-      )}
 
       {/* ===== Tab: Categories (add + list in one card) ===== */}
       {activeTab === "categories" && (

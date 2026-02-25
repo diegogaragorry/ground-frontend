@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
+import { useEncryption } from "../context/EncryptionContext";
 import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
 import { getFxDefault } from "../utils/fx";
 import { formatAmountUsdWith } from "../utils/formatCurrency";
 
 type IncomeRow = {
+  id?: string;
   month: number;
   nominalUsd: number;
   extraordinaryUsd: number;
   taxesUsd: number;
   totalUsd: number;
+  encryptedPayload?: string;
+  _decryptFailed?: boolean;
 };
 
 type IncomeResp = {
@@ -37,8 +41,13 @@ const fieldToDraftKey: Record<"nominalUsd" | "extraordinaryUsd" | "taxesUsd", Dr
   taxesUsd: "taxes",
 };
 
+function computeTotalFromParts(nominal: number, extraordinary: number, taxes: number) {
+  return nominal + extraordinary - taxes;
+}
+
 export default function IncomePage() {
   const { t } = useTranslation();
+  const { encryptPayload, decryptPayload } = useEncryption();
   const { setHeader, serverFxRate } = useAppShell();
   const { preferredDisplayCurrencyId } = useDisplayCurrency();
   const { year } = useAppYearMonth();
@@ -72,8 +81,23 @@ export default function IncomePage() {
     setLoading(true);
     setError("");
     try {
-      const r = await api<IncomeResp>(`/income?year=${year}`);
-      setData(r);
+      const r = await api<IncomeResp & { rows: IncomeRow[] }>(`/income?year=${year}`);
+      const rows = await Promise.all(
+        (r.rows ?? []).map(async (row) => {
+          if (row.encryptedPayload) {
+            const pl = await decryptPayload<{ nominalUsd?: number; extraordinaryUsd?: number; taxesUsd?: number }>(row.encryptedPayload);
+            if (pl && typeof (pl.nominalUsd ?? 0) === "number") {
+              const nom = pl.nominalUsd ?? 0;
+              const ext = pl.extraordinaryUsd ?? 0;
+              const tax = pl.taxesUsd ?? 0;
+              return { ...row, nominalUsd: nom, extraordinaryUsd: ext, taxesUsd: tax, totalUsd: computeTotalFromParts(nom, ext, tax) };
+            }
+            return { ...row, _decryptFailed: true, nominalUsd: 0, extraordinaryUsd: 0, taxesUsd: 0, totalUsd: 0 };
+          }
+          return row;
+        })
+      );
+      setData({ ...r, rows });
       setDrafts({});
     } catch (e: any) {
       setError(e?.message ?? t("common.error"));
@@ -112,6 +136,7 @@ export default function IncomePage() {
       total = 0;
     for (const m of months12) {
       const row = byMonth.get(m)!;
+      if (row._decryptFailed) continue;
       nominal += row.nominalUsd;
       extraordinary += row.extraordinaryUsd;
       taxes += row.taxesUsd;
@@ -137,9 +162,24 @@ export default function IncomePage() {
 
   async function saveCell(month: number, field: "nominalUsd" | "extraordinaryUsd" | "taxesUsd", value: number) {
     try {
+      const row = byMonth.get(month);
+      if (!row) return;
+      const nextNominal = field === "nominalUsd" ? value : row.nominalUsd;
+      const nextExtra = field === "extraordinaryUsd" ? value : row.extraordinaryUsd;
+      const nextTaxes = field === "taxesUsd" ? value : row.taxesUsd;
+      const enc = await encryptPayload({ nominalUsd: nextNominal, extraordinaryUsd: nextExtra, taxesUsd: nextTaxes });
+      const body: Record<string, unknown> = { year, month };
+      if (enc) {
+        body.encryptedPayload = enc;
+        body.nominalUsd = 0;
+        body.extraordinaryUsd = 0;
+        body.taxesUsd = 0;
+      } else {
+        body[field] = value;
+      }
       await api("/income", {
         method: "PATCH",
-        body: JSON.stringify({ year, month, [field]: value }),
+        body: JSON.stringify(body),
       });
       await load();
     } catch (e: any) {
@@ -151,9 +191,17 @@ export default function IncomePage() {
     month: number,
     field: "nominalUsd" | "extraordinaryUsd" | "taxesUsd",
     valueUsd: number,
-    allowNegative: boolean
+    allowNegative: boolean,
+    decryptFailed?: boolean
   ) {
     const isClosed = closedSet.has(month);
+    if (decryptFailed) {
+      return (
+        <span key={`${month}-${field}`} className="muted" title={t("common.unavailable")} style={{ display: "inline-block", minWidth: 96, textAlign: "right" }}>
+          —
+        </span>
+      );
+    }
     const displayVal = toDisplay(valueUsd);
     if (isClosed) {
       return (
@@ -258,7 +306,7 @@ export default function IncomePage() {
                 <td style={{ fontWeight: 750 }}>{t("income.nominal")}</td>
                 {months12.map((m) => (
                   <td key={`nom-${m}`} className="right" style={{ whiteSpace: "nowrap" }}>
-                    {renderCell(m, "nominalUsd", byMonth.get(m)!.nominalUsd, false)}
+                    {renderCell(m, "nominalUsd", byMonth.get(m)!.nominalUsd, false, byMonth.get(m)!._decryptFailed)}
                   </td>
                 ))}
                 <td className="right" style={{ fontWeight: 800, whiteSpace: "nowrap" }}>{formatAmountUsdWith(totals.nominal, incomeCurrency, incomeRateOrNull)}</td>
@@ -268,7 +316,7 @@ export default function IncomePage() {
                 <td style={{ fontWeight: 750 }}>{t("income.extraordinary")}</td>
                 {months12.map((m) => (
                   <td key={`ext-${m}`} className="right" style={{ whiteSpace: "nowrap" }}>
-                    {renderCell(m, "extraordinaryUsd", byMonth.get(m)!.extraordinaryUsd, true)}
+                    {renderCell(m, "extraordinaryUsd", byMonth.get(m)!.extraordinaryUsd, true, byMonth.get(m)!._decryptFailed)}
                   </td>
                 ))}
                 <td className="right" style={{ fontWeight: 800, whiteSpace: "nowrap" }}>{formatAmountUsdWith(totals.extraordinary, incomeCurrency, incomeRateOrNull)}</td>
@@ -278,7 +326,7 @@ export default function IncomePage() {
                 <td style={{ fontWeight: 750 }}>{t("income.taxes")}</td>
                 {months12.map((m) => (
                   <td key={`tax-${m}`} className="right" style={{ whiteSpace: "nowrap" }}>
-                    {renderCell(m, "taxesUsd", byMonth.get(m)!.taxesUsd, true)}
+                    {renderCell(m, "taxesUsd", byMonth.get(m)!.taxesUsd, true, byMonth.get(m)!._decryptFailed)}
                   </td>
                 ))}
                 <td className="right" style={{ fontWeight: 800, whiteSpace: "nowrap" }}>{formatAmountUsdWith(totals.taxes, incomeCurrency, incomeRateOrNull)}</td>
@@ -288,7 +336,11 @@ export default function IncomePage() {
                 <td style={{ fontWeight: 900 }}>{t("income.total")}</td>
                 {months12.map((m) => (
                   <td key={`tot-${m}`} className="right" style={{ fontWeight: 800, whiteSpace: "nowrap" }}>
-                    {formatAmountUsdWith(byMonth.get(m)!.totalUsd, incomeCurrency, incomeRateOrNull)}
+                    {byMonth.get(m)!._decryptFailed ? (
+                      <span className="muted" title={t("common.unavailable")}>—</span>
+                    ) : (
+                      formatAmountUsdWith(byMonth.get(m)!.totalUsd, incomeCurrency, incomeRateOrNull)
+                    )}
                   </td>
                 ))}
                 <td className="right" style={{ fontWeight: 900, whiteSpace: "nowrap" }}>{formatAmountUsdWith(totals.total, incomeCurrency, incomeRateOrNull)}</td>

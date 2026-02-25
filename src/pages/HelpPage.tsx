@@ -11,6 +11,7 @@ const HELP_FAQ_ITEMS = [
   { q: "help.faq3Q", a: "help.faq3A" },
   { q: "help.faq4Q", a: "help.faq4A" },
   { q: "help.faq5Q", a: "help.faq5A" },
+  { q: "help.faq6Q", a: "help.faq6A" },
 ];
 
 export default function HelpPage() {

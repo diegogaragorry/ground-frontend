@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { APP_BASE } from "../constants";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
+import { useEncryption } from "../context/EncryptionContext";
 import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
 import { downloadCsv } from "../utils/exportCsv";
 import { getFxDefault } from "../utils/fx";
@@ -17,13 +18,13 @@ type AnnualResp = {
 
     baseExpensesUsd: number;
     otherExpensesUsd: number;
+    otherExpensesEncryptedPayload?: string;
+    lockedEncryptedPayload?: string;
 
-    // total expenses (base + other) - backend lo devuelve
     expensesUsd: number;
-
     investmentEarningsUsd: number;
     balanceUsd: number;
-    netWorthUsd: number; // start
+    netWorthUsd: number;
     source: "locked" | "computed";
   }>;
 };
@@ -86,8 +87,29 @@ export default function BudgetsPage() {
   }, [setHeader, year, t, currencyLabel]);
 
   const [data, setData] = useState<AnnualResp | null>(null);
+  const [decryptedIncomeByMonth, setDecryptedIncomeByMonth] = useState<Record<number, number>>({});
+  const [decryptedOtherByMonth, setDecryptedOtherByMonth] = useState<Record<number, number>>({});
+  const [clientExpensesUsdByMonth, setClientExpensesUsdByMonth] = useState<Record<number, number>>({});
+  const [plannedBaseByMonth, setPlannedBaseByMonth] = useState<Record<number, number>>({});
+  const [investmentEarningsByMonth, setInvestmentEarningsByMonth] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { decryptPayload, encryptPayload, hasEncryptionSupport } = useEncryption();
+  const usdUyuRate = serverFxRate ?? getFxDefault();
+
+  type BudgetRow = {
+    id: string;
+    year: number;
+    month: number;
+    categoryId: string;
+    currencyId: string;
+    amount: number;
+    encryptedPayload?: string | null;
+    category?: { id: string; name: string };
+    currency?: { id: string; name: string };
+    _decryptFailed?: boolean;
+  };
+  const [budgetsByMonth, setBudgetsByMonth] = useState<Record<number, BudgetRow[]>>({});
 
   const [drafts, setDrafts] = useState<DraftMap>({});
 
@@ -106,9 +128,292 @@ export default function BudgetsPage() {
     setLoading(true);
     setError("");
     try {
-      const r = await api<AnnualResp>(`/budgets/annual?year=${year}`);
-      setData(r);
+      await api(`/plannedExpenses/ensure-year`, { method: "POST", body: JSON.stringify({ year }) }).catch(() => {});
+      const [r, incomeResp, plannedResp] = await Promise.all([
+        api<AnnualResp>(`/budgets/annual?year=${year}`),
+        api<{ year: number; rows: Array<{ month: number; totalUsd: number; encryptedPayload?: string }> }>(`/income?year=${year}`),
+        api<{ year: number; rows: Array<{ month: number; amountUsd?: number | null; encryptedPayload?: string | null }> }>(`/plannedExpenses?year=${year}`),
+      ]);
+      const byMonth: Record<number, number> = {};
+      for (const row of incomeResp.rows ?? []) {
+        if (row.encryptedPayload) {
+          const pl = await decryptPayload<{ nominalUsd?: number; extraordinaryUsd?: number; taxesUsd?: number }>(row.encryptedPayload);
+          if (pl) byMonth[row.month] = (pl.nominalUsd ?? 0) + (pl.extraordinaryUsd ?? 0) - (pl.taxesUsd ?? 0);
+        } else {
+          byMonth[row.month] = row.totalUsd ?? 0;
+        }
+      }
+      setDecryptedIncomeByMonth(byMonth);
+
+      // Proyección gastos base desde plantillas: descifrar planned del año, sumar por mes (evitar race: primero colectar, luego sumar)
+      const plannedRows = plannedResp?.rows ?? [];
+      const decryptedPlanned = await Promise.all(
+        plannedRows.map(async (row) => {
+          let amountUsd = row.amountUsd ?? 0;
+          if (row.encryptedPayload) {
+            const pl = await decryptPayload<{ amountUsd?: number; defaultAmountUsd?: number }>(row.encryptedPayload);
+            if (pl != null) {
+              const v = pl.amountUsd ?? pl.defaultAmountUsd;
+              if (typeof v === "number") amountUsd = v;
+            }
+          }
+          const mo = row.month ?? 0;
+          return { month: mo, amountUsd };
+        })
+      );
+      const plannedByMonth: Record<number, number> = {};
+      for (const { month: mo, amountUsd } of decryptedPlanned) {
+        if (mo >= 1 && mo <= 12) plannedByMonth[mo] = (plannedByMonth[mo] ?? 0) + amountUsd;
+      }
+      setPlannedBaseByMonth(plannedByMonth);
+
+      // E2EE: decrypt lockedEncryptedPayload and otherExpensesEncryptedPayload per month, then set resolved data
+      const otherByMonth: Record<number, number> = {};
+      const resolvedMonths = await Promise.all(
+        (r.months ?? []).map(async (m) => {
+          const lockedEnc = (m as { lockedEncryptedPayload?: string }).lockedEncryptedPayload;
+          if (lockedEnc) {
+            // Cerrado o reabierto: el snapshot sigue en lockedEncryptedPayload; mostramos los mismos datos
+            const pl = await decryptPayload<{
+              incomeUsd?: number;
+              expensesUsd?: number;
+              investmentEarningsUsd?: number;
+              balanceUsd?: number;
+              netWorthStartUsd?: number;
+            }>(lockedEnc);
+            if (pl != null) {
+              let baseExpensesUsd = (pl.expensesUsd ?? 0);
+              let otherExpensesUsd = 0;
+              const otherEnc = (m as { otherExpensesEncryptedPayload?: string }).otherExpensesEncryptedPayload;
+              if (otherEnc) {
+                const otherPl = await decryptPayload<{ otherExpensesUsd?: number }>(otherEnc);
+                if (otherPl != null && typeof otherPl.otherExpensesUsd === "number") {
+                  otherExpensesUsd = otherPl.otherExpensesUsd;
+                  baseExpensesUsd = Math.max(0, (pl.expensesUsd ?? 0) - otherExpensesUsd);
+                }
+              }
+              otherByMonth[m.month] = otherExpensesUsd;
+              return {
+                ...m,
+                incomeUsd: pl.incomeUsd ?? 0,
+                expensesUsd: pl.expensesUsd ?? 0,
+                investmentEarningsUsd: pl.investmentEarningsUsd ?? 0,
+                balanceUsd: pl.balanceUsd ?? 0,
+                netWorthUsd: pl.netWorthStartUsd ?? 0,
+                baseExpensesUsd,
+                otherExpensesUsd,
+              };
+            }
+          }
+          const enc = (m as { otherExpensesEncryptedPayload?: string }).otherExpensesEncryptedPayload;
+          if (enc) {
+            const pl = await decryptPayload<{ otherExpensesUsd?: number }>(enc);
+            if (pl != null && typeof pl.otherExpensesUsd === "number") otherByMonth[m.month] = pl.otherExpensesUsd;
+            else otherByMonth[m.month] = 0;
+          }
+          return m;
+        })
+      );
+      setDecryptedOtherByMonth(otherByMonth);
+      setData({ ...r, months: resolvedMonths });
+
+      // E2EE: fetch expenses per month, decrypt, sum amountUsd so annual view has correct totals
+      type ExpenseRow = { amountUsd: number; encryptedPayload?: string | null };
+      const expenseLists = await Promise.all(
+        months12.map((m) => api<ExpenseRow[]>(`/expenses?year=${year}&month=${m}`))
+      );
+      // Solo registrar gastos reales por mes cuando hay al menos un gasto; si no hay filas, no poner 0 para poder usar plantillas
+      const expensesByMonth: Record<number, number> = {};
+      for (let i = 0; i < 12; i++) {
+        const list = expenseLists[i] ?? [];
+        let sum = 0;
+        for (const e of list) {
+          if (e.encryptedPayload) {
+            const pl = await decryptPayload<{ amountUsd?: number }>(e.encryptedPayload);
+            if (pl != null && typeof pl.amountUsd === "number") sum += pl.amountUsd;
+          } else {
+            sum += e.amountUsd ?? 0;
+          }
+        }
+        if (list.length > 0) expensesByMonth[i + 1] = sum;
+      }
+      setClientExpensesUsdByMonth(expensesByMonth);
+
+      // Ganancias de inversiones (portafolio): backend con E2EE devuelve 0; calcular en cliente desde snapshots + movimientos
+      type InvLite = { id: string; type: string; currencyId?: string | null; targetAnnualReturn?: number | null; yieldStartYear?: number | null; yieldStartMonth?: number | null };
+      type SnapRow = { month: number; closingCapital?: number | null; closingCapitalUsd?: number | null; encryptedPayload?: string | null; _decryptedZero?: boolean };
+      const invs = await api<InvLite[]>("/investments").catch(() => []);
+      const portfolios = (invs ?? []).filter((i) => i.type === "PORTFOLIO");
+      const snapsByInvId: Record<string, SnapRow[]> = {};
+      for (const inv of portfolios) {
+        const r = await api<{ months?: SnapRow[]; data?: { months?: SnapRow[] } }>(`/investments/${inv.id}/snapshots?year=${year}`).catch(() => ({}));
+        const raw = (r.months ?? r.data?.months ?? []).slice();
+        const decrypted = await Promise.all(
+          raw.map(async (s) => {
+            if (s.encryptedPayload) {
+              const pl = await decryptPayload<{ closingCapital?: number; closingCapitalUsd?: number }>(s.encryptedPayload);
+              if (pl != null) {
+                const cap = pl.closingCapital ?? null;
+                const capUsd = typeof pl.closingCapitalUsd === "number" ? pl.closingCapitalUsd : (typeof pl.closingCapital === "number" ? pl.closingCapital : null);
+                const isZero = (cap === 0 || cap === null) && (capUsd === 0 || capUsd === null);
+                return { ...s, closingCapital: cap, closingCapitalUsd: capUsd, _decryptedZero: isZero };
+              }
+              return { ...s, closingCapital: null, closingCapitalUsd: null };
+            }
+            return s;
+          })
+        );
+        decrypted.sort((a, b) => (Number(a.month) ?? 99) - (Number(b.month) ?? 99));
+        const filled: SnapRow[] = [];
+        for (let i = 0; i < 12; i++) {
+          const monthNum = i + 1;
+          const existing = decrypted.find((x) => Number(x.month) === monthNum);
+          filled.push(
+            existing ?? { month: monthNum, closingCapital: null, closingCapitalUsd: null }
+          );
+        }
+        snapsByInvId[inv.id] = filled;
+      }
+      // Patrimonio al cierre de diciembre del año anterior → variación de enero = lo ocurrido entre 1/1 y 1/2
+      let prevYearDecNW = 0;
+      const prevYear = year - 1;
+      function valueUsdSnapPrev(snap: SnapRow | undefined, currencyId: string): number | null {
+        if (!snap) return null;
+        const hasEnc = !!snap.encryptedPayload;
+        const bothZero = (snap.closingCapitalUsd === 0 && snap.closingCapital === 0) || (snap.closingCapitalUsd == null && snap.closingCapital == null);
+        if (hasEnc && bothZero && !snap._decryptedZero) return null;
+        if (snap.closingCapitalUsd != null && typeof snap.closingCapitalUsd === "number") return snap.closingCapitalUsd;
+        if (currencyId === "USD" && snap.closingCapital != null && typeof snap.closingCapital === "number") return snap.closingCapital;
+        return null;
+      }
+      function capitalUsdPortfolioPrevYear(inv: InvLite, snaps: SnapRow[], m: number, y: number): number {
+        const idx = m - 1;
+        const s = snaps[idx];
+        const direct = valueUsdSnapPrev(s, inv.currencyId ?? "USD");
+        if (direct != null) return direct;
+        const monthlyFactor = 1 + (inv.targetAnnualReturn ?? 0) / 12;
+        const yieldStart = inv.yieldStartYear != null && inv.yieldStartYear > y ? 13 : inv.yieldStartYear === y ? (inv.yieldStartMonth ?? 1) : 1;
+        for (let i = m - 2; i >= 0; i--) {
+          const prevVal = valueUsdSnapPrev(snaps[i], inv.currencyId ?? "USD");
+          if (prevVal != null) {
+            const start = Math.max(yieldStart, i + 1);
+            const diff = m - start;
+            if (diff <= 0) return prevVal;
+            return prevVal * Math.pow(monthlyFactor, diff);
+          }
+        }
+        return 0;
+      }
+      for (const inv of portfolios) {
+        const rPrev = await api<{ months?: SnapRow[]; data?: { months?: SnapRow[] } }>(`/investments/${inv.id}/snapshots?year=${prevYear}`).catch(() => ({}));
+        const rawPrev = (rPrev.months ?? rPrev.data?.months ?? []).slice();
+        const decryptedPrev = await Promise.all(
+          rawPrev.map(async (s) => {
+            if (s.encryptedPayload) {
+              const pl = await decryptPayload<{ closingCapital?: number; closingCapitalUsd?: number }>(s.encryptedPayload);
+              if (pl != null) {
+                const cap = pl.closingCapital ?? null;
+                const capUsd = typeof pl.closingCapitalUsd === "number" ? pl.closingCapitalUsd : (typeof pl.closingCapital === "number" ? pl.closingCapital : null);
+                const isZero = (cap === 0 || cap === null) && (capUsd === 0 || capUsd === null);
+                return { ...s, closingCapital: cap, closingCapitalUsd: capUsd, _decryptedZero: isZero };
+              }
+              return { ...s, closingCapital: null, closingCapitalUsd: null };
+            }
+            return s;
+          })
+        );
+        decryptedPrev.sort((a, b) => (Number(a.month) ?? 99) - (Number(b.month) ?? 99));
+        const filledPrev: SnapRow[] = [];
+        for (let i = 0; i < 12; i++) {
+          const monthNum = i + 1;
+          const existing = decryptedPrev.find((x) => Number(x.month) === monthNum);
+          filledPrev.push(existing ?? { month: monthNum, closingCapital: null, closingCapitalUsd: null });
+        }
+        prevYearDecNW += capitalUsdPortfolioPrevYear(inv, filledPrev, 12, prevYear);
+      }
+      const movResp = await api<{ year: number; rows: Array<{ month?: number; date?: string; investmentId: string; type: string; amount?: number; currencyId?: string; encryptedPayload?: string | null }> }>(`/investments/movements?year=${year}`).catch(() => ({ rows: [] }));
+      const movementRows = movResp?.rows ?? [];
+      const movementsDecrypted = await Promise.all(
+        movementRows.map(async (mv) => {
+          let amount = mv.amount ?? 0;
+          if (mv.encryptedPayload) {
+            const pl = await decryptPayload<{ amount?: number }>(mv.encryptedPayload);
+            if (pl != null && typeof pl.amount === "number") amount = pl.amount;
+          }
+          const month = mv.month ?? (mv.date ? new Date(mv.date).getUTCMonth() + 1 : 0);
+          return { ...mv, amount, month };
+        })
+      );
+      function valueUsdSnap(snap: SnapRow | undefined, currencyId: string): number | null {
+        if (!snap) return null;
+        const hasEnc = !!snap.encryptedPayload;
+        const bothZero = (snap.closingCapitalUsd === 0 && snap.closingCapital === 0) || (snap.closingCapitalUsd == null && snap.closingCapital == null);
+        if (hasEnc && bothZero && !snap._decryptedZero) return null;
+        if (snap.closingCapitalUsd != null && typeof snap.closingCapitalUsd === "number") return snap.closingCapitalUsd;
+        if (currencyId === "USD" && snap.closingCapital != null && typeof snap.closingCapital === "number") return snap.closingCapital;
+        return null;
+      }
+      function capitalUsdPortfolioInv(inv: InvLite, snaps: SnapRow[], m: number): number {
+        const idx = m - 1;
+        const s = snaps[idx];
+        const direct = valueUsdSnap(s, inv.currencyId ?? "USD");
+        if (direct != null) return direct;
+        const monthlyFactor = 1 + (inv.targetAnnualReturn ?? 0) / 12;
+        const yieldStart = inv.yieldStartYear != null && inv.yieldStartYear > year ? 13 : inv.yieldStartYear === year ? (inv.yieldStartMonth ?? 1) : 1;
+        for (let i = m - 2; i >= 0; i--) {
+          const prevVal = valueUsdSnap(snaps[i], inv.currencyId ?? "USD");
+          if (prevVal != null) {
+            const start = Math.max(yieldStart, i + 1);
+            const diff = m - start;
+            if (diff <= 0) return prevVal;
+            return prevVal * Math.pow(monthlyFactor, diff);
+          }
+        }
+        return 0;
+      }
+      const portfolioNW = months12.map((m) => portfolios.reduce((acc, inv) => acc + capitalUsdPortfolioInv(inv, snapsByInvId[inv.id] ?? [], m), 0));
+      const projectedNextJan = portfolios.reduce((acc, inv) => {
+        const snaps = snapsByInvId[inv.id] ?? [];
+        const decCap = capitalUsdPortfolioInv(inv, snaps, 12);
+        return acc + decCap * (1 + (inv.targetAnnualReturn ?? 0) / 12);
+      }, 0);
+      const flows = months12.map(() => 0);
+      const invById = new Map(portfolios.map((i) => [i.id, i]));
+      const fx = Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : null;
+      for (const mv of movementsDecrypted) {
+        const m = mv.month ?? 0;
+        if (m < 1 || m > 12) continue;
+        const inv = invById.get(mv.investmentId);
+        if (!inv || inv.type !== "PORTFOLIO") continue;
+        const sign = mv.type === "deposit" ? 1 : mv.type === "withdrawal" ? -1 : 0;
+        const amount = mv.amount ?? 0;
+        const cur = (mv.currencyId ?? "USD").toUpperCase();
+        if (cur === "USD") flows[m - 1] += sign * amount;
+        else if (cur === "UYU" && fx) flows[m - 1] += sign * (amount / fx);
+      }
+      // Misma fórmula que Patrimonio: solo año actual; variación mes i = (NW[i+1]-NW[i]) - flujos[i]; dic = projectedNextJan - NW[11]
+      const variation = months12.map((_, i) =>
+        i < 11 ? (portfolioNW[i + 1] ?? 0) - (portfolioNW[i] ?? 0) : projectedNextJan - (portfolioNW[11] ?? 0)
+      );
+      const earningsByMonth: Record<number, number> = {};
+      for (let i = 0; i < 12; i++) {
+        earningsByMonth[i + 1] = (variation[i] ?? 0) - (flows[i] ?? 0);
+      }
+      setInvestmentEarningsByMonth(earningsByMonth);
       setDrafts({});
+
+      const budgetList = await api<BudgetRow[]>(`/budgets?year=${year}&month=${currentMonth}`).catch(() => []);
+      const decryptedBudgets = await Promise.all(
+        (budgetList ?? []).map(async (b) => {
+          if (b.encryptedPayload) {
+            const pl = await decryptPayload<{ amount?: number }>(b.encryptedPayload);
+            if (pl != null && typeof pl.amount === "number") return { ...b, amount: pl.amount };
+            return { ...b, amount: 0, _decryptFailed: true };
+          }
+          return b;
+        })
+      );
+      setBudgetsByMonth((prev) => ({ ...prev, [currentMonth]: decryptedBudgets }));
     } catch (e: any) {
       setError(e?.message ?? t("common.error"));
     } finally {
@@ -116,32 +421,72 @@ export default function BudgetsPage() {
     }
   }
 
+  async function saveBudgetAmount(b: BudgetRow, newAmount: number) {
+    const enc = await encryptPayload({ amount: newAmount });
+    await api("/budgets", {
+      method: "PUT",
+      body: JSON.stringify({
+        year: b.year,
+        month: b.month,
+        categoryId: b.categoryId,
+        currencyId: b.currencyId,
+        amount: enc ? 0 : newAmount,
+        ...(enc ? { encryptedPayload: enc } : {}),
+      }),
+    });
+    setBudgetsByMonth((prev) => ({
+      ...prev,
+      [b.month]: (prev[b.month] ?? []).map((x) => (x.id === b.id ? { ...x, amount: newAmount } : x)),
+    }));
+  }
+
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [year]);
+  }, [year, currentMonth]);
 
   const months = useMemo(() => {
     const raw = data?.months ?? [];
     const byMonth = new Map(raw.map((m) => [m.month, m]));
     return months12.map((m) => {
       const x = byMonth.get(m);
-      return (
-        x ?? {
-          month: m,
-          isClosed: false,
-          incomeUsd: 0,
-          baseExpensesUsd: 0,
-          otherExpensesUsd: 0,
-          expensesUsd: 0,
-          investmentEarningsUsd: 0,
-          balanceUsd: 0,
-          netWorthUsd: 0,
-          source: "computed" as const,
-        }
-      );
+      const base = x ?? {
+        month: m,
+        isClosed: false,
+        incomeUsd: 0,
+        baseExpensesUsd: 0,
+        otherExpensesUsd: 0,
+        expensesUsd: 0,
+        investmentEarningsUsd: 0,
+        balanceUsd: 0,
+        netWorthUsd: 0,
+        source: "computed" as const,
+      };
+      const incomeUsd = decryptedIncomeByMonth[m] ?? base.incomeUsd ?? 0;
+      const clientBase = clientExpensesUsdByMonth[m];
+      const serverBase = base.baseExpensesUsd ?? 0;
+      const plannedBase = plannedBaseByMonth[m] ?? 0;
+      // Mes cerrado: usar snapshot. Mes abierto: gastos reales si hay; si no, proyección desde borradores (plannedBase) para que E2EE muestre la suma descifrada en el cliente, no serverBase que puede ser parcial/0
+      const baseExpensesUsd = base.isClosed
+        ? serverBase
+        : (clientBase ?? (plannedBase > 0 ? plannedBase : serverBase));
+      const otherExpensesUsd = decryptedOtherByMonth[m] ?? base.otherExpensesUsd ?? 0;
+      const expensesUsd = base.isClosed ? (base.expensesUsd ?? 0) : baseExpensesUsd + otherExpensesUsd;
+      const investmentEarningsUsd = base.isClosed
+        ? (base.investmentEarningsUsd ?? 0)
+        : (investmentEarningsByMonth[m] ?? base.investmentEarningsUsd ?? 0);
+      const balanceUsd = base.isClosed ? (base.balanceUsd ?? 0) : incomeUsd - expensesUsd + investmentEarningsUsd;
+      return {
+        ...base,
+        incomeUsd,
+        baseExpensesUsd,
+        otherExpensesUsd,
+        expensesUsd,
+        investmentEarningsUsd,
+        balanceUsd,
+      };
     });
-  }, [data]);
+  }, [data, decryptedIncomeByMonth, decryptedOtherByMonth, clientExpensesUsdByMonth, plannedBaseByMonth, investmentEarningsByMonth]);
 
   const netWorthStartSeries = useMemo(() => {
     if (months.length === 0) return [];
@@ -175,14 +520,26 @@ export default function BudgetsPage() {
 
   async function saveOtherExpenses(month: number, value: number) {
     if (!Number.isFinite(value)) return;
-    const payload =
-      otherExpensesCurrency === "UYU"
-        ? { amount: value, currencyId: "UYU" as const, usdUyuRate: otherExpensesRate }
-        : { otherExpensesUsd: value };
+    const valueUsd =
+      otherExpensesCurrency === "UYU" && Number.isFinite(otherExpensesRate) && otherExpensesRate > 0
+        ? value / otherExpensesRate
+        : value;
+    let payload: Record<string, unknown>;
+    if (hasEncryptionSupport) {
+      const enc = await encryptPayload({ otherExpensesUsd: valueUsd });
+      if (enc) payload = { encryptedPayload: enc };
+      else payload = otherExpensesCurrency === "UYU" ? { amount: value, currencyId: "UYU", usdUyuRate: otherExpensesRate } : { otherExpensesUsd: valueUsd };
+    } else {
+      payload =
+        otherExpensesCurrency === "UYU"
+          ? { amount: value, currencyId: "UYU" as const, usdUyuRate: otherExpensesRate }
+          : { otherExpensesUsd: valueUsd };
+    }
     await api(`/budgets/other-expenses/${year}/${month}`, {
       method: "PUT",
       body: JSON.stringify(payload),
     });
+    setDecryptedOtherByMonth((prev) => ({ ...prev, [month]: valueUsd }));
     await load();
   }
 
@@ -320,8 +677,19 @@ export default function BudgetsPage() {
             </thead>
 
             <tbody>
+              {/* Patrimonio (inicio) — primera fila */}
+              <tr className="budgets-tr-networth">
+                <td className="budgets-td-label" style={{ fontWeight: 750 }}>{t("budgets.netWorthStart")}</td>
+                {months.map((m, idx) => (
+                  <td key={`nw-${m.month}`} className={`right ${m.month === currentMonth ? "budgets-td-current" : ""}`} title={t("budgets.startOfMonth")}>
+                    {formatAmountUsd(netWorthStartSeries[idx] ?? 0)}
+                  </td>
+                ))}
+                <td className="right budgets-td-total muted">—</td>
+              </tr>
+
               {/* Income (read-only; edited in Ingresos tab) */}
-              <tr className="budgets-tr-income">
+              <tr className="budgets-tr-income" style={{ backgroundColor: "rgba(15, 23, 42, 0.04)" }}>
                 <td className="budgets-td-label" style={{ fontWeight: 750 }}>
                   <span
                     className="budgets-label-with-hint"
@@ -429,7 +797,7 @@ export default function BudgetsPage() {
               </tr>
 
               {/* Total expenses */}
-              <tr className="budgets-tr-expenses">
+              <tr className="budgets-tr-expenses" style={{ backgroundColor: "rgba(15, 23, 42, 0.04)" }}>
                 <td className="budgets-td-label" style={{ fontWeight: 800 }}>{t("budgets.expensesCol")}</td>
                 {months.map((m) => (
                   <td key={`exp-${m.month}`} className={`right ${m.month === currentMonth ? "budgets-td-current" : ""}`} title={t("budgets.basePlusOther")} style={{ fontWeight: 800 }}>
@@ -442,7 +810,7 @@ export default function BudgetsPage() {
               </tr>
 
               {totals.earnings !== 0 && (
-              <tr className="budgets-tr-earnings">
+              <tr className="budgets-tr-earnings" style={{ backgroundColor: "rgba(15, 23, 42, 0.04)" }}>
                 <td className="budgets-td-label" style={{ fontWeight: 750 }}>{t("budgets.investmentEarnings")}</td>
                 {months.map((m) => (
                   <td key={`earn-${m.month}`} className={`right ${m.month === currentMonth ? "budgets-td-current" : ""}`}
@@ -457,8 +825,8 @@ export default function BudgetsPage() {
               </tr>
               )}
 
-              {/* Balance — separador visual */}
-              <tr className="budgets-tr-balance">
+              {/* Balance — máximo resaltado */}
+              <tr className="budgets-tr-balance" style={{ backgroundColor: "var(--brand-green-light)", borderTop: "2px solid var(--brand-green-border)" }}>
                 <td className="budgets-td-label" style={{ fontWeight: 900 }}>{t("budgets.balance")}</td>
                 {months.map((m) => (
                   <td
@@ -478,20 +846,59 @@ export default function BudgetsPage() {
                   {formatAmountUsd(totals.balance)}
                 </td>
               </tr>
-
-              {/* Net worth (start) */}
-              <tr className="budgets-tr-networth">
-                <td className="budgets-td-label" style={{ fontWeight: 750 }}>{t("budgets.netWorthStart")}</td>
-                {months.map((m, idx) => (
-                  <td key={`nw-${m.month}`} className={`right ${m.month === currentMonth ? "budgets-td-current" : ""}`} title={t("budgets.startOfMonth")}>
-                    {formatAmountUsd(netWorthStartSeries[idx] ?? 0)}
-                  </td>
-                ))}
-                <td className="right budgets-td-total muted">—</td>
-              </tr>
             </tbody>
           </table>
         </div>
+
+        {(budgetsByMonth[currentMonth]?.length ?? 0) > 0 && (
+          <div className="card" style={{ marginTop: 24 }}>
+            <div style={{ fontWeight: 800, marginBottom: 12 }}>{t("budgets.byCategoryTitle")} ({currentMonth})</div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>{t("budgets.byCategoryHint")}</div>
+            <table className="table compact" style={{ fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th>{t("budgets.category")}</th>
+                  <th>{t("budgets.currency")}</th>
+                  <th className="right">{t("budgets.amount")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {budgetsByMonth[currentMonth]?.map((b) => (
+                  <tr key={b.id}>
+                    <td>{b.category?.name ?? b.categoryId}</td>
+                    <td>{b.currencyId}</td>
+                    <td className="right">
+                      {b._decryptFailed ? (
+                        <span className="muted" title={t("common.unavailable")}>—</span>
+                      ) : (
+                        <input
+                          className="input compact"
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={b.amount}
+                          onChange={(e) => {
+                            const v = Number(e.target.value);
+                            if (!Number.isFinite(v) || v < 0) return;
+                            setBudgetsByMonth((prev) => ({
+                              ...prev,
+                              [currentMonth]: (prev[currentMonth] ?? []).map((x) => (x.id === b.id ? { ...x, amount: v } : x)),
+                            }));
+                          }}
+                          onBlur={(e) => {
+                            const v = Number((e.target as HTMLInputElement).value);
+                            if (Number.isFinite(v) && v >= 0 && v !== b.amount) saveBudgetAmount(b, v);
+                          }}
+                          style={{ width: 100, textAlign: "right" }}
+                        />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <div className="budgets-tip" style={{ marginTop: 16 }}>
           {t("budgets.tipBaseExpenses")}
@@ -535,13 +942,14 @@ export default function BudgetsPage() {
           .budgets-page .budgets-table tbody tr:nth-child(even) td:not(.budgets-td-label) {
             background: rgba(15,23,42,0.03);
           }
-          /* Mes actual: como Patrimonio (★ + var(--bg)) */
-          .budgets-page .budgets-th-current {
-            background: var(--bg) !important;
-            font-weight: 700;
+          /* Gastos base y Otros gastos: mismo fondo */
+          .budgets-page .budgets-tr-base td:not(.budgets-td-label),
+          .budgets-page .budgets-tr-other td:not(.budgets-td-label) {
+            background: rgba(15,23,42,0.025);
           }
-          .budgets-page .budgets-td-current {
-            background: var(--bg) !important;
+          /* Mes actual */
+          .budgets-page .budgets-th-current {
+            font-weight: 700;
           }
           .budgets-page .budgets-th-total {
             background: rgba(15,23,42,0.05) !important;

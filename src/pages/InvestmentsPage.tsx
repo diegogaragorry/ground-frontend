@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { APP_BASE } from "../constants";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
+import { useEncryption } from "../context/EncryptionContext";
 import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
 import { downloadCsv } from "../utils/exportCsv";
 import { getFxDefault } from "../utils/fx";
@@ -25,6 +26,9 @@ type SnapshotMonth = {
   closingCapital: number | null;
   closingCapitalUsd: number | null;
   isClosed: boolean;
+  encryptedPayload?: string;
+  /** true cuando se descifró y el valor es realmente 0 (no “aún sin descifrar”) */
+  _decryptedZero?: boolean;
 };
 
 type MovementApiRow = {
@@ -34,6 +38,7 @@ type MovementApiRow = {
   investmentId: string;
   currencyId: string;
   amount: number;
+  encryptedPayload?: string;
   investment?: { id: string; name: string; type: string } | null;
   currency?: { id: string; name: string } | null;
 };
@@ -49,6 +54,7 @@ type MovementRow = {
   currencyId: string;
   amount: number;
   note?: string | null;
+  _decryptFailed?: boolean;
 };
 
 type MonthCloseRow = { year: number; month: number };
@@ -67,7 +73,7 @@ function firstDayUtc(year: number, month: number) {
   return new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
 }
 
-function normalizeMovement(x: MovementApiRow): MovementRow {
+function normalizeMovement(x: MovementApiRow & { _decryptFailed?: boolean }): MovementRow {
   return {
     id: x.id,
     date: x.date,
@@ -78,6 +84,7 @@ function normalizeMovement(x: MovementApiRow): MovementRow {
     type: x.type,
     currencyId: x.currencyId,
     amount: x.amount ?? 0,
+    _decryptFailed: x._decryptFailed,
   };
 }
 
@@ -100,11 +107,13 @@ function parseReturnInputToDecimal(raw: string) {
 
 export default function InvestmentsPage() {
   const nav = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation();
 
   const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess, serverFxRate } = useAppShell();
   const { year, month: currentMonth } = useAppYearMonth();
   const { formatAmountUsd, currencyLabel } = useDisplayCurrency();
+  const { decryptPayload, encryptPayload } = useEncryption();
   const usdUyuRate = serverFxRate ?? getFxDefault();
 
   // scroll targets for onboarding
@@ -140,6 +149,9 @@ export default function InvestmentsPage() {
   const [editNameId, setEditNameId] = useState<string | null>(null);
   const [editNameDraft, setEditNameDraft] = useState("");
 
+  // which snapshot cell is being edited (controlled inputs so projected values always show)
+  const [editingCell, setEditingCell] = useState<{ invId: string; month: number; value: string } | null>(null);
+
   // closed months (only for snapshots/movements edits)
   const [closedMonths, setClosedMonths] = useState<Set<number>>(new Set());
   const isClosed = (m: number) => closedMonths.has(m);
@@ -162,13 +174,57 @@ export default function InvestmentsPage() {
 
       const snaps: Record<string, SnapshotMonth[]> = {};
       for (const inv of invs) {
-        const r = await api<{ months: SnapshotMonth[] }>(`/investments/${inv.id}/snapshots?year=${year}`);
-        snaps[inv.id] = r.months;
+        const r = await api<{ months?: SnapshotMonth[]; data?: { months?: SnapshotMonth[] } }>(`/investments/${inv.id}/snapshots?year=${year}`);
+        const raw = (r.months ?? r.data?.months ?? []).slice();
+        const months = await Promise.all(
+          raw.map(async (s) => {
+            if (s.encryptedPayload) {
+              const pl = await decryptPayload<{ closingCapital?: number; closingCapitalUsd?: number }>(s.encryptedPayload);
+              if (pl != null) {
+                const cap = pl.closingCapital ?? null;
+                const capUsd = typeof pl.closingCapitalUsd === "number" ? pl.closingCapitalUsd : (typeof pl.closingCapital === "number" ? pl.closingCapital : null);
+                const isZero = (cap === 0 || cap === null) && (capUsd === 0 || capUsd === null);
+                return { ...s, closingCapital: cap, closingCapitalUsd: capUsd, _decryptedZero: isZero };
+              }
+              return { ...s, closingCapital: null, closingCapitalUsd: null, _decryptFailed: true };
+            }
+            return s;
+          })
+        );
+        // Garantizar orden por mes (1..12) y siempre 12 elementos para que snaps[i] = mes i+1
+        months.sort((a, b) => (Number(a.month) ?? 99) - (Number(b.month) ?? 99));
+        const filled: SnapshotMonth[] = [];
+        for (let i = 0; i < 12; i++) {
+          const monthNum = i + 1;
+          const existing = months.find((x) => Number(x.month) === monthNum);
+          filled.push(
+            existing ?? {
+              id: null,
+              investmentId: inv.id,
+              year,
+              month: monthNum,
+              closingCapital: null,
+              closingCapitalUsd: null,
+              isClosed: false,
+            }
+          );
+        }
+        snaps[inv.id] = filled;
       }
       setSnapshots(snaps);
 
       const mov = await api<{ year: number; rows: MovementApiRow[] }>(`/investments/movements?year=${year}`);
-      setMovements((mov.rows ?? []).map(normalizeMovement));
+      const rows = await Promise.all(
+        (mov.rows ?? []).map(async (r) => {
+          if (r.encryptedPayload) {
+            const pl = await decryptPayload<{ amount?: number }>(r.encryptedPayload);
+            if (pl != null && typeof pl.amount === "number") return { ...r, amount: pl.amount };
+            return { ...r, amount: 0, _decryptFailed: true };
+          }
+          return r;
+        })
+      );
+      setMovements(rows.map(normalizeMovement));
 
       await loadMonthCloses();
     } catch (e: any) {
@@ -178,15 +234,41 @@ export default function InvestmentsPage() {
     }
   }
 
+  // Recargar al montar, al cambiar año o al volver a esta pantalla (p. ej. tras reabrir un mes en Admin)
   useEffect(() => {
-    load();
+    const path = location.pathname;
+    if (path === `${APP_BASE}/investments` || path.endsWith("/investments")) {
+      load();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [year]);
+  }, [year, location.pathname]);
 
-  function snapsByMonth(snaps: SnapshotMonth[]) {
-    const map: Record<number, SnapshotMonth | undefined> = {};
-    for (const s of snaps) map[s.month] = s;
-    return map;
+  /** Garantiza 12 elementos con snaps[i] = mes i+1 para que snapAt y la proyección sean por índice. */
+  function getSnapsForInv(inv: Investment): SnapshotMonth[] {
+    const r = snapshots[inv.id] ?? [];
+    if (r.length === 12 && r.every((s, i) => Number(s.month) === i + 1)) return r;
+    const out: SnapshotMonth[] = [];
+    for (let i = 0; i < 12; i++) {
+      const monthNum = i + 1;
+      out.push(
+        r.find((x) => Number(x.month) === monthNum) ?? {
+          id: null,
+          investmentId: inv.id,
+          year,
+          month: monthNum,
+          closingCapital: null,
+          closingCapitalUsd: null,
+          isClosed: false,
+        }
+      );
+    }
+    return out;
+  }
+
+  /** Backend returns months in order: snaps[i] = month i+1. Use index as source of truth. */
+  function snapAt(snaps: SnapshotMonth[], m: number): SnapshotMonth | undefined {
+    const idx = m - 1;
+    return idx >= 0 && idx < snaps.length ? snaps[idx] : undefined;
   }
 
   function monthlyFactor(inv: Investment) {
@@ -199,74 +281,85 @@ export default function InvestmentsPage() {
     return 1;
   }
 
-  function capitalUsdPortfolio(inv: Investment, snaps: SnapshotMonth[], m: number) {
-    const byM = snapsByMonth(snaps);
-    const s = byM[m];
-    if (s?.closingCapitalUsd != null) return s.closingCapitalUsd;
-
-    let baseMonth: number | null = null;
-    let baseValue: number | null = null;
-    for (let i = m - 1; i >= 1; i--) {
-      const prev = byM[i];
-      if (prev?.closingCapitalUsd != null) {
-        baseMonth = i;
-        baseValue = prev.closingCapitalUsd;
-        break;
-      }
-    }
-    if (baseMonth == null || baseValue == null) return 0;
-
-    const start = Math.max(yieldStartMonthForYear(inv), baseMonth);
-    const diff = m - start;
-    if (diff <= 0) return baseValue;
-
-    return baseValue * Math.pow(monthlyFactor(inv), diff);
+  /** Valor en USD para proyección. Si tiene encryptedPayload + ambos 0 y NO es “decryptedZero”, es cifrado sin descifrar → null para arrastrar. */
+  function valueUsd(snap: SnapshotMonth | undefined, currencyId: string): number | null {
+    if (!snap) return null;
+    const hasEncrypted = !!snap.encryptedPayload;
+    const bothZero = snap.closingCapitalUsd === 0 && snap.closingCapital === 0;
+    if (hasEncrypted && bothZero && !snap._decryptedZero) return null;
+    if (snap.id === null && bothZero) return null;
+    if (snap.closingCapitalUsd != null && typeof snap.closingCapitalUsd === "number") return snap.closingCapitalUsd;
+    if (currencyId === "USD" && snap.closingCapital != null && typeof snap.closingCapital === "number") return snap.closingCapital;
+    return null;
   }
 
-  function capitalUsdAccountCarry(_inv: Investment, snaps: SnapshotMonth[], m: number) {
-    const byM = snapsByMonth(snaps);
-    const s = byM[m];
-    if (s?.closingCapitalUsd != null) return s.closingCapitalUsd;
+  function capitalUsdPortfolio(inv: Investment, snaps: SnapshotMonth[], m: number) {
+    const s = snapAt(snaps, m);
+    const direct = valueUsd(s, inv.currencyId ?? "USD");
+    if (direct != null) return direct;
 
-    for (let i = m - 1; i >= 1; i--) {
-      const prev = byM[i];
-      if (prev?.closingCapitalUsd != null) return prev.closingCapitalUsd;
+    for (let i = m - 2; i >= 0; i--) {
+      const prevVal = valueUsd(snaps[i], inv.currencyId ?? "USD");
+      if (prevVal != null) {
+        const start = Math.max(yieldStartMonthForYear(inv), i + 1);
+        const diff = m - start;
+        if (diff <= 0) return prevVal;
+        return prevVal * Math.pow(monthlyFactor(inv), diff);
+      }
+    }
+    return 0;
+  }
+
+  function capitalUsdAccountCarry(inv: Investment, snaps: SnapshotMonth[], m: number) {
+    const s = snapAt(snaps, m);
+    const direct = valueUsd(s, inv.currencyId ?? "USD");
+    if (direct != null) return direct;
+
+    for (let i = m - 2; i >= 0; i--) {
+      const prevVal = valueUsd(snaps[i], inv.currencyId ?? "USD");
+      if (prevVal != null) return prevVal;
     }
     return 0;
   }
 
   function capitalOrigPortfolio(inv: Investment, snaps: SnapshotMonth[], m: number) {
-    const byM = snapsByMonth(snaps);
-    const s = byM[m];
-    if (s?.closingCapital != null) return s.closingCapital;
+    const s = snapAt(snaps, m);
+    if (hasRealValue(s)) return (s!.closingCapital != null ? s!.closingCapital : s!.closingCapitalUsd) ?? null;
 
-    let baseMonth: number | null = null;
-    let baseValue: number | null = null;
-    for (let i = m - 1; i >= 1; i--) {
-      const prev = byM[i];
-      if (prev?.closingCapital != null) {
-        baseMonth = i;
-        baseValue = prev.closingCapital;
-        break;
-      }
+    const currencyId = inv.currencyId ?? "USD";
+    for (let i = m - 2; i >= 0; i--) {
+      const prevValUsd = valueUsd(snaps[i], currencyId);
+      if (prevValUsd == null) continue;
+      const prev = snaps[i]!;
+      const val = prev.closingCapital ?? prev.closingCapitalUsd ?? null;
+      if (val == null) continue;
+      const start = Math.max(yieldStartMonthForYear(inv), i + 1);
+      const diff = m - start;
+      if (diff <= 0) return val;
+      return val * Math.pow(monthlyFactor(inv), diff);
     }
-    if (baseMonth == null || baseValue == null) return null;
-
-    const start = Math.max(yieldStartMonthForYear(inv), baseMonth);
-    const diff = m - start;
-    if (diff <= 0) return baseValue;
-
-    return baseValue * Math.pow(monthlyFactor(inv), diff);
+    return null;
   }
 
-  function capitalOrigAccountCarry(_inv: Investment, snaps: SnapshotMonth[], m: number) {
-    const byM = snapsByMonth(snaps);
-    const s = byM[m];
-    if (s?.closingCapital != null) return s.closingCapital;
+  /** Si tiene encryptedPayload + ambos 0 y NO es _decryptedZero, es cifrado sin descifrar → no usar para arrastre. Si es _decryptedZero, el valor es realmente 0. Placeholder (id null + ambos 0) no es valor real. */
+  function hasRealValue(snap: SnapshotMonth | undefined): boolean {
+    if (!snap) return false;
+    if (snap.encryptedPayload && snap.closingCapital === 0 && snap.closingCapitalUsd === 0 && !snap._decryptedZero) return false;
+    if (snap.id === null && snap.closingCapital === 0 && snap.closingCapitalUsd === 0) return false;
+    return snap.closingCapital != null || snap.closingCapitalUsd != null;
+  }
 
-    for (let i = m - 1; i >= 1; i--) {
-      const prev = byM[i];
-      if (prev?.closingCapital != null) return prev.closingCapital;
+  function capitalOrigAccountCarry(inv: Investment, snaps: SnapshotMonth[], m: number) {
+    const s = snapAt(snaps, m);
+    if (hasRealValue(s)) return (s!.closingCapital != null ? s!.closingCapital : s!.closingCapitalUsd) ?? null;
+
+    const currencyId = inv.currencyId ?? "USD";
+    for (let i = m - 2; i >= 0; i--) {
+      const prevValUsd = valueUsd(snaps[i], currencyId);
+      if (prevValUsd == null) continue;
+      const prev = snaps[i]!;
+      if (prev.closingCapital != null) return prev.closingCapital;
+      if (prev.closingCapitalUsd != null) return prev.closingCapitalUsd;
     }
     return null;
   }
@@ -278,19 +371,26 @@ export default function InvestmentsPage() {
       return;
     }
     setError("");
-    const body: { closingCapital: number; usdUyuRate?: number } = { closingCapital: value };
-    if (inv.currencyId === "UYU" && Number.isFinite(usdUyuRate) && usdUyuRate > 0) {
-      body.usdUyuRate = usdUyuRate;
-    }
+    const capitalUsd = inv.currencyId === "UYU" && Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? value / usdUyuRate : value;
+    const enc = await encryptPayload({ closingCapital: value, closingCapitalUsd: capitalUsd });
+    const body: Record<string, unknown> = enc
+      ? { encryptedPayload: enc, closingCapital: 0, usdUyuRate: inv.currencyId === "UYU" ? usdUyuRate : undefined }
+      : { closingCapital: value, ...(inv.currencyId === "UYU" && Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? { usdUyuRate } : {}) };
     try {
       const snap = await api<SnapshotMonth>(`/investments/${inv.id}/snapshots/${year}/${m}`, {
         method: "PUT",
         body: JSON.stringify(body),
       });
-
+      // Al guardar, el API puede devolver 0/null por E2EE; marcar valor real 0 para que no se muestre proyección
+      const merged: SnapshotMonth = {
+        ...snap,
+        closingCapital: value,
+        closingCapitalUsd: capitalUsd,
+        _decryptedZero: value === 0 && (capitalUsd === 0 || !Number.isFinite(capitalUsd)),
+      };
       setSnapshots((prev) => ({
         ...prev,
-        [inv.id]: (prev[inv.id] ?? []).map((x) => (x.month === m ? snap : x)),
+        [inv.id]: (prev[inv.id] ?? []).map((x) => (x.month === m ? merged : x)),
       }));
       showSuccess("Snapshot saved.");
       await load();
@@ -327,8 +427,41 @@ export default function InvestmentsPage() {
         body: JSON.stringify({ currencyId: id }),
       });
       setInvestments((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
-      const r = await api<{ months: SnapshotMonth[] }>(`/investments/${inv.id}/snapshots?year=${year}`);
-      setSnapshots((prev) => ({ ...prev, [inv.id]: r.months }));
+      const r = await api<{ months?: SnapshotMonth[]; data?: { months?: SnapshotMonth[] } }>(`/investments/${inv.id}/snapshots?year=${year}`);
+      const raw = (r.months ?? r.data?.months ?? []).slice();
+      const decrypted = await Promise.all(
+        raw.map(async (s) => {
+          if (s.encryptedPayload) {
+            const pl = await decryptPayload<{ closingCapital?: number; closingCapitalUsd?: number }>(s.encryptedPayload);
+            if (pl != null) {
+              const cap = pl.closingCapital ?? null;
+              const capUsd = typeof pl.closingCapitalUsd === "number" ? pl.closingCapitalUsd : (typeof pl.closingCapital === "number" ? pl.closingCapital : null);
+              const isZero = (cap === 0 || cap === null) && (capUsd === 0 || capUsd === null);
+              return { ...s, closingCapital: cap, closingCapitalUsd: capUsd, _decryptedZero: isZero };
+            }
+            return { ...s, closingCapital: null, closingCapitalUsd: null, _decryptFailed: true };
+          }
+          return s;
+        })
+      );
+      decrypted.sort((a, b) => (Number(a.month) ?? 99) - (Number(b.month) ?? 99));
+      const filled: SnapshotMonth[] = [];
+      for (let i = 0; i < 12; i++) {
+        const monthNum = i + 1;
+        const existing = decrypted.find((x) => Number(x.month) === monthNum);
+        filled.push(
+          existing ?? {
+            id: null,
+            investmentId: inv.id,
+            year,
+            month: monthNum,
+            closingCapital: null,
+            closingCapitalUsd: null,
+            isClosed: false,
+          }
+        );
+      }
+      setSnapshots((prev) => ({ ...prev, [inv.id]: filled }));
       showSuccess(t("common.saved"));
     } catch (e: any) {
       setError(e?.message ?? t("investments.errorSavingTargetReturn"));
@@ -336,7 +469,7 @@ export default function InvestmentsPage() {
   }
 
   function investmentHasClosedMonthsWithAmount(inv: Investment): boolean {
-    const snaps = snapshots[inv.id] ?? [];
+    const snaps = getSnapsForInv(inv);
     return snaps.some(
       (s) =>
         s.isClosed &&
@@ -387,13 +520,13 @@ export default function InvestmentsPage() {
 
   // NET WORTH
   const portfolioNetWorthByMonthUsd = useMemo(
-    () => months.map((m) => portfolios.reduce((acc, inv) => acc + capitalUsdPortfolio(inv, snapshots[inv.id] ?? [], m), 0)),
-    [portfolios, snapshots]
+    () => months.map((m) => portfolios.reduce((acc, inv) => acc + capitalUsdPortfolio(inv, getSnapsForInv(inv), m), 0)),
+    [portfolios, snapshots, year]
   );
 
   const accountsNetWorthByMonthUsd = useMemo(
-    () => months.map((m) => accounts.reduce((acc, inv) => acc + capitalUsdAccountCarry(inv, snapshots[inv.id] ?? [], m), 0)),
-    [accounts, snapshots]
+    () => months.map((m) => accounts.reduce((acc, inv) => acc + capitalUsdAccountCarry(inv, getSnapsForInv(inv), m), 0)),
+    [accounts, snapshots, year]
   );
 
   const totalNetWorthByMonthUsd = useMemo(
@@ -406,7 +539,7 @@ export default function InvestmentsPage() {
     const nw = portfolioNetWorthByMonthUsd;
 
     const projectedNextJan = portfolios.reduce((acc, inv) => {
-      const decCap = capitalUsdPortfolio(inv, snapshots[inv.id] ?? [], 12);
+      const decCap = capitalUsdPortfolio(inv, getSnapsForInv(inv), 12);
       return acc + decCap * monthlyFactor(inv);
     }, 0);
 
@@ -414,7 +547,7 @@ export default function InvestmentsPage() {
       if (m < 12) return (nw[i + 1] ?? 0) - (nw[i] ?? 0);
       return projectedNextJan - (nw[11] ?? 0);
     });
-  }, [portfolioNetWorthByMonthUsd, portfolios, snapshots]);
+  }, [portfolioNetWorthByMonthUsd, portfolios, snapshots, year]);
 
   // MOVEMENTS FLOWS (PORTFOLIO) — USD + UYU converted to USD
   const flows = useMemo(() => {
@@ -448,11 +581,6 @@ export default function InvestmentsPage() {
     [portfolioMonthlyVariation, flows.series]
   );
 
-  const totalNetWorthMonthlyVariation = useMemo(() => {
-    const total = totalNetWorthByMonthUsd;
-    return months.map((_, i) => (i >= 1 ? (total[i] ?? 0) - (total[i - 1] ?? 0) : null));
-  }, [totalNetWorthByMonthUsd]);
-
   function movementTypeLabel(type: string) {
     if (type === "deposit") return t("investments.deposit");
     if (type === "withdrawal") return t("investments.withdrawal");
@@ -475,7 +603,7 @@ export default function InvestmentsPage() {
       mv.investmentName ?? mv.investmentId ?? "",
       movementTypeLabel(mv.type),
       mv.currencyId ?? "USD",
-      mv.amount ?? 0,
+      mv._decryptFailed ? "—" : (mv.amount ?? 0),
     ]);
     downloadCsv(`movimientos-inversiones-${year}`, headers, rows);
   }
@@ -488,16 +616,20 @@ export default function InvestmentsPage() {
     }
     setError("");
     const date = firstDayUtc(year, draft.month).toISOString();
+    const amount = Number(draft.amount) || 0;
+    const enc = await encryptPayload({ amount });
+    const body: Record<string, unknown> = {
+      investmentId: draft.investmentId,
+      date,
+      type: draft.type,
+      currencyId: (draft.currencyId ?? "USD").trim().toUpperCase(),
+      amount: enc ? 0 : amount,
+      ...(enc ? { encryptedPayload: enc } : {}),
+    };
     try {
       const created = await api<MovementApiRow>("/investments/movements", {
         method: "POST",
-        body: JSON.stringify({
-          investmentId: draft.investmentId,
-          date,
-          type: draft.type,
-          currencyId: (draft.currencyId ?? "USD").trim().toUpperCase(),
-          amount: Number(draft.amount) || 0,
-        }),
+        body: JSON.stringify(body),
       });
 
       setMovements((prev) => [normalizeMovement(created), ...prev]);
@@ -514,16 +646,19 @@ export default function InvestmentsPage() {
       return;
     }
     setError("");
+    const enc = await encryptPayload({ amount: updated.amount });
+    const body: Record<string, unknown> = {
+      investmentId: updated.investmentId,
+      date: updated.date,
+      type: updated.type,
+      currencyId: updated.currencyId,
+      amount: enc ? 0 : updated.amount,
+      ...(enc ? { encryptedPayload: enc } : {}),
+    };
     try {
       const res = await api<MovementApiRow>(`/investments/movements/${updated.id}`, {
         method: "PUT",
-        body: JSON.stringify({
-          investmentId: updated.investmentId,
-          date: updated.date,
-          type: updated.type,
-          currencyId: updated.currencyId,
-          amount: updated.amount,
-        }),
+        body: JSON.stringify(body),
       });
 
       const normalized = normalizeMovement(res);
@@ -716,19 +851,6 @@ export default function InvestmentsPage() {
                 ))}
               </tr>
 
-              <tr>
-                <td style={{ ...tdStyle }}>{t("investments.monthlyVariationTotal")}</td>
-                {months.map((m, i) => (
-                  <td
-                    key={`sum-var-${m}`}
-                    className="right"
-                    style={{ ...tdStyle, ...(m === currentMonth ? { background: "var(--bg)" } : {}) }}
-                  >
-                    {totalNetWorthMonthlyVariation[i] != null ? formatAmountUsd(totalNetWorthMonthlyVariation[i]!) : "—"}
-                  </td>
-                ))}
-              </tr>
-
               {portfolios.length > 0 && (
                 <tr>
                   <td style={{ ...tdStyle }}>{t("investments.realReturnsPortfolioLabel")}</td>
@@ -779,8 +901,7 @@ export default function InvestmentsPage() {
 
             <tbody>
               {accounts.map((inv) => {
-                const snaps = snapshots[inv.id] ?? [];
-                const byM = snapsByMonth(snaps);
+                const snaps = getSnapsForInv(inv);
                 const isEditingName = editNameId === inv.id;
                 const hasClosedWithAmount = investmentHasClosedMonthsWithAmount(inv);
 
@@ -855,11 +976,13 @@ export default function InvestmentsPage() {
                     </td>
 
                     {months.map((m) => {
-                      const s = byM[m];
+                      const s = snapAt(snaps, m);
                       const hasReal = s?.closingCapital != null;
                       const display = capitalOrigAccountCarry(inv, snaps, m);
                       const prevMonthClosed = m >= 2 && isClosed(m - 1);
                       const locked = isClosed(m) || prevMonthClosed;
+                      const isEditing = editingCell?.invId === inv.id && editingCell?.month === m;
+                      const inputValue = isEditing ? editingCell!.value : (display == null ? "" : String(Math.round(display)));
 
                       return (
                         <td key={`a-${inv.id}-${m}`} className="right" style={tdStyle}>
@@ -868,12 +991,14 @@ export default function InvestmentsPage() {
                             style={{ ...inputStyle, opacity: locked ? 0.6 : hasReal ? 1 : 0.75 }}
                             disabled={locked}
                             title={locked ? t("investments.closedMonth") : undefined}
-                            defaultValue={display == null ? "" : String(Math.round(display))}
-                            onBlur={(e) => {
+                            value={inputValue}
+                            onFocus={() => setEditingCell({ invId: inv.id, month: m, value: display == null ? "" : String(Math.round(display)) })}
+                            onChange={(e) => setEditingCell((prev) => (prev && prev.invId === inv.id && prev.month === m ? { ...prev, value: e.target.value } : prev))}
+                            onBlur={() => {
                               if (locked) return;
-                              const raw = (e.target as HTMLInputElement).value.trim();
-                              if (!raw) return;
-                              saveCell(inv, m, Number(raw));
+                              const raw = inputValue.trim();
+                              if (raw) saveCell(inv, m, Number(raw));
+                              setEditingCell(null);
                             }}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -1012,9 +1137,7 @@ export default function InvestmentsPage() {
 
             <tbody>
               {portfolios.map((inv) => {
-                const snaps = snapshots[inv.id] ?? [];
-                const byM = snapsByMonth(snaps);
-
+                const snaps = getSnapsForInv(inv);
                 const isEditingName = editNameId === inv.id;
                 const hasClosedWithAmount = investmentHasClosedMonthsWithAmount(inv);
                 return (
@@ -1126,11 +1249,13 @@ export default function InvestmentsPage() {
                     </td>
 
                     {months.map((m) => {
-                      const s = byM[m];
+                      const s = snapAt(snaps, m);
                       const hasReal = s?.closingCapital != null;
                       const display = capitalOrigPortfolio(inv, snaps, m);
                       const prevMonthClosed = m >= 2 && isClosed(m - 1);
                       const locked = isClosed(m) || prevMonthClosed;
+                      const isEditing = editingCell?.invId === inv.id && editingCell?.month === m;
+                      const inputValue = isEditing ? editingCell!.value : (display == null ? "" : String(Math.round(display)));
 
                       return (
                         <td key={`p-${inv.id}-${m}`} style={{ ...tdStyle, textAlign: "center", verticalAlign: "middle" }}>
@@ -1139,12 +1264,14 @@ export default function InvestmentsPage() {
                             style={{ ...inputStyle, opacity: locked ? 0.6 : hasReal ? 1 : 0.75 }}
                             disabled={locked}
                             title={locked ? t("investments.closedMonth") : undefined}
-                            defaultValue={display == null ? "" : String(Math.round(display))}
-                            onBlur={(e) => {
+                            value={inputValue}
+                            onFocus={() => setEditingCell({ invId: inv.id, month: m, value: display == null ? "" : String(Math.round(display)) })}
+                            onChange={(e) => setEditingCell((prev) => (prev && prev.invId === inv.id && prev.month === m ? { ...prev, value: e.target.value } : prev))}
+                            onBlur={() => {
                               if (locked) return;
-                              const raw = (e.target as HTMLInputElement).value.trim();
-                              if (!raw) return;
-                              saveCell(inv, m, Number(raw));
+                              const raw = inputValue.trim();
+                              if (raw) saveCell(inv, m, Number(raw));
+                              setEditingCell(null);
                             }}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") (e.target as HTMLInputElement).blur();

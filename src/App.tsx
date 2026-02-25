@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom";
 import { AppShell, AppShellProvider } from "./layout/AppShell";
+import { EncryptionProvider } from "./context/EncryptionContext";
 import { APP_BASE } from "./constants";
 
 import LandingPage from "./pages/LandingPage";
@@ -14,6 +15,7 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
+import AccountPage from "./pages/AccountPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem("token");
@@ -33,6 +35,7 @@ function ShellLayout() {
 
 export default function App() {
   return (
+    <EncryptionProvider>
     <BrowserRouter>
       <Routes>
         {/* PUBLIC */}
@@ -56,6 +59,7 @@ export default function App() {
           <Route path="investments" element={<InvestmentsPage />} />
           <Route path="budgets" element={<BudgetsPage />} />
           <Route path="admin" element={<AdminPage />} />
+          <Route path="account" element={<AccountPage />} />
           <Route path="help" element={<HelpPage />} />
         </Route>
 
@@ -63,5 +67,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </EncryptionProvider>
   );
 }

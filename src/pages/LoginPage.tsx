@@ -4,28 +4,27 @@ import { Link } from "react-router-dom";
 import { APP_BASE } from "../constants";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
+import { useEncryption } from "../context/EncryptionContext";
+import { deriveEncryptionKey } from "../utils/crypto";
 import "../styles/auth.css";
 
-type LoginResp = {
-  token?: string;
-  accessToken?: string;
-  jwt?: string;
-  data?: { token?: string; accessToken?: string; jwt?: string };
-};
+type LoginUser = { id: string; email: string; role: string; encryptionSalt?: string; recoveryEnabled?: boolean; encryptionKey?: string };
+type LoginResp = { token?: string; user?: LoginUser } & Record<string, unknown>;
 
-function pickToken(r: LoginResp | any): string | null {
-  const t = r?.token ?? r?.accessToken ?? r?.jwt ?? r?.data?.token ?? r?.data?.accessToken ?? r?.data?.jwt;
+function pickToken(r: LoginResp): string | null {
+  const t = r?.token ?? (r as any)?.accessToken ?? (r as any)?.jwt;
   return typeof t === "string" && t.trim() ? t.trim() : null;
 }
 
-async function tryLogin(email: string, password: string): Promise<string> {
+async function tryLogin(email: string, password: string): Promise<{ token: string; user: LoginUser | undefined }> {
   const resp = await api<LoginResp>("/auth/login", {
     method: "POST",
     body: JSON.stringify({ email, password }),
   });
   const token = pickToken(resp);
   if (!token) throw new Error("Login succeeded but token missing");
-  return token;
+  const user = resp?.user as LoginUser | undefined;
+  return { token, user };
 }
 
 type ForgotStep = null | "email" | "code";
@@ -33,6 +32,7 @@ type ForgotStep = null | "email" | "code";
 export default function LoginPage() {
   const nav = useNavigate();
   const { t, i18n } = useTranslation();
+  const { setEncryptionKey } = useEncryption();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -43,9 +43,11 @@ export default function LoginPage() {
   const [forgotStep, setForgotStep] = useState<ForgotStep>(null);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotCode, setForgotCode] = useState("");
+  const [forgotPhoneCode, setForgotPhoneCode] = useState("");
   const [forgotNewPassword, setForgotNewPassword] = useState("");
   const [forgotSuccess, setForgotSuccess] = useState(false);
   const [forgotInfo, setForgotInfo] = useState("");
+  const [forgotUseRecovery, setForgotUseRecovery] = useState(false);
 
   useEffect(() => {
     const t = localStorage.getItem("token");
@@ -57,7 +59,19 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      const token = await tryLogin(email.trim().toLowerCase(), password);
+      const { token, user } = await tryLogin(email.trim().toLowerCase(), password);
+      if (user?.encryptionKey) {
+        setEncryptionKey(user.encryptionKey);
+      } else if (user?.encryptionSalt) {
+        try {
+          const k = await deriveEncryptionKey(password, user.encryptionSalt);
+          setEncryptionKey(k);
+        } catch {
+          setEncryptionKey(null);
+        }
+      } else {
+        setEncryptionKey(null);
+      }
       localStorage.setItem("token", token);
       nav(APP_BASE, { replace: true });
     } catch (e: any) {
@@ -68,24 +82,37 @@ export default function LoginPage() {
     }
   }
 
-  async function onForgotSendCode(e: React.FormEvent) {
+  async function onForgotSendRecoveryCodes(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     const em = forgotEmail.trim().toLowerCase();
     if (!em) return setError(t("login.emailRequired"));
     setLoading(true);
     try {
-      const res = await api<{ ok?: boolean; alreadySent?: boolean }>("/auth/forgot-password/request-code", {
+      const data = await api<{ ok?: boolean; emailOnly?: boolean }>("/auth/recovery/request", {
         method: "POST",
         body: JSON.stringify({ email: em }),
       });
+      setForgotUseRecovery(!data?.emailOnly);
       setForgotStep("code");
-      if (res.alreadySent) {
-        setError("");
-        setForgotInfo("A code was already sent. Check your inbox (and spam).");
-      } else {
-        setForgotInfo("");
-      }
+      setForgotInfo(data?.emailOnly ? t("login.emailOnlySubtitle") : t("login.recoverySubtitle"));
+    } catch (err: any) {
+      setError(err?.message ?? t("login.failedToSendCode"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function sendLegacyForgotCode() {
+    setError("");
+    const em = forgotEmail.trim().toLowerCase();
+    if (!em) return setError(t("login.emailRequired"));
+    setLoading(true);
+    try {
+      await api("/auth/forgot-password/request-code", { method: "POST", body: JSON.stringify({ email: em }) });
+      setForgotUseRecovery(false);
+      setForgotStep("code");
+      setForgotInfo("");
     } catch (err: any) {
       setError(err?.message ?? t("login.failedToSendCode"));
     } finally {
@@ -98,17 +125,37 @@ export default function LoginPage() {
     setError("");
     const em = forgotEmail.trim().toLowerCase();
     if (!em || !forgotCode.trim()) return setError(t("login.emailAndCodeRequired"));
+    if (forgotUseRecovery && !forgotPhoneCode.trim()) return setError(t("account.codeRequired"));
     if (forgotNewPassword.length < 8) return setError(t("login.passwordMinLength"));
     setLoading(true);
     try {
-      await api("/auth/forgot-password/verify", {
-        method: "POST",
-        body: JSON.stringify({
-          email: em,
-          code: forgotCode.trim(),
-          newPassword: forgotNewPassword,
-        }),
-      });
+      if (forgotUseRecovery) {
+        const verifyRes = await api<{ recoveryToken: string; encryptionKey: string }>("/auth/recovery/verify", {
+          method: "POST",
+          body: JSON.stringify({
+            email: em,
+            emailCode: forgotCode.trim(),
+            phoneCode: forgotPhoneCode.trim(),
+          }),
+        });
+        await api("/auth/recovery/set-password", {
+          method: "POST",
+          body: JSON.stringify({
+            recoveryToken: verifyRes.recoveryToken,
+            newPassword: forgotNewPassword,
+            newRecoveryPackage: verifyRes.encryptionKey,
+          }),
+        });
+      } else {
+        await api("/auth/forgot-password/verify", {
+          method: "POST",
+          body: JSON.stringify({
+            email: em,
+            code: forgotCode.trim(),
+            newPassword: forgotNewPassword,
+          }),
+        });
+      }
       setForgotSuccess(true);
     } catch (err: any) {
       setError(err?.message ?? t("login.failedToResetPassword"));
@@ -121,9 +168,11 @@ export default function LoginPage() {
     setForgotStep("email");
     setForgotEmail("");
     setForgotCode("");
+    setForgotPhoneCode("");
     setForgotNewPassword("");
     setForgotSuccess(false);
     setForgotInfo("");
+    setForgotUseRecovery(false);
     setError("");
   }
 
@@ -179,7 +228,7 @@ export default function LoginPage() {
                 <p className="muted" style={{ marginBottom: 24 }}>
                   {t("login.forgotSubtitle")}
                 </p>
-                <form onSubmit={onForgotSendCode} className="login-form">
+                <form onSubmit={onForgotSendRecoveryCodes} className="login-form">
                   <div>
                     <label className="label">{t("login.email")}</label>
                     <input
@@ -192,10 +241,26 @@ export default function LoginPage() {
                     />
                   </div>
                   {error && <div className="error">{error}</div>}
-                  <button className="btn primary" type="submit" disabled={loading}>
-                    {loading ? t("login.sending") : t("login.sendResetCode")}
-                  </button>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                    <button className="btn primary" type="submit" disabled={loading}>
+                      {loading ? t("login.sending") : t("login.recoverySendCodes")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{ background: "var(--panel)", border: "1px solid var(--border)" }}
+                      onClick={sendLegacyForgotCode}
+                      disabled={loading}
+                    >
+                      {t("login.recoverySendEmailOnly")}
+                    </button>
+                  </div>
                 </form>
+                <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
+                  <button type="button" className="link-btn" onClick={sendLegacyForgotCode}>
+                    {t("login.recoveryNoSms")}
+                  </button>
+                </p>
                 <p className="muted center" style={{ marginTop: 20, marginBottom: 0 }}>
                   <button type="button" className="link-btn" onClick={backToLogin}>
                     {t("login.backToSignIn")}
@@ -218,7 +283,7 @@ export default function LoginPage() {
                 )}
                 <form onSubmit={onForgotReset} className="login-form">
                   <div>
-                    <label className="label">{t("login.code")}</label>
+                    <label className="label">{t("login.email")} {t("login.code")}</label>
                     <input
                       className="input"
                       type="text"
@@ -230,6 +295,21 @@ export default function LoginPage() {
                       maxLength={6}
                     />
                   </div>
+                  {forgotUseRecovery && (
+                    <div>
+                      <label className="label">{t("login.phoneCode")}</label>
+                      <input
+                        className="input"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        value={forgotPhoneCode}
+                        onChange={(e) => setForgotPhoneCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder={t("login.placeholderCode")}
+                        maxLength={6}
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className="label">{t("login.newPassword")}</label>
                     <div className="auth-input-wrap">

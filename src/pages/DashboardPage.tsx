@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import { APP_BASE } from "../constants";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
+import { useEncryption } from "../context/EncryptionContext";
 import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
 import { getCategoryDisplayName, getTemplateDescriptionDisplay } from "../utils/categoryI18n";
+import { getFxDefault } from "../utils/fx";
 
 type Expense = {
   id: string;
@@ -14,32 +16,25 @@ type Expense = {
   currencyId: string;
   date: string;
   expenseType?: string;
-  category: { id: string; name: string; nameKey?: string | null; expenseType?: string };
-};
-
-type SummaryRow = {
   categoryId: string;
-  categoryName: string;
-  nameKey?: string | null;
-  expenseType?: string | null;
-  total: number;
-};
-
-type ExpensesSummary = {
-  year: number;
-  month: number;
-  totalsByCategoryAndCurrency: SummaryRow[];
+  category: { id: string; name: string; nameKey?: string | null; expenseType?: string };
+  encryptedPayload?: string | null;
+  _decryptFailed?: boolean;
 };
 
 type Investment = {
   id: string;
+  type?: string;
+  currencyId?: string | null;
   targetAnnualReturn: number;
   yieldStartMonth: number;
+  yieldStartYear?: number | null;
 };
 
 type SnapshotMonth = {
   month: number;
   closingCapitalUsd: number | null;
+  encryptedPayload?: string;
 };
 
 type AnnualBudgetResp = {
@@ -50,6 +45,8 @@ type AnnualBudgetResp = {
     expensesUsd: number;
     baseExpensesUsd?: number;
     otherExpensesUsd?: number;
+    otherExpensesEncryptedPayload?: string;
+    lockedEncryptedPayload?: string;
     investmentEarningsUsd: number;
     balanceUsd: number;
     netWorthUsd: number;
@@ -433,7 +430,7 @@ function IncomeVsExpensesChart({
 }
 
 export default function DashboardPage() {
-  const { setHeader, reopenOnboarding, onboardingStep, setOnboardingStep, meLoaded, me } = useAppShell();
+  const { setHeader, reopenOnboarding, onboardingStep, setOnboardingStep, meLoaded, me, serverFxRate } = useAppShell();
   const { year, month } = useAppYearMonth();
   const { formatAmountUsd, displayValue, currencyLabel } = useDisplayCurrency();
 
@@ -465,35 +462,228 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
 
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [summary, setSummary] = useState<ExpensesSummary | null>(null);
 
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [snapshots, setSnapshots] = useState<Record<string, SnapshotMonth[]>>({});
 
   const [annual, setAnnual] = useState<AnnualBudgetResp | null>(null);
+  const [decryptedIncomeByMonth, setDecryptedIncomeByMonth] = useState<Record<number, number>>({});
+  const [clientExpensesUsdByMonth, setClientExpensesUsdByMonth] = useState<Record<number, number>>({});
+  const [plannedAmountByMonth, setPlannedAmountByMonth] = useState<Record<number, number>>({});
+  const [decryptedOtherByMonth, setDecryptedOtherByMonth] = useState<Record<number, number>>({});
+  const [investmentEarningsByMonth, setInvestmentEarningsByMonth] = useState<Record<number, number>>({});
+  const { decryptPayload } = useEncryption();
 
   async function load() {
     setLoading(true);
     setError("");
     try {
-      const [sum, list, invs, annualResp] = await Promise.all([
-        api<ExpensesSummary>(`/expenses/summary?year=${year}&month=${month}`),
+      const [list, invs, annualResp, incomeResp, plannedResp] = await Promise.all([
         api<Expense[]>(`/expenses?year=${year}&month=${month}`),
         api<Investment[]>("/investments"),
         api<AnnualBudgetResp>(`/budgets/annual?year=${year}`),
+        api<{ year: number; rows: Array<{ month: number; totalUsd: number; encryptedPayload?: string }> }>(`/income?year=${year}`),
+        api<{ year: number; rows: Array<{ month: number; amountUsd?: number | null; encryptedPayload?: string | null }> }>(`/plannedExpenses?year=${year}`),
       ]);
 
-      setSummary(sum);
-      setExpenses(list);
+      const decryptedExpenses = await Promise.all(
+        (list ?? []).map(async (e) => {
+          if (e.encryptedPayload) {
+            const pl = await decryptPayload<{ description?: string; amount?: number; amountUsd?: number }>(e.encryptedPayload);
+            if (pl)
+              return {
+                ...e,
+                description: pl.description ?? e.description,
+                amount: pl.amount ?? e.amount,
+                amountUsd: pl.amountUsd ?? e.amountUsd,
+              };
+            return { ...e, _decryptFailed: true, description: "—", amount: 0, amountUsd: 0 };
+          }
+          return e;
+        })
+      );
+      setExpenses(decryptedExpenses);
       setInvestments(invs);
-      setAnnual(annualResp);
 
+      const byMonth: Record<number, number> = {};
+      for (const row of incomeResp.rows ?? []) {
+        if (row.encryptedPayload) {
+          const pl = await decryptPayload<{ nominalUsd?: number; extraordinaryUsd?: number; taxesUsd?: number }>(row.encryptedPayload);
+          if (pl) {
+            const nom = pl.nominalUsd ?? 0;
+            const ext = pl.extraordinaryUsd ?? 0;
+            const tax = pl.taxesUsd ?? 0;
+            byMonth[row.month] = nom + ext - tax;
+          }
+        } else {
+          byMonth[row.month] = row.totalUsd ?? 0;
+        }
+      }
+      setDecryptedIncomeByMonth(byMonth);
+
+      // Proyección gastos base desde plantillas: misma lógica que Presupuestos (amountUsd ?? defaultAmountUsd para E2EE)
+      const plannedRows = plannedResp?.rows ?? [];
+      const plannedAmountByMonthLocal: Record<number, number> = {};
+      await Promise.all(
+        plannedRows.map(async (r) => {
+          let amountUsd = r.amountUsd ?? 0;
+          if (r.encryptedPayload) {
+            const pl = await decryptPayload<{ amountUsd?: number; defaultAmountUsd?: number }>(r.encryptedPayload);
+            if (pl != null) {
+              const v = pl.amountUsd ?? pl.defaultAmountUsd;
+              if (typeof v === "number") amountUsd = v;
+            }
+          }
+          const mo = r.month ?? 0;
+          if (mo >= 1 && mo <= 12) plannedAmountByMonthLocal[mo] = (plannedAmountByMonthLocal[mo] ?? 0) + amountUsd;
+        })
+      );
+      setPlannedAmountByMonth(plannedAmountByMonthLocal);
+
+      // Gastos reales por mes (descifrados), misma lógica que Presupuestos
+      type ExpenseRow = { amountUsd: number; encryptedPayload?: string | null };
+      const expenseLists = await Promise.all(
+        months.map((m) => api<ExpenseRow[]>(`/expenses?year=${year}&month=${m}`))
+      );
+      const clientExpensesUsdByMonth: Record<number, number> = {};
+      for (let i = 0; i < 12; i++) {
+        const list = expenseLists[i] ?? [];
+        let sum = 0;
+        for (const e of list) {
+          if (e.encryptedPayload) {
+            const pl = await decryptPayload<{ amountUsd?: number }>(e.encryptedPayload);
+            if (pl != null && typeof pl.amountUsd === "number") sum += pl.amountUsd;
+          } else {
+            sum += e.amountUsd ?? 0;
+          }
+        }
+        if (list.length > 0) clientExpensesUsdByMonth[i + 1] = sum;
+      }
+      setClientExpensesUsdByMonth(clientExpensesUsdByMonth);
+
+      // Snapshots antes de resolvedMonths para poder calcular ganancias en cliente
       const snaps: Record<string, SnapshotMonth[]> = {};
-      for (const inv of invs) {
+      const invsList = invs ?? [];
+      for (const inv of invsList) {
         const r = await api<{ months: SnapshotMonth[] }>(`/investments/${inv.id}/snapshots?year=${year}`);
-        snaps[inv.id] = r.months;
+        const monthsSnap: SnapshotMonth[] = await Promise.all(
+          (r.months ?? []).map(async (s) => {
+            if (s.encryptedPayload) {
+              const pl = await decryptPayload<{ closingCapital?: number; closingCapitalUsd?: number }>(s.encryptedPayload);
+              if (pl != null) return { ...s, closingCapitalUsd: pl.closingCapitalUsd ?? s.closingCapitalUsd ?? 0 };
+              return { ...s, closingCapitalUsd: 0, _decryptFailed: true };
+            }
+            return s;
+          })
+        );
+        snaps[inv.id] = monthsSnap;
       }
       setSnapshots(snaps);
+
+      // Movimientos y ganancias de inversiones (misma fórmula que Presupuestos/Patrimonio)
+      const portfolios = invsList.filter((i) => (i as Investment).type === "PORTFOLIO");
+      const usdUyuRate = serverFxRate ?? getFxDefault();
+      const fx = Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : null;
+      const movResp = await api<{ year: number; rows: Array<{ month?: number; date?: string; investmentId: string; type: string; amount?: number; currencyId?: string; encryptedPayload?: string | null }> }>(`/investments/movements?year=${year}`).catch(() => ({ rows: [] }));
+      const movementRows = movResp?.rows ?? [];
+      const movementsDecrypted = await Promise.all(
+        movementRows.map(async (mv) => {
+          let amount = mv.amount ?? 0;
+          if (mv.encryptedPayload) {
+            const pl = await decryptPayload<{ amount?: number }>(mv.encryptedPayload);
+            if (pl != null && typeof pl.amount === "number") amount = pl.amount;
+          }
+          const movMonth = mv.month ?? (mv.date ? new Date(mv.date).getUTCMonth() + 1 : 0);
+          return { ...mv, amount, month: movMonth };
+        })
+      );
+      const portfolioNW = months.map((_, i) => {
+        const monthNum = i + 1;
+        return portfolios.reduce((acc, inv) => acc + capitalUsd(inv, snaps[inv.id] ?? [], monthNum), 0);
+      });
+      const projectedNextJan = portfolios.reduce((acc, inv) => {
+        const decCap = capitalUsd(inv, snaps[inv.id] ?? [], 12);
+        return acc + decCap * monthlyFactor(inv);
+      }, 0);
+      const flows = months.map(() => 0);
+      const invById = new Map(portfolios.map((i) => [i.id, i]));
+      for (const mv of movementsDecrypted) {
+        const m = mv.month ?? 0;
+        if (m < 1 || m > 12) continue;
+        const inv = invById.get(mv.investmentId);
+        if (!inv || inv.type !== "PORTFOLIO") continue;
+        const sign = mv.type === "deposit" ? 1 : mv.type === "withdrawal" ? -1 : 0;
+        const amount = mv.amount ?? 0;
+        const cur = (mv.currencyId ?? "USD").toUpperCase();
+        if (cur === "USD") flows[m - 1] += sign * amount;
+        else if (cur === "UYU" && fx) flows[m - 1] += sign * (amount / fx);
+      }
+      const variation = months.map((_, i) =>
+        i < 11 ? (portfolioNW[i + 1] ?? 0) - (portfolioNW[i] ?? 0) : projectedNextJan - (portfolioNW[11] ?? 0)
+      );
+      const earningsByMonth: Record<number, number> = {};
+      for (let i = 0; i < 12; i++) {
+        earningsByMonth[i + 1] = (variation[i] ?? 0) - (flows[i] ?? 0);
+      }
+      setInvestmentEarningsByMonth(earningsByMonth);
+
+      // E2EE: decrypt otherExpensesEncryptedPayload and lockedEncryptedPayload per month; guardar other por mes para totales
+      const rawMonths = annualResp?.months ?? [];
+      const otherByMonthLocal: Record<number, number> = {};
+      const resolvedMonths = await Promise.all(
+        rawMonths.map(async (m) => {
+          const lockedEnc = (m as { lockedEncryptedPayload?: string }).lockedEncryptedPayload;
+          if (lockedEnc && m.source === "locked") {
+            const pl = await decryptPayload<{
+              incomeUsd?: number;
+              expensesUsd?: number;
+              investmentEarningsUsd?: number;
+              balanceUsd?: number;
+              netWorthStartUsd?: number;
+              netWorthEndUsd?: number;
+            }>(lockedEnc);
+            if (pl != null) {
+              let otherUsd = 0;
+              const otherEnc = (m as { otherExpensesEncryptedPayload?: string }).otherExpensesEncryptedPayload;
+              if (otherEnc) {
+                const otherPl = await decryptPayload<{ otherExpensesUsd?: number }>(otherEnc);
+                if (otherPl != null && typeof otherPl.otherExpensesUsd === "number") otherUsd = otherPl.otherExpensesUsd;
+              }
+              otherByMonthLocal[m.month] = otherUsd;
+              return {
+                ...m,
+                incomeUsd: pl.incomeUsd ?? m.incomeUsd ?? 0,
+                expensesUsd: pl.expensesUsd ?? m.expensesUsd ?? 0,
+                investmentEarningsUsd: pl.investmentEarningsUsd ?? m.investmentEarningsUsd ?? 0,
+                balanceUsd: pl.balanceUsd ?? m.balanceUsd ?? 0,
+                netWorthUsd: pl.netWorthStartUsd ?? m.netWorthUsd ?? 0,
+                otherExpensesUsd: otherUsd,
+              };
+            }
+          }
+          const otherEnc = (m as { otherExpensesEncryptedPayload?: string }).otherExpensesEncryptedPayload;
+          let otherUsd = m.otherExpensesUsd ?? 0;
+          if (otherEnc) {
+            const pl = await decryptPayload<{ otherExpensesUsd?: number }>(otherEnc);
+            if (pl != null && typeof pl.otherExpensesUsd === "number") otherUsd = pl.otherExpensesUsd;
+            else otherByMonthLocal[m.month] = 0;
+          }
+          otherByMonthLocal[m.month] = otherUsd;
+          const incomeUsd = byMonth[m.month] ?? m.incomeUsd ?? 0;
+          if (m.source === "computed") {
+            const serverBase = m.baseExpensesUsd ?? 0;
+            // Misma lógica que Presupuestos: preferir gastos reales del cliente, luego planned, luego server
+            const baseExpensesUsd = (clientExpensesUsdByMonth[m.month] ?? (plannedAmountByMonthLocal[m.month] > 0 ? plannedAmountByMonthLocal[m.month] : serverBase));
+            const expensesUsd = baseExpensesUsd + otherUsd;
+            const investmentEarningsUsd = earningsByMonth[m.month] ?? m.investmentEarningsUsd ?? 0;
+            const balanceUsd = incomeUsd - expensesUsd + investmentEarningsUsd;
+            return { ...m, baseExpensesUsd, otherExpensesUsd: otherUsd, expensesUsd, investmentEarningsUsd, balanceUsd };
+          }
+          return { ...m, otherExpensesUsd: otherUsd };
+        })
+      );
+      setDecryptedOtherByMonth(otherByMonthLocal);
+      setAnnual(annualResp ? { ...annualResp, months: resolvedMonths } : annualResp);
     } catch (e: any) {
       setError(e?.message ?? "Error");
     } finally {
@@ -508,19 +698,37 @@ export default function DashboardPage() {
 
   /* ---------------- Monthly ---------------- */
 
-  const monthlyExpenses = useMemo(() => expenses.reduce((a, e) => a + (e.amountUsd ?? 0), 0), [expenses]);
+  const monthlyExpenses = useMemo(
+    () => expenses.filter((e) => !(e as { _decryptFailed?: boolean })._decryptFailed).reduce((a, e) => a + (e.amountUsd ?? 0), 0),
+    [expenses]
+  );
+
+  const totalsByCategory = useMemo(() => {
+    const byCat = new Map<string, { categoryName: string; nameKey?: string | null; expenseType?: string | null; total: number }>();
+    for (const e of expenses) {
+      if ((e as { _decryptFailed?: boolean })._decryptFailed) continue;
+      const id = e.categoryId;
+      const name = e.category?.name ?? "(unknown)";
+      const prev = byCat.get(id);
+      byCat.set(id, {
+        categoryName: name,
+        nameKey: e.category?.nameKey ?? null,
+        expenseType: e.category?.expenseType ?? null,
+        total: (prev?.total ?? 0) + (e.amountUsd ?? 0),
+      });
+    }
+    return [...byCat.entries()].map(([categoryId, v]) => ({ categoryId, ...v }));
+  }, [expenses]);
 
   const topCategories = useMemo(
-    () =>
-      [...(summary?.totalsByCategoryAndCurrency ?? [])]
-        .sort((a, b) => (b.total ?? 0) - (a.total ?? 0))
-        .slice(0, 4),
-    [summary]
+    () => [...totalsByCategory].sort((a, b) => (b.total ?? 0) - (a.total ?? 0)).slice(0, 4),
+    [totalsByCategory]
   );
 
   const topExpenses = useMemo(
     () =>
       [...expenses]
+        .filter((e) => !(e as { _decryptFailed?: boolean })._decryptFailed)
         .sort((a, b) => (b.amountUsd ?? 0) - (a.amountUsd ?? 0))
         .slice(0, 3),
     [expenses]
@@ -531,7 +739,7 @@ export default function DashboardPage() {
 
   // Todas las categorías del mes con porcentaje para la torta (máx. 7: top 6 + "Otras")
   const categoriesForPie = useMemo(() => {
-    const rows = summary?.totalsByCategoryAndCurrency ?? [];
+    const rows = totalsByCategory;
     const totalSum = rows.reduce((a, c) => a + (c.total ?? 0), 0);
     const sorted = [...rows]
       .map((c) => ({
@@ -556,7 +764,7 @@ export default function DashboardPage() {
         expenseType: undefined as string | undefined,
       },
     ];
-  }, [summary]);
+  }, [totalsByCategory]);
 
   /* ---------------- Net worth ---------------- */
 
@@ -579,8 +787,50 @@ export default function DashboardPage() {
 
   const annualMonth = useMemo(() => (annual?.months ?? []).find((m) => m.month === month) ?? null, [annual, month]);
 
+  // Doce meses con la misma fórmula que Presupuestos para que totales (gastos, ingresos, balance) coincidan
+  const annualMonthsResolved = useMemo(() => {
+    const raw = annual?.months ?? [];
+    const byMonth = new Map(raw.map((m) => [m.month, m]));
+    return months.map((monthNum) => {
+      const base = byMonth.get(monthNum) ?? {
+        month: monthNum,
+        isClosed: false,
+        incomeUsd: 0,
+        baseExpensesUsd: 0,
+        otherExpensesUsd: 0,
+        expensesUsd: 0,
+        investmentEarningsUsd: 0,
+        balanceUsd: 0,
+        netWorthUsd: 0,
+        source: "computed" as const,
+      };
+      const incomeUsd = decryptedIncomeByMonth[monthNum] ?? base.incomeUsd ?? 0;
+      const clientBase = clientExpensesUsdByMonth[monthNum];
+      const serverBase = base.baseExpensesUsd ?? 0;
+      const plannedBase = plannedAmountByMonth[monthNum] ?? 0;
+      const baseExpensesUsd = base.isClosed
+        ? serverBase
+        : (clientBase ?? (plannedBase > 0 ? plannedBase : serverBase));
+      const otherExpensesUsd = decryptedOtherByMonth[monthNum] ?? base.otherExpensesUsd ?? 0;
+      const expensesUsd = base.isClosed ? (base.expensesUsd ?? 0) : baseExpensesUsd + otherExpensesUsd;
+      const investmentEarningsUsd = base.isClosed
+        ? (base.investmentEarningsUsd ?? 0)
+        : (investmentEarningsByMonth[monthNum] ?? base.investmentEarningsUsd ?? 0);
+      const balanceUsd = base.isClosed ? (base.balanceUsd ?? 0) : incomeUsd - expensesUsd + investmentEarningsUsd;
+      return {
+        ...base,
+        incomeUsd,
+        baseExpensesUsd,
+        otherExpensesUsd,
+        expensesUsd,
+        investmentEarningsUsd,
+        balanceUsd,
+      };
+    });
+  }, [annual, decryptedIncomeByMonth, decryptedOtherByMonth, clientExpensesUsdByMonth, plannedAmountByMonth, investmentEarningsByMonth]);
+
   const annualTotals = useMemo(() => {
-    const ms = annual?.months ?? [];
+    const ms = annualMonthsResolved;
     let income = 0;
     let expensesUsd = 0;
     let earnings = 0;
@@ -593,13 +843,27 @@ export default function DashboardPage() {
       balance += m.balanceUsd ?? 0;
     }
 
-    const dec = ms.find((x) => x.month === 12);
-    const netWorthEndYear = (dec?.netWorthUsd ?? 0) + (dec?.balanceUsd ?? 0);
+    // Patrimonio fin de año = patrimonio inicio diciembre + balance diciembre (misma lógica que Presupuestos)
+    const netWorthStartSeries = ms.map(() => 0);
+    if (ms.length > 0) {
+      netWorthStartSeries[0] = ms[0]?.netWorthUsd ?? 0;
+      for (let i = 1; i < 12; i++) {
+        const curr = ms[i];
+        const prev = ms[i - 1];
+        if (curr?.isClosed) netWorthStartSeries[i] = curr.netWorthUsd ?? netWorthStartSeries[i - 1];
+        else netWorthStartSeries[i] = (netWorthStartSeries[i - 1] ?? 0) + (prev?.balanceUsd ?? 0);
+      }
+    }
+    const startDecember = netWorthStartSeries[11] ?? 0;
+    const balanceDecember = ms[11]?.balanceUsd ?? 0;
+    const netWorthEndYear = startDecember + balanceDecember;
 
     return { income, expenses: expensesUsd, earnings, balance, netWorthEndYear };
-  }, [annual]);
+  }, [annualMonthsResolved]);
 
-  const monthIncome = annualMonth?.incomeUsd ?? 0;
+  const monthIncome = (annualMonth && decryptedIncomeByMonth[annualMonth.month] !== undefined)
+    ? decryptedIncomeByMonth[annualMonth.month]
+    : (annualMonth?.incomeUsd ?? 0);
   const monthBalance = annualMonth?.balanceUsd ?? 0;
 
   const sourceBadge = annualMonth?.source ?? "computed";
@@ -612,14 +876,15 @@ export default function DashboardPage() {
     const byMonth = new Map(raw.map((m) => [m.month, m]));
     return months.map((m) => {
       const x = byMonth.get(m);
+      const incomeUsd = decryptedIncomeByMonth[m] ?? x?.incomeUsd ?? 0;
       return {
         month: m,
-        incomeUsd: x?.incomeUsd ?? 0,
+        incomeUsd,
         expensesUsd: x?.expensesUsd ?? 0,
         netWorthUsd: x?.netWorthUsd ?? 0,
       };
     });
-  }, [annual]);
+  }, [annual, decryptedIncomeByMonth]);
 
   const monthShortLabels = useMemo(() => {
     const fmt = new Intl.DateTimeFormat(i18n.language?.startsWith("es") ? "es" : "en", { month: "short" });

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { APP_BASE } from "../constants";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
+import { useEncryption } from "../context/EncryptionContext";
 import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
 import { getCategoryDisplayName, getExpenseTypeLabel, getTemplateDescriptionDisplay } from "../utils/categoryI18n";
 import { downloadCsv } from "../utils/exportCsv";
@@ -24,19 +25,8 @@ type Expense = {
   categoryId: string;
   expenseType: ExpenseType;
   category: { id: string; name: string };
-};
-
-type SummaryRow = {
-  categoryId: string;
-  categoryName: string;
-  currencyId: string; // "USD"
-  total: number; // USD
-};
-
-type ExpensesSummary = {
-  year: number;
-  month: number;
-  totalsByCategoryAndCurrency: SummaryRow[];
+  encryptedPayload?: string | null;
+  _decryptFailed?: boolean;
 };
 
 type MonthCloseRow = { year: number; month: number };
@@ -58,6 +48,7 @@ type PlannedExpense = {
   isConfirmed: boolean;
 
   expenseId?: string | null;
+  encryptedPayload?: string | null;
 
   category?: { id: string; name: string };
   template?: { defaultCurrencyId?: string | null } | null;
@@ -106,6 +97,7 @@ function Badge({ children }: { children: React.ReactNode }) {
 export default function ExpensesPage() {
   const nav = useNavigate();
   const { t } = useTranslation();
+  const { encryptPayload, decryptPayload, hasEncryptionSupport } = useEncryption();
 
   const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess, isMobile, serverFxRate } = useAppShell();
   const { formatAmountUsd, currencyLabel } = useDisplayCurrency();
@@ -136,7 +128,6 @@ export default function ExpensesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [planned, setPlanned] = useState<PlannedExpense[]>([]);
-  const [summary, setSummary] = useState<ExpensesSummary | null>(null);
 
   // ✅ closed months (por año)
   const [closedMonths, setClosedMonths] = useState<Set<number>>(new Set());
@@ -215,18 +206,49 @@ export default function ExpensesPage() {
 
   async function loadExpenses() {
     const list = await api<Expense[]>(`/expenses?year=${year}&month=${month}`);
-    setExpenses(list);
+    const decrypted = await Promise.all(
+      list.map(async (e) => {
+        if (e.encryptedPayload) {
+          const pl = await decryptPayload<{ description?: string; amount?: number; amountUsd?: number }>(e.encryptedPayload);
+          if (pl) {
+            return {
+              ...e,
+              description: pl.description ?? e.description,
+              amount: pl.amount ?? e.amount,
+              amountUsd: pl.amountUsd ?? e.amountUsd,
+            };
+          }
+          return { ...e, _decryptFailed: true, description: "—", amount: 0, amountUsd: 0 };
+        }
+        return e;
+      })
+    );
+    setExpenses(decrypted);
   }
 
   async function loadPlanned() {
     const r = await api<{ rows: PlannedExpense[] }>(`/plannedExpenses?year=${year}&month=${month}`);
-    const rows = (r.rows ?? []).filter((p) => !p.isConfirmed); // solo drafts visibles
-    setPlanned(rows);
-  }
-
-  async function loadSummary() {
-    const data = await api<ExpensesSummary>(`/expenses/summary?year=${year}&month=${month}`);
-    setSummary(data);
+    const raw = (r.rows ?? []).filter((p) => !p.isConfirmed);
+    const resolved: PlannedExpense[] = [];
+    for (const p of raw) {
+      if (p.encryptedPayload) {
+        const pl = await decryptPayload<{ description?: string; amountUsd?: number | null; amount?: number | null; defaultAmountUsd?: number | null }>(p.encryptedPayload);
+        if (pl != null) {
+          const amountUsd = pl.amountUsd ?? pl.defaultAmountUsd ?? p.amountUsd ?? null;
+          resolved.push({
+            ...p,
+            description: typeof pl.description === "string" ? pl.description : p.description,
+            amountUsd,
+            amount: pl.amount ?? p.amount ?? null,
+          });
+        } else {
+          resolved.push({ ...p, description: "—", amountUsd: null, amount: null });
+        }
+      } else {
+        resolved.push(p);
+      }
+    }
+    setPlanned(resolved);
   }
 
   async function loadMonthCloses() {
@@ -240,7 +262,7 @@ export default function ExpensesPage() {
     setLoading(true);
     try {
       await loadCategories();
-      await Promise.all([loadExpenses(), loadPlanned(), loadSummary(), loadMonthCloses()]);
+      await Promise.all([loadExpenses(), loadPlanned(), loadMonthCloses()]);
       setYmCreate(ymToInputValue(year, month));
     } catch (err: any) {
       setError(err?.message ?? t("common.error"));
@@ -259,7 +281,10 @@ export default function ExpensesPage() {
 
   const monthLabel = `${year}-${String(month).padStart(2, "0")}`;
 
-  const totalUsdMonth = useMemo(() => expenses.reduce((acc, e) => acc + (e.amountUsd ?? 0), 0), [expenses]);
+  const totalUsdMonth = useMemo(
+    () => expenses.filter((e) => !e._decryptFailed).reduce((acc, e) => acc + (e.amountUsd ?? 0), 0),
+    [expenses]
+  );
 
   function exportExpensesCsv() {
     const headers = [
@@ -281,22 +306,32 @@ export default function ExpensesPage() {
         : "";
       return [
         (e.date ?? "").toString().slice(0, 10),
-        e.description ?? "",
+        e._decryptFailed ? "—" : (e.description ?? ""),
         categoryDisplay,
         getExpenseTypeLabel(e.expenseType, t),
         e.currencyId ?? "",
-        e.amount ?? 0,
-        e.amountUsd ?? 0,
+        e._decryptFailed ? "—" : (e.amount ?? 0),
+        e._decryptFailed ? "—" : (e.amountUsd ?? 0),
         e.currencyId === "UYU" && e.usdUyuRate != null ? e.usdUyuRate : "",
       ];
     });
     downloadCsv(`gastos-${year}-${String(month).padStart(2, "0")}`, headers, rows);
   }
 
+  // Client-side summary from decrypted expenses (E2EE: server has 0 for encrypted amounts)
   const summaryByCategory = useMemo(() => {
-    const rows = summary?.totalsByCategoryAndCurrency ?? [];
-    return [...rows].sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
-  }, [summary]);
+    const byCat = new Map<string, { categoryName: string; total: number }>();
+    for (const e of expenses) {
+      if (e._decryptFailed) continue;
+      const id = e.categoryId;
+      const name = e.category?.name ?? "(unknown)";
+      const prev = byCat.get(id);
+      byCat.set(id, { categoryName: name, total: (prev?.total ?? 0) + (e.amountUsd ?? 0) });
+    }
+    return [...byCat.entries()]
+      .map(([categoryId, v]) => ({ categoryId, categoryName: v.categoryName, currencyId: "USD" as const, total: v.total }))
+      .sort((a, b) => b.total - a.total);
+  }, [expenses]);
 
   const expensesFixed = useMemo(() => expenses.filter((e) => e.expenseType === "FIXED"), [expenses]);
   const expensesVariable = useMemo(() => expenses.filter((e) => e.expenseType === "VARIABLE"), [expenses]);
@@ -318,21 +353,35 @@ export default function ExpensesPage() {
 
     if (currencyId === "UYU") setFxDefault(usdUyuRate);
 
+    const amountNum = Number(amount);
+    const amountUsdNum =
+      currencyId === "UYU" && Number(usdUyuRate) > 0 ? amountNum / Number(usdUyuRate) : amountNum;
     try {
+      const body: Record<string, unknown> = {
+        description: description.trim(),
+        amount: amountNum,
+        currencyId,
+        usdUyuRate: currencyId === "UYU" ? Number(usdUyuRate) : undefined,
+        categoryId,
+        date: ymCreate,
+        expenseType: finalType,
+      };
+      const enc = await encryptPayload({
+        description: description.trim(),
+        amount: amountNum,
+        amountUsd: amountUsdNum,
+      });
+      if (enc) {
+        body.encryptedPayload = enc;
+        body.description = "(encrypted)";
+        body.amount = 0;
+      }
       await api("/expenses", {
         method: "POST",
-        body: JSON.stringify({
-          description: description.trim(),
-          amount: Number(amount),
-          currencyId,
-          usdUyuRate: currencyId === "UYU" ? Number(usdUyuRate) : undefined,
-          categoryId,
-          date: ymCreate, // YYYY-MM
-          expenseType: finalType,
-        }),
+        body: JSON.stringify(body),
       });
 
-      await Promise.all([loadExpenses(), loadSummary(), loadPlanned()]);
+      await Promise.all([loadExpenses(), loadPlanned()]);
       setInfo(t("expenses.expenseCreated"));
       showSuccess(t("expenses.expenseCreated"));
     } catch (err: any) {
@@ -348,7 +397,7 @@ export default function ExpensesPage() {
 
     try {
       await api(`/expenses/${expenseId}`, { method: "DELETE" });
-      await Promise.all([loadExpenses(), loadSummary()]);
+      await loadExpenses();
       setInfo(t("expenses.expenseDeleted"));
       showSuccess(t("expenses.expenseDeleted"));
     } catch (err: any) {
@@ -356,16 +405,43 @@ export default function ExpensesPage() {
     }
   }
 
-  async function patchExpense(expenseId: string, expenseMonth: number, patch: any) {
+  async function patchExpense(expenseId: string, expenseMonth: number, patch: Record<string, unknown>) {
     if (isClosed(expenseMonth)) {
       setError(t("expenses.monthClosedEdit"));
       return;
     }
+    const expense = expenses.find((e) => e.id === expenseId);
+    let body = { ...patch };
+    const needEncrypt =
+      (patch.description !== undefined || patch.amount !== undefined) && expense;
+    if (needEncrypt) {
+      const desc =
+        patch.description !== undefined ? (patch.description as string) : (expense.description ?? "");
+      const amt =
+        patch.amount !== undefined ? Number(patch.amount) : (expense.amount ?? 0);
+      const amtUsd =
+        expense.currencyId === "UYU" && Number(expense.usdUyuRate) > 0
+          ? amt / Number(expense.usdUyuRate)
+          : amt;
+      const enc = await encryptPayload({
+        description: desc,
+        amount: amt,
+        amountUsd: amtUsd,
+      });
+      if (enc) {
+        body = {
+          ...body,
+          description: "(encrypted)",
+          encryptedPayload: enc,
+          amount: 0,
+        };
+      }
+    }
     await api(`/expenses/${expenseId}`, {
       method: "PUT",
-      body: JSON.stringify(patch),
+      body: JSON.stringify(body),
     });
-    await Promise.all([loadExpenses(), loadSummary()]);
+    await loadExpenses();
   }
 
   async function patchPlanned(plannedId: string, patch: any) {
@@ -373,9 +449,28 @@ export default function ExpensesPage() {
       setError(t("expenses.monthClosedEditDrafts"));
       return;
     }
+    let body = patch;
+    if (hasEncryptionSupport && (patch.description !== undefined || patch.amountUsd !== undefined || patch.amount !== undefined)) {
+      const p = planned.find((x) => x.id === plannedId);
+      if (p) {
+        const merged = {
+          description: patch.description ?? p.description,
+          amountUsd: patch.amountUsd ?? p.amountUsd ?? 0,
+          amount: patch.amount ?? p.amount ?? 0,
+        };
+        const enc = await encryptPayload(merged);
+        if (enc) {
+          body = {
+            encryptedPayload: enc,
+            ...(patch.categoryId !== undefined && { categoryId: patch.categoryId }),
+            ...(patch.expenseType !== undefined && { expenseType: patch.expenseType }),
+          };
+        }
+      }
+    }
     await api(`/plannedExpenses/${plannedId}`, {
       method: "PUT",
-      body: JSON.stringify(patch),
+      body: JSON.stringify(body),
     });
     await loadPlanned();
   }
@@ -436,7 +531,7 @@ export default function ExpensesPage() {
           : undefined;
 
       await api(`/plannedExpenses/${p.id}/confirm`, { method: "POST", ...(body ? { body } : {}) });
-      await Promise.all([loadPlanned(), loadExpenses(), loadSummary()]);
+      await Promise.all([loadPlanned(), loadExpenses()]);
       setInfo(t("expenses.draftConfirmed"));
       showSuccess(t("expenses.draftConfirmed"));
     } catch (err: any) {
@@ -466,7 +561,7 @@ export default function ExpensesPage() {
             : undefined;
         await api(`/plannedExpenses/${p.id}/confirm`, { method: "POST", ...(body ? { body } : {}) });
       }
-      await Promise.all([loadPlanned(), loadExpenses(), loadSummary()]);
+      await Promise.all([loadPlanned(), loadExpenses()]);
       setInfo(t("expenses.allDraftsConfirmed"));
       showSuccess(t("expenses.allDraftsConfirmed"));
     } catch (err: any) {

@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
+import { useEncryption } from "../context/EncryptionContext";
+import { generateEncryptionSalt, deriveEncryptionKey } from "../utils/crypto";
 import { APP_BASE, CONTACT_WHATSAPP_URL } from "../constants";
 import "./../styles/landing.css";
 import "./../styles/auth.css";
@@ -206,7 +208,8 @@ const FAQ_ITEMS = [
   { q: "faq8Q", a: "faq8A" },
 ] as const;
 
-type LoginResp = { token?: string; accessToken?: string; jwt?: string; data?: { token?: string } };
+type LoginUser = { id: string; email: string; role: string; encryptionSalt?: string; recoveryEnabled?: boolean; encryptionKey?: string };
+type LoginResp = { token?: string; accessToken?: string; jwt?: string; data?: { token?: string }; user?: LoginUser };
 function pickToken(r: LoginResp | any): string | null {
   const t = r?.token ?? r?.accessToken ?? r?.jwt ?? r?.data?.token;
   return typeof t === "string" && t.trim() ? t.trim() : null;
@@ -222,6 +225,7 @@ function normalizeEmail(v: string) {
 export default function LandingPage() {
   const nav = useNavigate();
   const { t: tLogin, i18n } = useTranslation();
+  const { setEncryptionKey } = useEncryption();
   const [lang, setLang] = useState<Lang>("es");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [visibleSections, setVisibleSections] = useState<Set<string>>(new Set());
@@ -243,9 +247,11 @@ export default function LandingPage() {
   const [forgotStep, setForgotStep] = useState<ForgotStep>(null);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotCode, setForgotCode] = useState("");
+  const [forgotPhoneCode, setForgotPhoneCode] = useState("");
   const [forgotNewPassword, setForgotNewPassword] = useState("");
   const [forgotSuccess, setForgotSuccess] = useState(false);
   const [forgotInfo, setForgotInfo] = useState("");
+  const [forgotUseRecovery, setForgotUseRecovery] = useState(false);
 
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [registerStep, setRegisterStep] = useState<RegisterStep>("request");
@@ -284,12 +290,25 @@ export default function LandingPage() {
         body: JSON.stringify({ email, password: topBarPassword }),
       });
       const token = pickToken(resp);
-      if (token) {
-        localStorage.setItem("token", token);
-        nav(APP_BASE, { replace: true });
-      } else {
+      if (!token) {
         setTopBarError(lang === "es" ? "Error al iniciar sesión" : "Login failed");
+        return;
       }
+      const user = resp?.user as LoginUser | undefined;
+      if (user?.encryptionKey) {
+        setEncryptionKey(user.encryptionKey);
+      } else if (user?.encryptionSalt) {
+        try {
+          const k = await deriveEncryptionKey(topBarPassword, user.encryptionSalt);
+          setEncryptionKey(k);
+        } catch {
+          setEncryptionKey(null);
+        }
+      } else {
+        setEncryptionKey(null);
+      }
+      localStorage.setItem("token", token);
+      nav(APP_BASE, { replace: true });
     } catch (err: any) {
       setTopBarError(err?.message === "Invalid credentials"
         ? (lang === "es" ? "Credenciales inválidas" : "Invalid credentials")
@@ -352,12 +371,25 @@ export default function LandingPage() {
         body: JSON.stringify({ email: authEmail.trim().toLowerCase(), password: authPassword }),
       });
       const token = pickToken(resp);
-      if (token) {
-        localStorage.setItem("token", token);
-        nav(APP_BASE, { replace: true });
-      } else {
+      if (!token) {
         setAuthError(lang === "es" ? "Error al iniciar sesión" : "Login failed");
+        return;
       }
+      const user = resp?.user as LoginUser | undefined;
+      if (user?.encryptionKey) {
+        setEncryptionKey(user.encryptionKey);
+      } else if (user?.encryptionSalt) {
+        try {
+          const k = await deriveEncryptionKey(authPassword, user.encryptionSalt);
+          setEncryptionKey(k);
+        } catch {
+          setEncryptionKey(null);
+        }
+      } else {
+        setEncryptionKey(null);
+      }
+      localStorage.setItem("token", token);
+      nav(APP_BASE, { replace: true });
     } catch (err: any) {
       setAuthError(err?.message === "Invalid credentials"
         ? tLogin("login.invalidCredentials")
@@ -367,7 +399,28 @@ export default function LandingPage() {
     }
   }
 
-  async function onForgotSendCode(e: React.FormEvent) {
+  async function onForgotSendRecoveryCodes(e: React.FormEvent) {
+    e.preventDefault();
+    setAuthError("");
+    const em = forgotEmail.trim().toLowerCase();
+    if (!em) return setAuthError(tLogin("login.emailRequired"));
+    setAuthLoading(true);
+    try {
+      const data = await api<{ ok?: boolean; emailOnly?: boolean }>("/auth/recovery/request", {
+        method: "POST",
+        body: JSON.stringify({ email: em }),
+      });
+      setForgotUseRecovery(!data?.emailOnly);
+      setForgotStep("code");
+      setForgotInfo(data?.emailOnly ? tLogin("login.emailOnlySubtitle") : tLogin("login.recoverySubtitle"));
+    } catch (err: any) {
+      setAuthError(err?.message ?? tLogin("login.failedToSendCode"));
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function onForgotSendLegacyCode(e: React.FormEvent) {
     e.preventDefault();
     setAuthError("");
     const em = forgotEmail.trim().toLowerCase();
@@ -378,6 +431,7 @@ export default function LandingPage() {
         method: "POST",
         body: JSON.stringify({ email: em }),
       });
+      setForgotUseRecovery(false);
       setForgotStep("code");
       setForgotInfo("");
     } catch (err: any) {
@@ -391,17 +445,37 @@ export default function LandingPage() {
     e.preventDefault();
     setAuthError("");
     if (!forgotEmail.trim() || !forgotCode.trim()) return setAuthError(tLogin("login.emailAndCodeRequired"));
+    if (forgotUseRecovery && !forgotPhoneCode.trim()) return setAuthError(tLogin("account.codeRequired"));
     if (forgotNewPassword.length < 8) return setAuthError(tLogin("login.passwordMinLength"));
     setAuthLoading(true);
     try {
-      await api("/auth/forgot-password/verify", {
-        method: "POST",
-        body: JSON.stringify({
-          email: forgotEmail.trim().toLowerCase(),
-          code: forgotCode.trim(),
-          newPassword: forgotNewPassword,
-        }),
-      });
+      if (forgotUseRecovery) {
+        const verifyRes = await api<{ recoveryToken: string; encryptionKey: string }>("/auth/recovery/verify", {
+          method: "POST",
+          body: JSON.stringify({
+            email: forgotEmail.trim().toLowerCase(),
+            emailCode: forgotCode.trim(),
+            phoneCode: forgotPhoneCode.trim(),
+          }),
+        });
+        await api("/auth/recovery/set-password", {
+          method: "POST",
+          body: JSON.stringify({
+            recoveryToken: verifyRes.recoveryToken,
+            newPassword: forgotNewPassword,
+            newRecoveryPackage: verifyRes.encryptionKey,
+          }),
+        });
+      } else {
+        await api("/auth/forgot-password/verify", {
+          method: "POST",
+          body: JSON.stringify({
+            email: forgotEmail.trim().toLowerCase(),
+            code: forgotCode.trim(),
+            newPassword: forgotNewPassword,
+          }),
+        });
+      }
       setForgotSuccess(true);
     } catch (err: any) {
       setAuthError(err?.message ?? tLogin("login.failedToResetPassword"));
@@ -414,9 +488,11 @@ export default function LandingPage() {
     setForgotStep("email");
     setForgotEmail("");
     setForgotCode("");
+    setForgotPhoneCode("");
     setForgotNewPassword("");
     setForgotSuccess(false);
     setForgotInfo("");
+    setForgotUseRecovery(false);
     setAuthError("");
   }
 
@@ -467,9 +543,10 @@ export default function LandingPage() {
 
     setRegisterLoading(true);
     try {
+      const encryptionSalt = generateEncryptionSalt();
       const r = await api<{ token: string }>("/auth/register/verify", {
         method: "POST",
-        body: JSON.stringify({ email: em, code: c, password: pw }),
+        body: JSON.stringify({ email: em, code: c, password: pw, encryptionSalt }),
       });
       localStorage.setItem("token", r.token);
       nav(APP_BASE, { replace: true });
@@ -518,31 +595,49 @@ export default function LandingPage() {
               {t.topBarSignIn}
             </button>
           ) : (
-            <form className="landing-topbar-form" onSubmit={onTopBarLogin}>
-              <input
-                type="email"
-                className="landing-topbar-input"
-                placeholder={t.topBarEmail}
-                value={topBarEmail}
-                onChange={(e) => setTopBarEmail(e.target.value)}
-                autoComplete="email"
-                aria-label={t.topBarEmail}
-              />
-              <input
-                type="password"
-                className="landing-topbar-input"
-                placeholder={t.topBarPassword}
-                value={topBarPassword}
-                onChange={(e) => setTopBarPassword(e.target.value)}
-                autoComplete="current-password"
-                aria-label={t.topBarPassword}
-              />
-              <button type="submit" className="landing-topbar-btn" disabled={topBarLoading}>
-                {topBarLoading ? "…" : t.topBarSignIn}
-              </button>
-            </form>
+            <div className="landing-topbar-form-wrap" style={{ marginLeft: "auto", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+              <form className="landing-topbar-form" onSubmit={onTopBarLogin}>
+                <input
+                  type="email"
+                  className="landing-topbar-input"
+                  placeholder={t.topBarEmail}
+                  value={topBarEmail}
+                  onChange={(e) => setTopBarEmail(e.target.value)}
+                  autoComplete="email"
+                  aria-label={t.topBarEmail}
+                />
+                <input
+                  type="password"
+                  className="landing-topbar-input"
+                  placeholder={t.topBarPassword}
+                  value={topBarPassword}
+                  onChange={(e) => setTopBarPassword(e.target.value)}
+                  autoComplete="current-password"
+                  aria-label={t.topBarPassword}
+                />
+                <button type="submit" className="landing-topbar-btn" disabled={topBarLoading}>
+                  {topBarLoading ? "…" : t.topBarSignIn}
+                </button>
+              </form>
+              {topBarError && (
+                <div className="landing-topbar-error-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, width: "100%" }}>
+                  <button
+                    type="button"
+                    className="landing-topbar-forgot-link"
+                    onClick={() => {
+                      setTopBarError("");
+                      showAuth("login");
+                      startForgot();
+                      setForgotEmail(topBarEmail.trim() || authEmail.trim());
+                    }}
+                  >
+                    {lang === "es" ? "¿Olvidaste la contraseña?" : "Forgot password?"}
+                  </button>
+                  <span className="landing-topbar-error" role="alert">{topBarError}</span>
+                </div>
+              )}
+            </div>
           )}
-          {topBarError && <span className="landing-topbar-error" role="alert">{topBarError}</span>}
         </div>
       </header>
 
@@ -722,7 +817,7 @@ export default function LandingPage() {
                     <>
                       <h2>{tLogin("login.forgotTitle")}</h2>
                       <p className="muted" style={{ marginBottom: 24 }}>{tLogin("login.forgotSubtitle")}</p>
-                      <form onSubmit={onForgotSendCode} className="login-form">
+                      <form onSubmit={onForgotSendRecoveryCodes} className="login-form">
                         <div>
                           <label className="label">{tLogin("login.email")}</label>
                           <input
@@ -735,9 +830,25 @@ export default function LandingPage() {
                           />
                         </div>
                         {authError && <div className="error">{authError}</div>}
-                        <button className="btn primary" type="submit" disabled={authLoading}>
-                          {authLoading ? tLogin("login.sending") : tLogin("login.sendResetCode")}
-                        </button>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                          <button className="btn primary" type="submit" disabled={authLoading}>
+                            {authLoading ? tLogin("login.sending") : tLogin("login.recoverySendCodes")}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn"
+                            style={{ background: "var(--panel)", border: "1px solid var(--border)" }}
+                            onClick={(ev) => { ev.preventDefault(); onForgotSendLegacyCode(ev); }}
+                            disabled={authLoading}
+                          >
+                            {tLogin("login.recoverySendEmailOnly")}
+                          </button>
+                        </div>
+                        <p className="muted" style={{ marginTop: 12, fontSize: 13 }}>
+                          <button type="button" className="link-btn" onClick={(ev) => { ev.preventDefault(); const em = forgotEmail.trim().toLowerCase(); if (!em) return setAuthError(tLogin("login.emailRequired")); setAuthLoading(true); setAuthError(""); api("/auth/forgot-password/request-code", { method: "POST", body: JSON.stringify({ email: em }) }).then(() => { setForgotUseRecovery(false); setForgotStep("code"); setForgotInfo(""); }).catch((err: any) => setAuthError(err?.message ?? tLogin("login.failedToSendCode"))).finally(() => setAuthLoading(false)); }}>
+                            {tLogin("login.recoveryNoSms")}
+                          </button>
+                        </p>
                       </form>
                       <p className="muted center" style={{ marginTop: 20, marginBottom: 0 }}>
                         <button type="button" className="link-btn" onClick={backToAuthLogin}>
@@ -755,7 +866,7 @@ export default function LandingPage() {
                       {forgotInfo && <div className="toast-success" style={{ marginBottom: 16 }}>{forgotInfo}</div>}
                       <form onSubmit={onForgotReset} className="login-form">
                         <div>
-                          <label className="label">{tLogin("login.code")}</label>
+                          <label className="label">{tLogin("login.email")} {tLogin("login.code")}</label>
                           <input
                             className="input"
                             type="text"
@@ -767,6 +878,21 @@ export default function LandingPage() {
                             maxLength={6}
                           />
                         </div>
+                        {forgotUseRecovery && (
+                          <div>
+                            <label className="label">{tLogin("login.phoneCode")}</label>
+                            <input
+                              className="input"
+                              type="text"
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              value={forgotPhoneCode}
+                              onChange={(e) => setForgotPhoneCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                              placeholder={tLogin("login.placeholderCode")}
+                              maxLength={6}
+                            />
+                          </div>
+                        )}
                         <div>
                           <label className="label">{tLogin("login.newPassword")}</label>
                           <div className="auth-input-wrap">
@@ -852,7 +978,16 @@ export default function LandingPage() {
                             </button>
                           </div>
                         </div>
-                        {authError && <div className="error">{authError}</div>}
+                        {authError && (
+                          <>
+                            <div className="error">{authError}</div>
+                            <p style={{ marginTop: 8, marginBottom: 0 }}>
+                              <button type="button" className="link-btn" onClick={startForgot}>
+                                {tLogin("login.forgotPassword")}
+                              </button>
+                            </p>
+                          </>
+                        )}
                         <button className="btn primary" type="submit" disabled={authLoading}>
                           {authLoading ? tLogin("login.signingIn") : tLogin("login.signIn")}
                         </button>

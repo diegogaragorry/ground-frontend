@@ -69,6 +69,12 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   // ✅ si expira token o no es válido, limpiamos y vamos a la landing
   if (res.status === 401) {
     localStorage.removeItem("token");
+    try {
+      const { dispatchLogout } = await import("./context/EncryptionContext");
+      dispatchLogout();
+    } catch {
+      /* ignore when context not loaded */
+    }
     if (window.location.pathname !== "/") window.location.href = "/";
   }
 
