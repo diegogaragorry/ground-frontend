@@ -125,6 +125,7 @@ export default function BudgetsPage() {
   }
 
   async function load() {
+    console.log("LOAD CALLED", { year, currentMonth });
     setLoading(true);
     setError("");
     try {
