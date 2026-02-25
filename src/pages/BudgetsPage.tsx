@@ -217,25 +217,33 @@ export default function BudgetsPage() {
       setDecryptedOtherByMonth(otherByMonth);
       setData({ ...r, months: resolvedMonths });
 
-      // E2EE: fetch expenses per month, decrypt, sum amountUsd so annual view has correct totals
+      // E2EE: fetch expenses per month, decrypt in parallel, sum amountUsd so annual view has correct totals
       type ExpenseRow = { amountUsd: number; encryptedPayload?: string | null };
       const expenseLists = await Promise.all(
         months12.map((m) => api<ExpenseRow[]>(`/expenses?year=${year}&month=${m}`))
       );
-      // Solo registrar gastos reales por mes cuando hay al menos un gasto; si no hay filas, no poner 0 para poder usar plantillas
-      const expensesByMonth: Record<number, number> = {};
+      const expenseItems: { monthNum: number; e: ExpenseRow }[] = [];
       for (let i = 0; i < 12; i++) {
-        const list = expenseLists[i] ?? [];
-        let sum = 0;
-        for (const e of list) {
+        for (const e of expenseLists[i] ?? []) {
+          expenseItems.push({ monthNum: i + 1, e });
+        }
+      }
+      const expenseAmounts = await Promise.all(
+        expenseItems.map(async ({ monthNum, e }) => {
           if (e.encryptedPayload) {
             const pl = await decryptPayload<{ amountUsd?: number }>(e.encryptedPayload);
-            if (pl != null && typeof pl.amountUsd === "number") sum += pl.amountUsd;
-          } else {
-            sum += e.amountUsd ?? 0;
+            const amountUsd = pl != null && typeof pl.amountUsd === "number" ? pl.amountUsd : 0;
+            return { monthNum, amountUsd };
           }
-        }
-        if (list.length > 0) expensesByMonth[i + 1] = sum;
+          return { monthNum, amountUsd: e.amountUsd ?? 0 };
+        })
+      );
+      const expensesByMonth: Record<number, number> = {};
+      for (const { monthNum, amountUsd } of expenseAmounts) {
+        expensesByMonth[monthNum] = (expensesByMonth[monthNum] ?? 0) + amountUsd;
+      }
+      for (let i = 0; i < 12; i++) {
+        if ((expenseLists[i] ?? []).length > 0) expensesByMonth[i + 1] = expensesByMonth[i + 1] ?? 0;
       }
       setClientExpensesUsdByMonth(expensesByMonth);
 
@@ -245,9 +253,15 @@ export default function BudgetsPage() {
       type SnapshotsResp = { months?: SnapRow[]; data?: { months?: SnapRow[] } };
       const invs = await api<InvLite[]>("/investments").catch(() => []);
       const portfolios = (invs ?? []).filter((i) => i.type === "PORTFOLIO");
+      const prevYear = year - 1;
+      const [snapshotsYear, snapshotsPrevYear] = await Promise.all([
+        Promise.all(portfolios.map((inv) => api<SnapshotsResp>(`/investments/${inv.id}/snapshots?year=${year}`).catch((): SnapshotsResp => ({ months: [] })))),
+        Promise.all(portfolios.map((inv) => api<SnapshotsResp>(`/investments/${inv.id}/snapshots?year=${prevYear}`).catch((): SnapshotsResp => ({ months: [] })))),
+      ]);
       const snapsByInvId: Record<string, SnapRow[]> = {};
-      for (const inv of portfolios) {
-        const r: SnapshotsResp = await api<SnapshotsResp>(`/investments/${inv.id}/snapshots?year=${year}`).catch(() => ({ months: [] }));
+      for (let idx = 0; idx < portfolios.length; idx++) {
+        const inv = portfolios[idx];
+        const r: SnapshotsResp = snapshotsYear[idx] ?? { months: [] };
         const raw = (r.months ?? r.data?.months ?? []).slice();
         const decrypted = await Promise.all(
           raw.map(async (s: SnapRow) => {
@@ -275,9 +289,6 @@ export default function BudgetsPage() {
         }
         snapsByInvId[inv.id] = filled;
       }
-      // Patrimonio al cierre de diciembre del año anterior → variación de enero = lo ocurrido entre 1/1 y 1/2
-      let prevYearDecNW = 0;
-      const prevYear = year - 1;
       function valueUsdSnapPrev(snap: SnapRow | undefined, currencyId: string): number | null {
         if (!snap) return null;
         const hasEnc = !!snap.encryptedPayload;
@@ -305,8 +316,10 @@ export default function BudgetsPage() {
         }
         return 0;
       }
-      for (const inv of portfolios) {
-        const rPrev: SnapshotsResp = await api<SnapshotsResp>(`/investments/${inv.id}/snapshots?year=${prevYear}`).catch(() => ({ months: [] }));
+      let prevYearDecNW = 0;
+      for (let idx = 0; idx < portfolios.length; idx++) {
+        const inv = portfolios[idx];
+        const rPrev: SnapshotsResp = snapshotsPrevYear[idx] ?? { months: [] };
         const rawPrev = (rPrev.months ?? rPrev.data?.months ?? []).slice();
         const decryptedPrev = await Promise.all(
           rawPrev.map(async (s: SnapRow) => {
