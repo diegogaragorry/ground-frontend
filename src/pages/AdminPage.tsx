@@ -1249,10 +1249,11 @@ export default function AdminPage() {
     const portfolios = invs.filter((i) => i.type === "PORTFOLIO");
     const snapsByInvId: Record<string, SnapRow[]> = {};
     for (const inv of invs) {
-      const r = await api<{ months?: SnapRow[]; data?: { months?: SnapRow[] } }>(`/investments/${inv.id}/snapshots?year=${year}`).catch(() => ({}));
+      type SnapshotsResp = { months?: SnapRow[]; data?: { months?: SnapRow[] } };
+      const r: SnapshotsResp = await api<SnapshotsResp>(`/investments/${inv.id}/snapshots?year=${year}`).catch(() => ({ months: [] }));
       const raw = (r.months ?? r.data?.months ?? []).slice();
       const decrypted = await Promise.all(
-        raw.map(async (s) => {
+        raw.map(async (s: SnapRow) => {
           if (s.encryptedPayload) {
             const pl = await decryptPayload<{ closingCapital?: number; closingCapitalUsd?: number }>(s.encryptedPayload);
             if (pl != null) {
@@ -1266,11 +1267,11 @@ export default function AdminPage() {
           return s;
         })
       );
-      decrypted.sort((a, b) => (Number(a.month) ?? 99) - (Number(b.month) ?? 99));
+      decrypted.sort((a: SnapRow, b: SnapRow) => (Number(a.month) ?? 99) - (Number(b.month) ?? 99));
       const filled: SnapRow[] = [];
       for (let i = 0; i < 12; i++) {
         const monthNum = i + 1;
-        const existing = decrypted.find((x) => Number(x.month) === monthNum);
+        const existing = decrypted.find((x: SnapRow) => Number(x.month) === monthNum);
         filled.push(existing ?? { month: monthNum, closingCapital: null, closingCapitalUsd: null });
       }
       snapsByInvId[inv.id] = filled;
