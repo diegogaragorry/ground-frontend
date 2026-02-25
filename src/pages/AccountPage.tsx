@@ -6,6 +6,7 @@ import { useEncryption } from "../context/EncryptionContext";
 import { api } from "../api";
 import { APP_BASE } from "../constants";
 import { runKeyRotation } from "../utils/keyRotation";
+import { exportKeyToBase64 } from "../utils/crypto";
 import { getMigrationStatus, runMigration, type MigrationStatus as MigrationStatusType, type MigrationResult } from "../utils/migrateToE2EE";
 
 function ChangePasswordCard({
@@ -196,9 +197,10 @@ export default function AccountPage() {
       setMe(updated);
       if (encryptionKey) {
         try {
+          const recoveryPackage = await exportKeyToBase64(encryptionKey);
           await api("/auth/recovery/setup", {
             method: "POST",
-            body: JSON.stringify({ recoveryPackage: encryptionKey }),
+            body: JSON.stringify({ recoveryPackage }),
           });
           setMe((prev) => (prev ? { ...prev, recoveryEnabled: true } : null));
         } catch {
@@ -217,9 +219,10 @@ export default function AccountPage() {
     setError("");
     setRecoveryLoading(true);
     try {
+      const recoveryPackage = await exportKeyToBase64(encryptionKey);
       await api("/auth/recovery/setup", {
         method: "POST",
-        body: JSON.stringify({ recoveryPackage: encryptionKey }),
+        body: JSON.stringify({ recoveryPackage }),
       });
       setMe((prev) => (prev ? { ...prev, recoveryEnabled: true } : null));
     } catch (err: unknown) {

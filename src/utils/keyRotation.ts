@@ -22,7 +22,7 @@ export type KeyRotationProgress = (phase: string) => void;
 export async function runKeyRotation(
   api: Api,
   decryptPayload: DecryptPayload,
-  setEncryptionKey: (key: string | null) => void,
+  setEncryptionKey: (key: CryptoKey | null) => void,
   newPassword: string,
   encryptionSalt: string,
   onProgress?: KeyRotationProgress

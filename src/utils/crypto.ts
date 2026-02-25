@@ -23,10 +23,10 @@ function bufToBase64(buf: ArrayBuffer | Uint8Array): string {
 }
 
 /**
- * Derive a 32-byte encryption key from password and salt (base64).
- * Used at login to get K for encrypt/decrypt and recovery package.
+ * Derive an AES-GCM CryptoKey from password and salt (base64).
+ * Used at login once; key is kept in memory and reused for encrypt/decrypt.
  */
-export async function deriveEncryptionKey(password: string, saltBase64: string): Promise<string> {
+export async function deriveEncryptionKey(password: string, saltBase64: string): Promise<CryptoKey> {
   const salt = base64ToBuf(saltBase64);
   const passwordKey = await crypto.subtle.importKey(
     "raw",
@@ -35,7 +35,7 @@ export async function deriveEncryptionKey(password: string, saltBase64: string):
     false,
     ["deriveKey"]
   );
-  const aesKey = await crypto.subtle.deriveKey(
+  return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
       salt: salt as BufferSource,
@@ -47,23 +47,12 @@ export async function deriveEncryptionKey(password: string, saltBase64: string):
     true,
     ["encrypt", "decrypt"]
   );
-  const raw = await crypto.subtle.exportKey("raw", aesKey);
-  return bufToBase64(raw);
 }
 
 /**
- * Encrypt plaintext (string) with key K (base64). Returns base64(IV || ciphertext || tag).
+ * Encrypt plaintext (string) with CryptoKey. Returns base64(IV || ciphertext || tag).
  */
-export async function encryptWithKey(plaintext: string, keyBase64: string): Promise<string> {
-  const keyBuf = base64ToBuf(keyBase64);
-  if (keyBuf.length !== 32) throw new Error("Key must be 32 bytes");
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    keyBuf as BufferSource,
-    { name: "AES-GCM" },
-    false,
-    ["encrypt"]
-  );
+export async function encryptWithKey(plaintext: string, cryptoKey: CryptoKey): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(IV_LEN));
   const encoded = new TextEncoder().encode(plaintext);
   const cipher = await crypto.subtle.encrypt(
@@ -78,18 +67,9 @@ export async function encryptWithKey(plaintext: string, keyBase64: string): Prom
 }
 
 /**
- * Decrypt ciphertext (base64 of IV||ciphertext||tag) with key K (base64). Returns plaintext string.
+ * Decrypt ciphertext (base64 of IV||ciphertext||tag) with CryptoKey. Returns plaintext string.
  */
-export async function decryptWithKey(ciphertextBase64: string, keyBase64: string): Promise<string> {
-  const keyBuf = base64ToBuf(keyBase64);
-  if (keyBuf.length !== 32) throw new Error("Key must be 32 bytes");
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    keyBuf as BufferSource,
-    { name: "AES-GCM" },
-    false,
-    ["decrypt"]
-  );
+export async function decryptWithKey(ciphertextBase64: string, cryptoKey: CryptoKey): Promise<string> {
   const combined = base64ToBuf(ciphertextBase64);
   if (combined.length < IV_LEN + TAG_LEN + 1) throw new Error("Invalid ciphertext");
   const iv = combined.subarray(0, IV_LEN);
@@ -100,6 +80,31 @@ export async function decryptWithKey(ciphertextBase64: string, keyBase64: string
     cipher as BufferSource
   );
   return new TextDecoder().decode(plain);
+}
+
+/**
+ * Import a 32-byte base64 key (e.g. from server after login) into a CryptoKey.
+ * Call once when setting key from API; do not use inside encrypt/decrypt.
+ */
+export async function importKeyFromBase64(keyBase64: string): Promise<CryptoKey> {
+  const keyBuf = base64ToBuf(keyBase64);
+  if (keyBuf.length !== 32) throw new Error("Key must be 32 bytes");
+  return crypto.subtle.importKey(
+    "raw",
+    keyBuf as BufferSource,
+    { name: "AES-GCM" },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+/**
+ * Export CryptoKey to base64. Use only when uploading recovery package to server.
+ * Do not export for normal encrypt/decrypt flow.
+ */
+export async function exportKeyToBase64(cryptoKey: CryptoKey): Promise<string> {
+  const raw = await crypto.subtle.exportKey("raw", cryptoKey);
+  return bufToBase64(raw);
 }
 
 /**

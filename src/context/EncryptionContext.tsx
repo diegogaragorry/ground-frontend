@@ -2,10 +2,10 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { encryptWithKey, decryptWithKey } from "../utils/crypto";
 
 type EncryptionCtx = {
-  /** Base64 encryption key (32 bytes), or null if not available (e.g. after refresh). */
-  encryptionKey: string | null;
+  /** AES CryptoKey in memory (derived once at login). Null if not available (e.g. after refresh). */
+  encryptionKey: CryptoKey | null;
   /** Set after login when we derive K from password+salt. Cleared on logout/401. */
-  setEncryptionKey: (key: string | null) => void;
+  setEncryptionKey: (key: CryptoKey | null) => void;
   /** Encrypt JSON-serializable payload when key is present; otherwise return null. */
   encryptPayload: <T>(payload: T) => Promise<string | null>;
   /** Decrypt base64 ciphertext when key is present; otherwise return null. */
@@ -19,10 +19,10 @@ const Ctx = createContext<EncryptionCtx | null>(null);
 const LOGOUT_EVENT = "ground:logout";
 
 export function EncryptionProvider(props: { children: React.ReactNode }) {
-  const [encryptionKey, setEncryptionKeyState] = useState<string | null>(null);
+  const [encryptionKey, setEncryptionKeyState] = useState<CryptoKey | null>(null);
   const hasEncryptionSupport = !!encryptionKey;
 
-  const setEncryptionKey = useCallback((key: string | null) => {
+  const setEncryptionKey = useCallback((key: CryptoKey | null) => {
     setEncryptionKeyState(key);
   }, []);
 
