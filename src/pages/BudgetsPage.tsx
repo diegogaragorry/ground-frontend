@@ -144,10 +144,22 @@ export default function BudgetsPage() {
         snapshotsPrevYear: SnapRow[][];
         movements: { year: number; rows: Array<{ month?: number; date?: string; investmentId: string; type: string; amount?: number; currencyId?: string; encryptedPayload?: string | null }> };
       };
-      const [, payload] = await Promise.all([
-        api(`/plannedExpenses/ensure-year`, { method: "POST", body: JSON.stringify({ year }) }).catch(() => null),
-        api<PageDataPayload>(`/budgets/page-data?year=${year}`),
-      ]);
+      console.time("api-ensure-year");
+      const ensureYearPromise = api(`/plannedExpenses/ensure-year`, {
+        method: "POST",
+        body: JSON.stringify({ year }),
+      }).catch(() => null);
+      console.timeEnd("api-ensure-year");
+
+      console.time("api-page-data");
+      const pageDataPromise = api<PageDataPayload>(`/budgets/page-data?year=${year}`);
+      const payload = await pageDataPromise;
+      console.timeEnd("api-page-data");
+      const sizeInKb = JSON.stringify(payload).length / 1024;
+      console.log("page-data payload size (KB):", sizeInKb.toFixed(2));
+
+      await ensureYearPromise;
+
       const r = payload.annual;
       const incomeResp = payload.income;
       const plannedResp = payload.planned;
