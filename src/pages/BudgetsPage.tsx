@@ -422,7 +422,11 @@ export default function BudgetsPage() {
       setInvestmentEarningsByMonth(earningsByMonth);
       setDrafts({});
 
-      const budgetList = await api<BudgetRow[]>(`/budgets?year=${year}&month=${currentMonth}`).catch(() => []);
+      console.time("api-budgets-list");
+      const budgetList = await api<BudgetRow[]>(
+        `/budgets?year=${year}&month=${currentMonth}`
+      ).catch(() => []);
+      console.timeEnd("api-budgets-list");
       const decryptedBudgets = await Promise.all(
         (budgetList ?? []).map(async (b) => {
           if (b.encryptedPayload) {
