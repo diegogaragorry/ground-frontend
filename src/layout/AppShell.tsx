@@ -337,12 +337,13 @@ export function AppShell(props: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  // Auto-run E2EE migration when user has encryption and there are plain items (once per session)
+  // Auto-run E2EE migration when user has encryption and there are plain items (once per session).
+  // Mark ref only after getMigrationStatus resolves so a failed first run can retry on next entry.
   React.useEffect(() => {
     if (!ctx.meLoaded || !ctx.me || !hasEncryptionSupport || !encryptPayload || migrationAutoRunDoneRef.current) return;
-    migrationAutoRunDoneRef.current = true;
     getMigrationStatus(api)
       .then((status) => {
+        migrationAutoRunDoneRef.current = true;
         if (status.total === 0) return;
         ctx.showSuccess(t("account.migrationAutoStart"));
         return runMigration(api, encryptPayload).then((result) => {
