@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { APP_BASE } from "../constants";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
-import { useEncryption } from "../context/EncryptionContext";
+import { useEncryption, decryptCounter } from "../context/EncryptionContext";
 import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
 import { downloadCsv } from "../utils/exportCsv";
 import { getFxDefault } from "../utils/fx";
@@ -128,6 +128,7 @@ export default function BudgetsPage() {
     setLoading(true);
     setError("");
     try {
+      console.time("budgets-load-total");
       type InvLite = { id: string; type: string; currencyId?: string | null; targetAnnualReturn?: number | null; yieldStartYear?: number | null; yieldStartMonth?: number | null };
       type SnapRow = { month: number; closingCapital?: number | null; closingCapitalUsd?: number | null; encryptedPayload?: string | null; _decryptedZero?: boolean };
       type SnapshotsResp = { months?: SnapRow[]; data?: { months?: SnapRow[] } };
@@ -197,6 +198,7 @@ export default function BudgetsPage() {
       const plannedRows = plannedResp?.rows ?? [];
       const movementRows = movResp?.rows ?? [];
 
+      console.time("budgets-decrypt-phase");
       const [
         incomeDecrypted,
         decryptedPlanned,
@@ -285,6 +287,7 @@ export default function BudgetsPage() {
           })
         ),
       ]);
+      console.timeEnd("budgets-decrypt-phase");
 
       const byMonth: Record<number, number> = {};
       for (const { month, total } of incomeDecrypted) byMonth[month] = total;
@@ -416,6 +419,8 @@ export default function BudgetsPage() {
         })
       );
       setBudgetsByMonth((prev) => ({ ...prev, [currentMonth]: decryptedBudgets }));
+      console.log("Final decrypt count for this load:", decryptCounter);
+      console.timeEnd("budgets-load-total");
     } catch (e: any) {
       setError(e?.message ?? t("common.error"));
     } finally {
