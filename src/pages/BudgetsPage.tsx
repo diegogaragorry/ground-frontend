@@ -155,93 +155,6 @@ export default function BudgetsPage() {
       const snapshotsYear = payload.snapshotsYear ?? [];
       const snapshotsPrevYear = payload.snapshotsPrevYear ?? [];
       const movResp = payload.movements ?? { rows: [] };
-      const byMonth: Record<number, number> = {};
-      const incomeRows = incomeResp.rows ?? [];
-      const incomeDecrypted = await Promise.all(
-        incomeRows.map(async (row) => {
-          if (row.encryptedPayload) {
-            const pl = await decryptPayload<{ nominalUsd?: number; extraordinaryUsd?: number; taxesUsd?: number }>(row.encryptedPayload);
-            return { month: row.month, total: pl ? (pl.nominalUsd ?? 0) + (pl.extraordinaryUsd ?? 0) - (pl.taxesUsd ?? 0) : 0 };
-          }
-          return { month: row.month, total: row.totalUsd ?? 0 };
-        })
-      );
-      for (const { month, total } of incomeDecrypted) byMonth[month] = total;
-      setDecryptedIncomeByMonth(byMonth);
-
-      // Proyección gastos base desde plantillas: descifrar planned del año, sumar por mes (evitar race: primero colectar, luego sumar)
-      const plannedRows = plannedResp?.rows ?? [];
-      const decryptedPlanned = await Promise.all(
-        plannedRows.map(async (row) => {
-          let amountUsd = row.amountUsd ?? 0;
-          if (row.encryptedPayload) {
-            const pl = await decryptPayload<{ amountUsd?: number; defaultAmountUsd?: number }>(row.encryptedPayload);
-            if (pl != null) {
-              const v = pl.amountUsd ?? pl.defaultAmountUsd;
-              if (typeof v === "number") amountUsd = v;
-            }
-          }
-          const mo = row.month ?? 0;
-          return { month: mo, amountUsd };
-        })
-      );
-      const plannedByMonth: Record<number, number> = {};
-      for (const { month: mo, amountUsd } of decryptedPlanned) {
-        if (mo >= 1 && mo <= 12) plannedByMonth[mo] = (plannedByMonth[mo] ?? 0) + amountUsd;
-      }
-      setPlannedBaseByMonth(plannedByMonth);
-
-      // E2EE: decrypt lockedEncryptedPayload and otherExpensesEncryptedPayload per month, then set resolved data
-      const otherByMonth: Record<number, number> = {};
-      const resolvedMonths = await Promise.all(
-        (r.months ?? []).map(async (m) => {
-          const lockedEnc = (m as { lockedEncryptedPayload?: string }).lockedEncryptedPayload;
-          if (lockedEnc) {
-            // Cerrado o reabierto: el snapshot sigue en lockedEncryptedPayload; mostramos los mismos datos
-            const pl = await decryptPayload<{
-              incomeUsd?: number;
-              expensesUsd?: number;
-              investmentEarningsUsd?: number;
-              balanceUsd?: number;
-              netWorthStartUsd?: number;
-            }>(lockedEnc);
-            if (pl != null) {
-              let baseExpensesUsd = (pl.expensesUsd ?? 0);
-              let otherExpensesUsd = 0;
-              const otherEnc = (m as { otherExpensesEncryptedPayload?: string }).otherExpensesEncryptedPayload;
-              if (otherEnc) {
-                const otherPl = await decryptPayload<{ otherExpensesUsd?: number }>(otherEnc);
-                if (otherPl != null && typeof otherPl.otherExpensesUsd === "number") {
-                  otherExpensesUsd = otherPl.otherExpensesUsd;
-                  baseExpensesUsd = Math.max(0, (pl.expensesUsd ?? 0) - otherExpensesUsd);
-                }
-              }
-              otherByMonth[m.month] = otherExpensesUsd;
-              return {
-                ...m,
-                incomeUsd: pl.incomeUsd ?? 0,
-                expensesUsd: pl.expensesUsd ?? 0,
-                investmentEarningsUsd: pl.investmentEarningsUsd ?? 0,
-                balanceUsd: pl.balanceUsd ?? 0,
-                netWorthUsd: pl.netWorthStartUsd ?? 0,
-                baseExpensesUsd,
-                otherExpensesUsd,
-              };
-            }
-          }
-          const enc = (m as { otherExpensesEncryptedPayload?: string }).otherExpensesEncryptedPayload;
-          if (enc) {
-            const pl = await decryptPayload<{ otherExpensesUsd?: number }>(enc);
-            if (pl != null && typeof pl.otherExpensesUsd === "number") otherByMonth[m.month] = pl.otherExpensesUsd;
-            else otherByMonth[m.month] = 0;
-          }
-          return m;
-        })
-      );
-      setDecryptedOtherByMonth(otherByMonth);
-      setData({ ...r, months: resolvedMonths });
-      setLoading(false);
-
       const portfolios = (invs ?? []).filter((i: InvLite) => i.type === "PORTFOLIO");
       type ExpenseRow = { amountUsd?: number; encryptedPayload?: string | null };
       const expenseListsRaw = expenseResp?.byMonth ?? Array.from({ length: 12 }, () => []);
@@ -252,24 +165,6 @@ export default function BudgetsPage() {
           expenseItems.push({ monthNum: i + 1, e });
         }
       }
-      const expenseAmounts = await Promise.all(
-        expenseItems.map(async ({ monthNum, e }) => {
-          if (e.encryptedPayload) {
-            const pl = await decryptPayload<{ amountUsd?: number }>(e.encryptedPayload);
-            const amountUsd = pl != null && typeof pl.amountUsd === "number" ? pl.amountUsd : 0;
-            return { monthNum, amountUsd };
-          }
-          return { monthNum, amountUsd: e.amountUsd ?? 0 };
-        })
-      );
-      const expensesByMonth: Record<number, number> = {};
-      for (const { monthNum, amountUsd } of expenseAmounts) {
-        expensesByMonth[monthNum] = (expensesByMonth[monthNum] ?? 0) + amountUsd;
-      }
-      for (let i = 0; i < 12; i++) {
-        if ((expenseLists[i] ?? []).length > 0) expensesByMonth[i + 1] = expensesByMonth[i + 1] ?? 0;
-      }
-      setClientExpensesUsdByMonth(expensesByMonth);
 
       async function decryptAndFill(resp: SnapshotsResp): Promise<SnapRow[]> {
         const raw = (resp?.months ?? resp?.data?.months ?? []).slice();
@@ -297,10 +192,127 @@ export default function BudgetsPage() {
         }
         return filled;
       }
-      const [filledYear, filledPrevYear] = await Promise.all([
+
+      const incomeRows = incomeResp.rows ?? [];
+      const plannedRows = plannedResp?.rows ?? [];
+      const movementRows = movResp?.rows ?? [];
+
+      const [
+        incomeDecrypted,
+        decryptedPlanned,
+        resolvedMonths,
+        expenseAmounts,
+        filledYear,
+        filledPrevYear,
+        movementsDecrypted,
+      ] = await Promise.all([
+        Promise.all(
+          incomeRows.map(async (row) => {
+            if (row.encryptedPayload) {
+              const pl = await decryptPayload<{ nominalUsd?: number; extraordinaryUsd?: number; taxesUsd?: number }>(row.encryptedPayload);
+              return { month: row.month, total: pl ? (pl.nominalUsd ?? 0) + (pl.extraordinaryUsd ?? 0) - (pl.taxesUsd ?? 0) : 0 };
+            }
+            return { month: row.month, total: row.totalUsd ?? 0 };
+          })
+        ),
+        Promise.all(
+          plannedRows.map(async (row) => {
+            let amountUsd = row.amountUsd ?? 0;
+            if (row.encryptedPayload) {
+              const pl = await decryptPayload<{ amountUsd?: number; defaultAmountUsd?: number }>(row.encryptedPayload);
+              if (pl != null) {
+                const v = pl.amountUsd ?? pl.defaultAmountUsd;
+                if (typeof v === "number") amountUsd = v;
+              }
+            }
+            return { month: row.month ?? 0, amountUsd };
+          })
+        ),
+        Promise.all(
+          (r.months ?? []).map(async (m) => {
+            const lockedEnc = (m as { lockedEncryptedPayload?: string }).lockedEncryptedPayload;
+            if (lockedEnc) {
+              const pl = await decryptPayload<{
+                incomeUsd?: number;
+                expensesUsd?: number;
+                investmentEarningsUsd?: number;
+                balanceUsd?: number;
+                netWorthStartUsd?: number;
+              }>(lockedEnc);
+              if (pl != null) {
+                let baseExpensesUsd = pl.expensesUsd ?? 0;
+                let otherExpensesUsd = 0;
+                const otherEnc = (m as { otherExpensesEncryptedPayload?: string }).otherExpensesEncryptedPayload;
+                if (otherEnc) {
+                  const otherPl = await decryptPayload<{ otherExpensesUsd?: number }>(otherEnc);
+                  if (otherPl != null && typeof otherPl.otherExpensesUsd === "number") {
+                    otherExpensesUsd = otherPl.otherExpensesUsd;
+                    baseExpensesUsd = Math.max(0, (pl.expensesUsd ?? 0) - otherExpensesUsd);
+                  }
+                }
+                return { m, otherExpensesUsd, resolved: { ...m, incomeUsd: pl.incomeUsd ?? 0, expensesUsd: pl.expensesUsd ?? 0, investmentEarningsUsd: pl.investmentEarningsUsd ?? 0, balanceUsd: pl.balanceUsd ?? 0, netWorthUsd: pl.netWorthStartUsd ?? 0, baseExpensesUsd, otherExpensesUsd } };
+              }
+            }
+            const enc = (m as { otherExpensesEncryptedPayload?: string }).otherExpensesEncryptedPayload;
+            if (enc) {
+              const pl = await decryptPayload<{ otherExpensesUsd?: number }>(enc);
+              const otherExpensesUsd = pl != null && typeof pl.otherExpensesUsd === "number" ? pl.otherExpensesUsd : 0;
+              return { m, otherExpensesUsd, resolved: m };
+            }
+            return { m, otherExpensesUsd: 0, resolved: m };
+          })
+        ),
+        Promise.all(
+          expenseItems.map(async ({ monthNum, e }) => {
+            if (e.encryptedPayload) {
+              const pl = await decryptPayload<{ amountUsd?: number }>(e.encryptedPayload);
+              return { monthNum, amountUsd: pl != null && typeof pl.amountUsd === "number" ? pl.amountUsd : 0 };
+            }
+            return { monthNum, amountUsd: e.amountUsd ?? 0 };
+          })
+        ),
         Promise.all(portfolios.map((_, idx) => decryptAndFill({ months: snapshotsYear[idx] ?? [] }))),
         Promise.all(portfolios.map((_, idx) => decryptAndFill({ months: snapshotsPrevYear[idx] ?? [] }))),
+        Promise.all(
+          movementRows.map(async (mv) => {
+            let amount = mv.amount ?? 0;
+            if (mv.encryptedPayload) {
+              const pl = await decryptPayload<{ amount?: number }>(mv.encryptedPayload);
+              if (pl != null && typeof pl.amount === "number") amount = pl.amount;
+            }
+            const month = mv.month ?? (mv.date ? new Date(mv.date).getUTCMonth() + 1 : 0);
+            return { ...mv, amount, month };
+          })
+        ),
       ]);
+
+      const byMonth: Record<number, number> = {};
+      for (const { month, total } of incomeDecrypted) byMonth[month] = total;
+      setDecryptedIncomeByMonth(byMonth);
+
+      const plannedByMonth: Record<number, number> = {};
+      for (const { month: mo, amountUsd } of decryptedPlanned) {
+        if (mo >= 1 && mo <= 12) plannedByMonth[mo] = (plannedByMonth[mo] ?? 0) + amountUsd;
+      }
+      setPlannedBaseByMonth(plannedByMonth);
+
+      const otherByMonth: Record<number, number> = {};
+      const resolvedMonthsMapped = resolvedMonths.map(({ m, otherExpensesUsd, resolved }) => {
+        otherByMonth[m.month] = otherExpensesUsd;
+        return resolved;
+      });
+      setDecryptedOtherByMonth(otherByMonth);
+      setData({ ...r, months: resolvedMonthsMapped });
+      setLoading(false);
+
+      const expensesByMonth: Record<number, number> = {};
+      for (const { monthNum, amountUsd } of expenseAmounts) {
+        expensesByMonth[monthNum] = (expensesByMonth[monthNum] ?? 0) + amountUsd;
+      }
+      for (let i = 0; i < 12; i++) {
+        if ((expenseLists[i] ?? []).length > 0) expensesByMonth[i + 1] = expensesByMonth[i + 1] ?? 0;
+      }
+      setClientExpensesUsdByMonth(expensesByMonth);
       const snapsByInvId: Record<string, SnapRow[]> = {};
       for (let idx = 0; idx < portfolios.length; idx++) snapsByInvId[portfolios[idx].id] = filledYear[idx] ?? [];
       function valueUsdSnapPrev(snap: SnapRow | undefined, currencyId: string): number | null {
@@ -334,18 +346,6 @@ export default function BudgetsPage() {
       for (let idx = 0; idx < portfolios.length; idx++) {
         prevYearDecNW += capitalUsdPortfolioPrevYear(portfolios[idx], filledPrevYear[idx] ?? [], 12, prevYear);
       }
-      const movementRows = movResp?.rows ?? [];
-      const movementsDecrypted = await Promise.all(
-        movementRows.map(async (mv) => {
-          let amount = mv.amount ?? 0;
-          if (mv.encryptedPayload) {
-            const pl = await decryptPayload<{ amount?: number }>(mv.encryptedPayload);
-            if (pl != null && typeof pl.amount === "number") amount = pl.amount;
-          }
-          const month = mv.month ?? (mv.date ? new Date(mv.date).getUTCMonth() + 1 : 0);
-          return { ...mv, amount, month };
-        })
-      );
       function valueUsdSnap(snap: SnapRow | undefined, currencyId: string): number | null {
         if (!snap) return null;
         const hasEnc = !!snap.encryptedPayload;
