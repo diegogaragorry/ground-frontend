@@ -301,6 +301,7 @@ export default function BudgetsPage() {
       ]);
       console.timeEnd("budgets-decrypt-phase");
 
+      console.time("financial-calculation-phase");
       const byMonth: Record<number, number> = {};
       for (const { month, total } of incomeDecrypted) byMonth[month] = total;
       setDecryptedIncomeByMonth(byMonth);
@@ -416,6 +417,7 @@ export default function BudgetsPage() {
       for (let i = 0; i < 12; i++) {
         earningsByMonth[i + 1] = (variation[i] ?? 0) - (flows[i] ?? 0);
       }
+      console.timeEnd("financial-calculation-phase");
       setInvestmentEarningsByMonth(earningsByMonth);
       setDrafts({});
 
