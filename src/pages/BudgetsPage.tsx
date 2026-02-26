@@ -427,6 +427,7 @@ export default function BudgetsPage() {
   }
 
   async function load() {
+    const realStart = performance.now();
     loadCounter++;
     console.log("LOAD COUNT:", loadCounter);
     console.log("LOAD CALLED", { year, currentMonth });
@@ -673,6 +674,8 @@ export default function BudgetsPage() {
       void decryptedBudgets;
       console.log("Final decrypt count for this load:", decryptCounter);
       console.timeEnd("budgets-load-total");
+      const realEnd = performance.now();
+      console.log("REAL LOAD DURATION (ms):", realEnd - realStart);
     } catch (e: any) {
       setError(e?.message ?? t("common.error"));
     } finally {
