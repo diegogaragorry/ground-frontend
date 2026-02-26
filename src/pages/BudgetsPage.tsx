@@ -323,7 +323,7 @@ const MonthlyBudgets = React.memo(function MonthlyBudgets({
               <td className="right">
                 <input
                   className="input compact"
-                  type="number"
+                  type="text"
                   min={0}
                   step="any"
                   value={b.amount}
