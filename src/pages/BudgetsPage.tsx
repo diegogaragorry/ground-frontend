@@ -1013,6 +1013,8 @@ export default function BudgetsPage() {
           {t("budgets.tipBaseExpenses")}
         </div>
 
+        {/* TEMP DISABLED FOR PERF TEST - inline style block */}
+        {false && (
         <style>{`
           /* Table: compact, smaller fonts, no wrap */
           .budgets-page .budgets-table.compact th,
@@ -1107,6 +1109,7 @@ export default function BudgetsPage() {
 
           .input.compact { padding: 4px 6px; font-size: 11px; border-radius: var(--radius-md); }
         `}</style>
+        )}
       </div>
     </div>
   );
