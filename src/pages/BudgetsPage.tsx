@@ -737,7 +737,9 @@ export default function BudgetsPage() {
           return b;
         })
       );
-      setBudgetsByMonth((prev) => ({ ...prev, [currentMonth]: decryptedBudgets }));
+      // TEMP DISABLED: prevent state update to test if freeze is from re-render after setBudgetsByMonth
+      // setBudgetsByMonth((prev) => ({ ...prev, [currentMonth]: decryptedBudgets }));
+      void decryptedBudgets;
       console.log("Final decrypt count for this load:", decryptCounter);
       console.timeEnd("budgets-load-total");
     } catch (e: any) {
