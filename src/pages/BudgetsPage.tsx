@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { APP_BASE } from "../constants";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
-import { useEncryption, decryptCounter } from "../context/EncryptionContext";
+import { useEncryption } from "../context/EncryptionContext";
 import { useAppShell, useAppYearMonth, useDisplayCurrency } from "../layout/AppShell";
 import { downloadCsv } from "../utils/exportCsv";
 import { getFxDefault } from "../utils/fx";
@@ -299,8 +299,6 @@ const MonthlyBudgets = React.memo(function MonthlyBudgets({
   saveBudgetAmount: (b: BudgetRow, newAmount: number) => void;
   t: (key: string) => string;
 }) {
-  console.log("Monthly budgets length:", budgets ? budgets.length : 0);
-
   if (!budgets || budgets.length === 0) return null;
 
   return (
@@ -325,7 +323,7 @@ const MonthlyBudgets = React.memo(function MonthlyBudgets({
               <td className="right">
                 <input
                   className="input compact"
-                  type="text"
+                  type="number"
                   min={0}
                   step="any"
                   value={b.amount}
@@ -355,16 +353,36 @@ const MonthlyBudgets = React.memo(function MonthlyBudgets({
   );
 });
 
-let loadCounter = 0;
+type BudgetState = {
+  decryptedIncomeByMonth: Record<number, number>;
+  plannedBaseByMonth: Record<number, number>;
+  decryptedOtherByMonth: Record<number, number>;
+  data: AnnualResp | null;
+  clientExpensesUsdByMonth: Record<number, number>;
+  investmentEarningsByMonth: Record<number, number>;
+  drafts: DraftMap;
+  budgetsByMonth: Record<number, BudgetRow[]>;
+};
+
+const initialBudgetState: BudgetState = {
+  decryptedIncomeByMonth: {},
+  plannedBaseByMonth: {},
+  decryptedOtherByMonth: {},
+  data: null,
+  clientExpensesUsdByMonth: {},
+  investmentEarningsByMonth: {},
+  drafts: {},
+  budgetsByMonth: {},
+};
 
 export default function BudgetsPage() {
-  console.log("BUDGETS COMPONENT RENDER");
   const nav = useNavigate();
   const { t } = useTranslation();
 
   const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, serverFxRate } = useAppShell();
   const { year, month: currentMonth } = useAppYearMonth();
   const { formatAmountUsd, currencyLabel, preferredDisplayCurrencyId } = useDisplayCurrency();
+  const { encryptionKey, decryptPayload, encryptPayload, hasEncryptionSupport } = useEncryption();
 
   const [otherExpensesCurrency, setOtherExpensesCurrency] = useState<"USD" | "UYU">(
     () => preferredDisplayCurrencyId
@@ -375,6 +393,31 @@ export default function BudgetsPage() {
 
   const tableRef = useRef<HTMLDivElement>(null);
   const onboardingActive = meLoaded && !!me && onboardingStep === "budget";
+
+  const [budgetState, setBudgetState] = useState<BudgetState>(initialBudgetState);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const setBudgetsByMonth = useCallback((action: React.SetStateAction<Record<number, BudgetRow[]>>) => {
+    setBudgetState((prev) => ({
+      ...prev,
+      budgetsByMonth: typeof action === "function" ? action(prev.budgetsByMonth) : action,
+    }));
+  }, []);
+
+  function setDraft(month: number, patch: { other?: string }) {
+    setBudgetState((prev) => ({
+      ...prev,
+      drafts: { ...prev.drafts, [month]: { ...(prev.drafts[month] ?? {}), ...patch } },
+    }));
+  }
+  function clearDraft(month: number) {
+    setBudgetState((prev) => {
+      const nextDrafts = { ...prev.drafts };
+      delete nextDrafts[month];
+      return { ...prev, drafts: nextDrafts };
+    });
+  }
 
   function goTable() {
     tableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -400,41 +443,12 @@ export default function BudgetsPage() {
     });
   }, [setHeader, year, t, currencyLabel]);
 
-  const [data, setData] = useState<AnnualResp | null>(null);
-  const [decryptedIncomeByMonth, setDecryptedIncomeByMonth] = useState<Record<number, number>>({});
-  const [decryptedOtherByMonth, setDecryptedOtherByMonth] = useState<Record<number, number>>({});
-  const [clientExpensesUsdByMonth, setClientExpensesUsdByMonth] = useState<Record<number, number>>({});
-  const [plannedBaseByMonth, setPlannedBaseByMonth] = useState<Record<number, number>>({});
-  const [investmentEarningsByMonth, setInvestmentEarningsByMonth] = useState<Record<number, number>>({});
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const { decryptPayload, encryptPayload, hasEncryptionSupport } = useEncryption();
   const usdUyuRate = serverFxRate ?? getFxDefault();
 
-  const [budgetsByMonth, setBudgetsByMonth] = useState<Record<number, BudgetRow[]>>({});
-
-  const [drafts, setDrafts] = useState<DraftMap>({});
-
-  function setDraft(month: number, patch: { other?: string }) {
-    setDrafts((prev) => ({ ...prev, [month]: { ...(prev[month] ?? {}), ...patch } }));
-  }
-  function clearDraft(month: number) {
-    setDrafts((prev) => {
-      const next = { ...prev };
-      delete next[month];
-      return next;
-    });
-  }
-
-  async function load() {
-    const realStart = performance.now();
-    loadCounter++;
-    console.log("LOAD COUNT:", loadCounter);
-    console.log("LOAD CALLED", { year, currentMonth });
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      console.time("budgets-load-total");
       type InvLite = { id: string; type: string; currencyId?: string | null; targetAnnualReturn?: number | null; yieldStartYear?: number | null; yieldStartMonth?: number | null };
       type SnapRow = { month: number; closingCapital?: number | null; closingCapitalUsd?: number | null; encryptedPayload?: string | null; _decryptedZero?: boolean };
       type SnapshotsResp = { months?: SnapRow[]; data?: { months?: SnapRow[] } };
@@ -450,20 +464,13 @@ export default function BudgetsPage() {
         snapshotsPrevYear: SnapRow[][];
         movements: { year: number; rows: Array<{ month?: number; date?: string; investmentId: string; type: string; amount?: number; currencyId?: string; encryptedPayload?: string | null }> };
       };
-      console.time("api-ensure-year");
+
       const ensureYearPromise = api(`/plannedExpenses/ensure-year`, {
         method: "POST",
         body: JSON.stringify({ year }),
       }).catch(() => null);
-      console.timeEnd("api-ensure-year");
 
-      console.time("api-page-data");
-      const pageDataPromise = api<PageDataPayload>(`/budgets/page-data?year=${year}`);
-      const payload = await pageDataPromise;
-      console.timeEnd("api-page-data");
-      const sizeInKb = JSON.stringify(payload).length / 1024;
-      console.log("page-data payload size (KB):", sizeInKb.toFixed(2));
-
+      const payload = await api<PageDataPayload>(`/budgets/page-data?year=${year}`);
       await ensureYearPromise;
 
       const r = payload.annual;
@@ -516,42 +523,108 @@ export default function BudgetsPage() {
       const plannedRows = plannedResp?.rows ?? [];
       const movementRows = movResp?.rows ?? [];
 
-      console.time("budgets-decrypt-phase");
-      // TEMP DISABLED: skip all decrypt Promise.all to test if freeze is from decryption
-      const incomeDecrypted = [] as Array<{ month: number; total: number }>;
-      const decryptedPlanned = [] as Array<{ month: number; amountUsd: number }>;
-      const resolvedMonths = [] as Array<{ m: { month: number }; otherExpensesUsd: number; resolved: (typeof r.months)[number] }>;
-      const expenseAmounts = [] as Array<{ monthNum: number; amountUsd: number }>;
-      const filledYear = [] as SnapRow[][];
-      const filledPrevYear = [] as SnapRow[][];
-      const movementsDecrypted = [] as Array<{ month?: number; amount?: number; investmentId: string; type?: string; currencyId?: string; date?: string }>;
-      void snapshotsYear;
-      void snapshotsPrevYear;
-      void decryptAndFill;
-      void incomeRows;
-      void plannedRows;
-      void movementRows;
-      console.timeEnd("budgets-decrypt-phase");
+      const [
+        incomeDecrypted,
+        decryptedPlanned,
+        resolvedMonths,
+        expenseAmounts,
+        filledYear,
+        filledPrevYear,
+        movementsDecrypted,
+      ] = await Promise.all([
+        Promise.all(
+          incomeRows.map(async (row) => {
+            if (row.encryptedPayload) {
+              const pl = await decryptPayload<{ nominalUsd?: number; extraordinaryUsd?: number; taxesUsd?: number }>(row.encryptedPayload);
+              return { month: row.month, total: pl ? (pl.nominalUsd ?? 0) + (pl.extraordinaryUsd ?? 0) - (pl.taxesUsd ?? 0) : 0 };
+            }
+            return { month: row.month, total: row.totalUsd ?? 0 };
+          })
+        ),
+        Promise.all(
+          plannedRows.map(async (row) => {
+            let amountUsd = row.amountUsd ?? 0;
+            if (row.encryptedPayload) {
+              const pl = await decryptPayload<{ amountUsd?: number; defaultAmountUsd?: number }>(row.encryptedPayload);
+              if (pl != null) {
+                const v = pl.amountUsd ?? pl.defaultAmountUsd;
+                if (typeof v === "number") amountUsd = v;
+              }
+            }
+            return { month: row.month ?? 0, amountUsd };
+          })
+        ),
+        Promise.all(
+          (r.months ?? []).map(async (m) => {
+            const lockedEnc = (m as { lockedEncryptedPayload?: string }).lockedEncryptedPayload;
+            if (lockedEnc) {
+              const pl = await decryptPayload<{
+                incomeUsd?: number;
+                expensesUsd?: number;
+                investmentEarningsUsd?: number;
+                balanceUsd?: number;
+                netWorthStartUsd?: number;
+              }>(lockedEnc);
+              if (pl != null) {
+                let baseExpensesUsd = pl.expensesUsd ?? 0;
+                let otherExpensesUsd = 0;
+                const otherEnc = (m as { otherExpensesEncryptedPayload?: string }).otherExpensesEncryptedPayload;
+                if (otherEnc) {
+                  const otherPl = await decryptPayload<{ otherExpensesUsd?: number }>(otherEnc);
+                  if (otherPl != null && typeof otherPl.otherExpensesUsd === "number") {
+                    otherExpensesUsd = otherPl.otherExpensesUsd;
+                    baseExpensesUsd = Math.max(0, (pl.expensesUsd ?? 0) - otherExpensesUsd);
+                  }
+                }
+                return { m, otherExpensesUsd, resolved: { ...m, incomeUsd: pl.incomeUsd ?? 0, expensesUsd: pl.expensesUsd ?? 0, investmentEarningsUsd: pl.investmentEarningsUsd ?? 0, balanceUsd: pl.balanceUsd ?? 0, netWorthUsd: pl.netWorthStartUsd ?? 0, baseExpensesUsd, otherExpensesUsd } };
+              }
+            }
+            const enc = (m as { otherExpensesEncryptedPayload?: string }).otherExpensesEncryptedPayload;
+            if (enc) {
+              const pl = await decryptPayload<{ otherExpensesUsd?: number }>(enc);
+              const otherExpensesUsd = pl != null && typeof pl.otherExpensesUsd === "number" ? pl.otherExpensesUsd : 0;
+              return { m, otherExpensesUsd, resolved: m };
+            }
+            return { m, otherExpensesUsd: 0, resolved: m };
+          })
+        ),
+        Promise.all(
+          expenseItems.map(async ({ monthNum, e }) => {
+            if (e.encryptedPayload) {
+              const pl = await decryptPayload<{ amountUsd?: number }>(e.encryptedPayload);
+              return { monthNum, amountUsd: pl != null && typeof pl.amountUsd === "number" ? pl.amountUsd : 0 };
+            }
+            return { monthNum, amountUsd: e.amountUsd ?? 0 };
+          })
+        ),
+        Promise.all(portfolios.map((_, idx) => decryptAndFill({ months: snapshotsYear[idx] ?? [] }))),
+        Promise.all(portfolios.map((_, idx) => decryptAndFill({ months: snapshotsPrevYear[idx] ?? [] }))),
+        Promise.all(
+          movementRows.map(async (mv) => {
+            let amount = mv.amount ?? 0;
+            if (mv.encryptedPayload) {
+              const pl = await decryptPayload<{ amount?: number }>(mv.encryptedPayload);
+              if (pl != null && typeof pl.amount === "number") amount = pl.amount;
+            }
+            const month = mv.month ?? (mv.date ? new Date(mv.date).getUTCMonth() + 1 : 0);
+            return { ...mv, amount, month };
+          })
+        ),
+      ]);
 
-      console.time("financial-calculation-phase");
       const byMonth: Record<number, number> = {};
       for (const { month, total } of incomeDecrypted) byMonth[month] = total;
-      setDecryptedIncomeByMonth(byMonth);
 
       const plannedByMonth: Record<number, number> = {};
       for (const { month: mo, amountUsd } of decryptedPlanned) {
         if (mo >= 1 && mo <= 12) plannedByMonth[mo] = (plannedByMonth[mo] ?? 0) + amountUsd;
       }
-      setPlannedBaseByMonth(plannedByMonth);
 
       const otherByMonth: Record<number, number> = {};
       const resolvedMonthsMapped = resolvedMonths.map(({ m, otherExpensesUsd, resolved }) => {
         otherByMonth[m.month] = otherExpensesUsd;
         return resolved;
       });
-      setDecryptedOtherByMonth(otherByMonth);
-      setData({ ...r, months: resolvedMonthsMapped });
-      setLoading(false);
 
       const expensesByMonth: Record<number, number> = {};
       for (const { monthNum, amountUsd } of expenseAmounts) {
@@ -560,7 +633,6 @@ export default function BudgetsPage() {
       for (let i = 0; i < 12; i++) {
         if ((expenseLists[i] ?? []).length > 0) expensesByMonth[i + 1] = expensesByMonth[i + 1] ?? 0;
       }
-      setClientExpensesUsdByMonth(expensesByMonth);
       const snapsByInvId: Record<string, SnapRow[]> = {};
       for (let idx = 0; idx < portfolios.length; idx++) snapsByInvId[portfolios[idx].id] = filledYear[idx] ?? [];
       function valueUsdSnapPrev(snap: SnapRow | undefined, currencyId: string): number | null {
@@ -641,7 +713,6 @@ export default function BudgetsPage() {
         if (cur === "USD") flows[m - 1] += sign * amount;
         else if (cur === "UYU" && fx) flows[m - 1] += sign * (amount / fx);
       }
-      // Misma fórmula que Patrimonio: solo año actual; variación mes i = (NW[i+1]-NW[i]) - flujos[i]; dic = projectedNextJan - NW[11]
       const variation = months12.map((_, i) =>
         i < 11 ? (portfolioNW[i + 1] ?? 0) - (portfolioNW[i] ?? 0) : projectedNextJan - (portfolioNW[11] ?? 0)
       );
@@ -649,16 +720,10 @@ export default function BudgetsPage() {
       for (let i = 0; i < 12; i++) {
         earningsByMonth[i + 1] = (variation[i] ?? 0) - (flows[i] ?? 0);
       }
-      console.timeEnd("financial-calculation-phase");
-      setInvestmentEarningsByMonth(earningsByMonth);
-      setDrafts({});
 
-      console.time("api-budgets-list");
       const budgetList = await api<BudgetRow[]>(
         `/budgets?year=${year}&month=${currentMonth}`
       ).catch(() => []);
-      console.log("budgetList length:", budgetList.length);
-      console.timeEnd("api-budgets-list");
       const decryptedBudgets = await Promise.all(
         (budgetList ?? []).map(async (b) => {
           if (b.encryptedPayload) {
@@ -669,19 +734,23 @@ export default function BudgetsPage() {
           return b;
         })
       );
-      // TEMP DISABLED: prevent state update to test if freeze is from re-render after setBudgetsByMonth
-      // setBudgetsByMonth((prev) => ({ ...prev, [currentMonth]: decryptedBudgets }));
-      void decryptedBudgets;
-      console.log("Final decrypt count for this load:", decryptCounter);
-      console.timeEnd("budgets-load-total");
-      const realEnd = performance.now();
-      console.log("REAL LOAD DURATION (ms):", realEnd - realStart);
+
+      setBudgetState((prev) => ({
+        decryptedIncomeByMonth: byMonth,
+        plannedBaseByMonth: plannedByMonth,
+        decryptedOtherByMonth: otherByMonth,
+        data: { ...r, months: resolvedMonthsMapped },
+        clientExpensesUsdByMonth: expensesByMonth,
+        investmentEarningsByMonth: earningsByMonth,
+        drafts: {},
+        budgetsByMonth: { ...prev.budgetsByMonth, [currentMonth]: decryptedBudgets },
+      }));
     } catch (e: any) {
       setError(e?.message ?? t("common.error"));
     } finally {
       setLoading(false);
     }
-  }
+  }, [year, currentMonth, encryptionKey]);
 
   async function saveBudgetAmount(b: BudgetRow, newAmount: number) {
     const enc = await encryptPayload({ amount: newAmount });
@@ -696,19 +765,21 @@ export default function BudgetsPage() {
         ...(enc ? { encryptedPayload: enc } : {}),
       }),
     });
-    setBudgetsByMonth((prev) => ({
+    setBudgetState((prev) => ({
       ...prev,
-      [b.month]: (prev[b.month] ?? []).map((x) => (x.id === b.id ? { ...x, amount: newAmount } : x)),
+      budgetsByMonth: {
+        ...prev.budgetsByMonth,
+        [b.month]: (prev.budgetsByMonth[b.month] ?? []).map((x) => (x.id === b.id ? { ...x, amount: newAmount } : x)),
+      },
     }));
   }
 
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [year, currentMonth]);
+  }, [load]);
 
   const months = useMemo(() => {
-    const raw = data?.months ?? [];
+    const raw = budgetState.data?.months ?? [];
     const byMonth = new Map(raw.map((m) => [m.month, m]));
     return months12.map((m) => {
       const x = byMonth.get(m);
@@ -724,19 +795,18 @@ export default function BudgetsPage() {
         netWorthUsd: 0,
         source: "computed" as const,
       };
-      const incomeUsd = decryptedIncomeByMonth[m] ?? base.incomeUsd ?? 0;
-      const clientBase = clientExpensesUsdByMonth[m];
+      const incomeUsd = budgetState.decryptedIncomeByMonth[m] ?? base.incomeUsd ?? 0;
+      const clientBase = budgetState.clientExpensesUsdByMonth[m];
       const serverBase = base.baseExpensesUsd ?? 0;
-      const plannedBase = plannedBaseByMonth[m] ?? 0;
-      // Mes cerrado: usar snapshot. Mes abierto: gastos reales si hay; si no, proyección desde borradores (plannedBase) para que E2EE muestre la suma descifrada en el cliente, no serverBase que puede ser parcial/0
+      const plannedBase = budgetState.plannedBaseByMonth[m] ?? 0;
       const baseExpensesUsd = base.isClosed
         ? serverBase
         : (clientBase ?? (plannedBase > 0 ? plannedBase : serverBase));
-      const otherExpensesUsd = decryptedOtherByMonth[m] ?? base.otherExpensesUsd ?? 0;
+      const otherExpensesUsd = budgetState.decryptedOtherByMonth[m] ?? base.otherExpensesUsd ?? 0;
       const expensesUsd = base.isClosed ? (base.expensesUsd ?? 0) : baseExpensesUsd + otherExpensesUsd;
       const investmentEarningsUsd = base.isClosed
         ? (base.investmentEarningsUsd ?? 0)
-        : (investmentEarningsByMonth[m] ?? base.investmentEarningsUsd ?? 0);
+        : (budgetState.investmentEarningsByMonth[m] ?? base.investmentEarningsUsd ?? 0);
       const balanceUsd = base.isClosed ? (base.balanceUsd ?? 0) : incomeUsd - expensesUsd + investmentEarningsUsd;
       return {
         ...base,
@@ -748,7 +818,7 @@ export default function BudgetsPage() {
         balanceUsd,
       };
     });
-  }, [data, decryptedIncomeByMonth, decryptedOtherByMonth, clientExpensesUsdByMonth, plannedBaseByMonth, investmentEarningsByMonth]);
+  }, [budgetState.data, budgetState.decryptedIncomeByMonth, budgetState.decryptedOtherByMonth, budgetState.clientExpensesUsdByMonth, budgetState.plannedBaseByMonth, budgetState.investmentEarningsByMonth]);
 
   const netWorthStartSeries = useMemo(() => {
     if (months.length === 0) return [];
@@ -801,7 +871,7 @@ export default function BudgetsPage() {
       method: "PUT",
       body: JSON.stringify(payload),
     });
-    setDecryptedOtherByMonth((prev) => ({ ...prev, [month]: valueUsd }));
+    setBudgetState((prev) => ({ ...prev, decryptedOtherByMonth: { ...prev.decryptedOtherByMonth, [month]: valueUsd } }));
     await load();
   }
 
@@ -823,20 +893,6 @@ export default function BudgetsPage() {
     ];
     downloadCsv(`presupuesto-${year}`, headers, rows);
   }
-
-  console.log("Months length:", months.length);
-  console.log("BudgetsByMonth keys:", Object.keys(budgetsByMonth).length);
-
-  /* TEMP: keep refs while AnnualTable is removed from DOM */
-  void AnnualTable;
-  void formatAmountUsdWith;
-  void setOtherExpensesCurrency;
-  void otherExpensesRateOrNull;
-  void drafts;
-  void setDraft;
-  void clearDraft;
-  void netWorthStartSeries;
-  void saveOtherExpenses;
 
   return (
     <div className="grid">
@@ -931,8 +987,27 @@ export default function BudgetsPage() {
           </div>
         )}
 
+        <AnnualTable
+          months={months}
+          totals={totals}
+          currentMonth={currentMonth}
+          t={t}
+          formatAmountUsd={formatAmountUsd}
+          netWorthStartSeries={netWorthStartSeries}
+          otherExpensesCurrency={otherExpensesCurrency}
+          setOtherExpensesCurrency={setOtherExpensesCurrency}
+          otherExpensesRate={otherExpensesRate}
+          otherExpensesRateOrNull={otherExpensesRateOrNull}
+          drafts={budgetState.drafts}
+          setDraft={setDraft}
+          clearDraft={clearDraft}
+          saveOtherExpenses={saveOtherExpenses}
+          setError={setError}
+          formatAmountUsdWith={formatAmountUsdWith}
+        />
+
         <MonthlyBudgets
-          budgets={budgetsByMonth[currentMonth]}
+          budgets={budgetState.budgetsByMonth[currentMonth]}
           currentMonth={currentMonth}
           setBudgetsByMonth={setBudgetsByMonth}
           saveBudgetAmount={saveBudgetAmount}
@@ -943,8 +1018,6 @@ export default function BudgetsPage() {
           {t("budgets.tipBaseExpenses")}
         </div>
 
-        {/* TEMP DISABLED FOR PERF TEST - inline style block */}
-        {false && (
         <style>{`
           /* Table: compact, smaller fonts, no wrap */
           .budgets-page .budgets-table.compact th,
@@ -961,7 +1034,7 @@ export default function BudgetsPage() {
           }
           .budgets-page .budgets-th-label,
           .budgets-page .budgets-td-label {
-            position: static;
+            position: sticky;
             left: 0;
             z-index: 1;
             background: var(--card) !important;
@@ -1039,7 +1112,6 @@ export default function BudgetsPage() {
 
           .input.compact { padding: 4px 6px; font-size: 11px; border-radius: var(--radius-md); }
         `}</style>
-        )}
       </div>
     </div>
   );

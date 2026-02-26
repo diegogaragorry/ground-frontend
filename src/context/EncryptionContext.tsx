@@ -1,9 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { encryptWithKey, decryptWithKey } from "../utils/crypto";
 
-let decryptCounter = 0;
-export { decryptCounter };
-
 type EncryptionCtx = {
   /** AES CryptoKey in memory (derived once at login). Null if not available (e.g. after refresh). */
   encryptionKey: CryptoKey | null;
@@ -35,12 +32,6 @@ export function EncryptionProvider(props: { children: React.ReactNode }) {
     return () => window.removeEventListener(LOGOUT_EVENT, onLogout);
   }, []);
 
-  useEffect(() => {
-    decryptCounter = 0;
-  }, [encryptionKey]);
-
-  void decryptWithKey; // TEMP: stub decryptPayload so not used
-
   const encryptPayload = useCallback(
     async <T,>(payload: T): Promise<string | null> => {
       if (!encryptionKey) return null;
@@ -55,8 +46,14 @@ export function EncryptionProvider(props: { children: React.ReactNode }) {
   );
 
   const decryptPayload = useCallback(
-    async <T,>(_ciphertextBase64: string): Promise<T | null> => {
-      return null;
+    async <T,>(ciphertextBase64: string): Promise<T | null> => {
+      if (!encryptionKey) return null;
+      try {
+        const json = await decryptWithKey(ciphertextBase64, encryptionKey);
+        return JSON.parse(json) as T;
+      } catch {
+        return null;
+      }
     },
     [encryptionKey]
   );
