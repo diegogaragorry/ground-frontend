@@ -299,6 +299,8 @@ const MonthlyBudgets = React.memo(function MonthlyBudgets({
   saveBudgetAmount: (b: BudgetRow, newAmount: number) => void;
   t: (key: string) => string;
 }) {
+  console.log("Monthly budgets length:", budgets ? budgets.length : 0);
+
   if (!budgets || budgets.length === 0) return null;
 
   return (
