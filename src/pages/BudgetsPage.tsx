@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { APP_BASE } from "../constants";
 import { useTranslation, Trans } from "react-i18next";
@@ -34,6 +34,19 @@ const months12 = Array.from({ length: 12 }, (_, i) => i + 1);
 
 type DraftMap = Record<number, { other?: string }>;
 
+type BudgetRow = {
+  id: string;
+  year: number;
+  month: number;
+  categoryId: string;
+  currencyId: string;
+  amount: number;
+  encryptedPayload?: string | null;
+  category?: { id: string; name: string };
+  currency?: { id: string; name: string };
+  _decryptFailed?: boolean;
+};
+
 function sanitizeNumber(raw: string) {
   const cleaned = raw.trim().replace(/[^\d.,-]/g, "").replace(/,/g, "");
   const n = Number(cleaned);
@@ -43,6 +56,73 @@ function sanitizeNumber(raw: string) {
 function Badge({ children }: { children: React.ReactNode }) {
   return <span className="badge">{children}</span>;
 }
+
+const MonthlyBudgets = React.memo(function MonthlyBudgets({
+  budgets,
+  currentMonth,
+  setBudgetsByMonth,
+  saveBudgetAmount,
+  t,
+}: {
+  budgets: BudgetRow[] | undefined;
+  currentMonth: number;
+  setBudgetsByMonth: React.Dispatch<React.SetStateAction<Record<number, BudgetRow[]>>>;
+  saveBudgetAmount: (b: BudgetRow, newAmount: number) => void;
+  t: (key: string) => string;
+}) {
+  if (!budgets || budgets.length === 0) return null;
+
+  return (
+    <div className="card" style={{ marginTop: 24 }}>
+      <div style={{ fontWeight: 800, marginBottom: 12 }}>
+        {t("budgets.byCategoryTitle")} ({currentMonth})
+      </div>
+
+      <table className="table compact" style={{ fontSize: 12 }}>
+        <thead>
+          <tr>
+            <th>{t("budgets.category")}</th>
+            <th>{t("budgets.currency")}</th>
+            <th className="right">{t("budgets.amount")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {budgets.map((b) => (
+            <tr key={b.id}>
+              <td>{b.category?.name ?? b.categoryId}</td>
+              <td>{b.currencyId}</td>
+              <td className="right">
+                <input
+                  className="input compact"
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={b.amount}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (!Number.isFinite(v) || v < 0) return;
+                    setBudgetsByMonth((prev) => ({
+                      ...prev,
+                      [currentMonth]: (prev[currentMonth] ?? []).map((x) =>
+                        x.id === b.id ? { ...x, amount: v } : x
+                      ),
+                    }));
+                  }}
+                  onBlur={(e) => {
+                    const v = Number((e.target as HTMLInputElement).value);
+                    if (Number.isFinite(v) && v >= 0 && v !== b.amount)
+                      saveBudgetAmount(b, v);
+                  }}
+                  style={{ width: 100, textAlign: "right" }}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+});
 
 export default function BudgetsPage() {
   console.log("BUDGETS COMPONENT RENDER");
@@ -98,18 +178,6 @@ export default function BudgetsPage() {
   const { decryptPayload, encryptPayload, hasEncryptionSupport } = useEncryption();
   const usdUyuRate = serverFxRate ?? getFxDefault();
 
-  type BudgetRow = {
-    id: string;
-    year: number;
-    month: number;
-    categoryId: string;
-    currencyId: string;
-    amount: number;
-    encryptedPayload?: string | null;
-    category?: { id: string; name: string };
-    currency?: { id: string; name: string };
-    _decryptFailed?: boolean;
-  };
   const [budgetsByMonth, setBudgetsByMonth] = useState<Record<number, BudgetRow[]>>({});
 
   const [drafts, setDrafts] = useState<DraftMap>({});
@@ -466,7 +534,6 @@ export default function BudgetsPage() {
       [b.month]: (prev[b.month] ?? []).map((x) => (x.id === b.id ? { ...x, amount: newAmount } : x)),
     }));
   }
-  void saveBudgetAmount; // TEMP: keep ref while monthly budget JSX is disabled
 
   useEffect(() => {
     load();
@@ -884,57 +951,13 @@ export default function BudgetsPage() {
           </table>
         </div>
 
-        {/* TEMP DISABLED FOR DEBUG - monthly budget section
-        {(budgetsByMonth[currentMonth]?.length ?? 0) > 0 && (
-          <div className="card" style={{ marginTop: 24 }}>
-            <div style={{ fontWeight: 800, marginBottom: 12 }}>{t("budgets.byCategoryTitle")} ({currentMonth})</div>
-            <div className="muted" style={{ fontSize: 12, marginBottom: 12 }}>{t("budgets.byCategoryHint")}</div>
-            <table className="table compact" style={{ fontSize: 12 }}>
-              <thead>
-                <tr>
-                  <th>{t("budgets.category")}</th>
-                  <th>{t("budgets.currency")}</th>
-                  <th className="right">{t("budgets.amount")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {budgetsByMonth[currentMonth]?.map((b) => (
-                  <tr key={b.id}>
-                    <td>{b.category?.name ?? b.categoryId}</td>
-                    <td>{b.currencyId}</td>
-                    <td className="right">
-                      {b._decryptFailed ? (
-                        <span className="muted" title={t("common.unavailable")}>—</span>
-                      ) : (
-                        <input
-                          className="input compact"
-                          type="number"
-                          min={0}
-                          step="any"
-                          value={b.amount}
-                          onChange={(e) => {
-                            const v = Number(e.target.value);
-                            if (!Number.isFinite(v) || v < 0) return;
-                            setBudgetsByMonth((prev) => ({
-                              ...prev,
-                              [currentMonth]: (prev[currentMonth] ?? []).map((x) => (x.id === b.id ? { ...x, amount: v } : x)),
-                            }));
-                          }}
-                          onBlur={(e) => {
-                            const v = Number((e.target as HTMLInputElement).value);
-                            if (Number.isFinite(v) && v >= 0 && v !== b.amount) saveBudgetAmount(b, v);
-                          }}
-                          style={{ width: 100, textAlign: "right" }}
-                        />
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        */}
+        <MonthlyBudgets
+          budgets={budgetsByMonth[currentMonth]}
+          currentMonth={currentMonth}
+          setBudgetsByMonth={setBudgetsByMonth}
+          saveBudgetAmount={saveBudgetAmount}
+          t={t}
+        />
 
         <div className="budgets-tip" style={{ marginTop: 16 }}>
           {t("budgets.tipBaseExpenses")}
