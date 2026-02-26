@@ -889,6 +889,17 @@ export default function BudgetsPage() {
   console.log("Months length:", months.length);
   console.log("BudgetsByMonth keys:", Object.keys(budgetsByMonth).length);
 
+  /* TEMP: keep refs while AnnualTable is removed from DOM */
+  void AnnualTable;
+  void formatAmountUsdWith;
+  void setOtherExpensesCurrency;
+  void otherExpensesRateOrNull;
+  void drafts;
+  void setDraft;
+  void clearDraft;
+  void netWorthStartSeries;
+  void saveOtherExpenses;
+
   return (
     <div className="grid">
       {/* ✅ Onboarding banner (Step 4) */}
@@ -980,28 +991,6 @@ export default function BudgetsPage() {
           <div className="muted" style={{ marginTop: 12, padding: 12, background: "var(--bg)", borderRadius: "var(--radius-md)", fontSize: 12 }}>
             {t("budgets.emptyStateBudget")}
           </div>
-        )}
-
-        {/* TEMP DISABLED: AnnualTable to isolate render cost */}
-        {false && (
-        <AnnualTable
-          months={months}
-          totals={totals}
-          currentMonth={currentMonth}
-          t={t}
-          formatAmountUsd={formatAmountUsd}
-          netWorthStartSeries={netWorthStartSeries}
-          otherExpensesCurrency={otherExpensesCurrency}
-          setOtherExpensesCurrency={setOtherExpensesCurrency}
-          otherExpensesRate={otherExpensesRate}
-          otherExpensesRateOrNull={otherExpensesRateOrNull}
-          drafts={drafts}
-          setDraft={setDraft}
-          clearDraft={clearDraft}
-          saveOtherExpenses={saveOtherExpenses}
-          setError={setError}
-          formatAmountUsdWith={formatAmountUsdWith}
-        />
         )}
 
         <MonthlyBudgets
