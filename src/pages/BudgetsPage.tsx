@@ -982,6 +982,8 @@ export default function BudgetsPage() {
           </div>
         )}
 
+        {/* TEMP DISABLED: AnnualTable to isolate render cost */}
+        {false && (
         <AnnualTable
           months={months}
           totals={totals}
@@ -1000,6 +1002,7 @@ export default function BudgetsPage() {
           setError={setError}
           formatAmountUsdWith={formatAmountUsdWith}
         />
+        )}
 
         <MonthlyBudgets
           budgets={budgetsByMonth[currentMonth]}
