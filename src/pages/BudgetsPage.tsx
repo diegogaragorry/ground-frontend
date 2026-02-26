@@ -512,94 +512,20 @@ export default function BudgetsPage() {
       const movementRows = movResp?.rows ?? [];
 
       console.time("budgets-decrypt-phase");
-      const [
-        incomeDecrypted,
-        decryptedPlanned,
-        resolvedMonths,
-        expenseAmounts,
-        filledYear,
-        filledPrevYear,
-        movementsDecrypted,
-      ] = await Promise.all([
-        Promise.all(
-          incomeRows.map(async (row) => {
-            if (row.encryptedPayload) {
-              const pl = await decryptPayload<{ nominalUsd?: number; extraordinaryUsd?: number; taxesUsd?: number }>(row.encryptedPayload);
-              return { month: row.month, total: pl ? (pl.nominalUsd ?? 0) + (pl.extraordinaryUsd ?? 0) - (pl.taxesUsd ?? 0) : 0 };
-            }
-            return { month: row.month, total: row.totalUsd ?? 0 };
-          })
-        ),
-        Promise.all(
-          plannedRows.map(async (row) => {
-            let amountUsd = row.amountUsd ?? 0;
-            if (row.encryptedPayload) {
-              const pl = await decryptPayload<{ amountUsd?: number; defaultAmountUsd?: number }>(row.encryptedPayload);
-              if (pl != null) {
-                const v = pl.amountUsd ?? pl.defaultAmountUsd;
-                if (typeof v === "number") amountUsd = v;
-              }
-            }
-            return { month: row.month ?? 0, amountUsd };
-          })
-        ),
-        Promise.all(
-          (r.months ?? []).map(async (m) => {
-            const lockedEnc = (m as { lockedEncryptedPayload?: string }).lockedEncryptedPayload;
-            if (lockedEnc) {
-              const pl = await decryptPayload<{
-                incomeUsd?: number;
-                expensesUsd?: number;
-                investmentEarningsUsd?: number;
-                balanceUsd?: number;
-                netWorthStartUsd?: number;
-              }>(lockedEnc);
-              if (pl != null) {
-                let baseExpensesUsd = pl.expensesUsd ?? 0;
-                let otherExpensesUsd = 0;
-                const otherEnc = (m as { otherExpensesEncryptedPayload?: string }).otherExpensesEncryptedPayload;
-                if (otherEnc) {
-                  const otherPl = await decryptPayload<{ otherExpensesUsd?: number }>(otherEnc);
-                  if (otherPl != null && typeof otherPl.otherExpensesUsd === "number") {
-                    otherExpensesUsd = otherPl.otherExpensesUsd;
-                    baseExpensesUsd = Math.max(0, (pl.expensesUsd ?? 0) - otherExpensesUsd);
-                  }
-                }
-                return { m, otherExpensesUsd, resolved: { ...m, incomeUsd: pl.incomeUsd ?? 0, expensesUsd: pl.expensesUsd ?? 0, investmentEarningsUsd: pl.investmentEarningsUsd ?? 0, balanceUsd: pl.balanceUsd ?? 0, netWorthUsd: pl.netWorthStartUsd ?? 0, baseExpensesUsd, otherExpensesUsd } };
-              }
-            }
-            const enc = (m as { otherExpensesEncryptedPayload?: string }).otherExpensesEncryptedPayload;
-            if (enc) {
-              const pl = await decryptPayload<{ otherExpensesUsd?: number }>(enc);
-              const otherExpensesUsd = pl != null && typeof pl.otherExpensesUsd === "number" ? pl.otherExpensesUsd : 0;
-              return { m, otherExpensesUsd, resolved: m };
-            }
-            return { m, otherExpensesUsd: 0, resolved: m };
-          })
-        ),
-        Promise.all(
-          expenseItems.map(async ({ monthNum, e }) => {
-            if (e.encryptedPayload) {
-              const pl = await decryptPayload<{ amountUsd?: number }>(e.encryptedPayload);
-              return { monthNum, amountUsd: pl != null && typeof pl.amountUsd === "number" ? pl.amountUsd : 0 };
-            }
-            return { monthNum, amountUsd: e.amountUsd ?? 0 };
-          })
-        ),
-        Promise.all(portfolios.map((_, idx) => decryptAndFill({ months: snapshotsYear[idx] ?? [] }))),
-        Promise.all(portfolios.map((_, idx) => decryptAndFill({ months: snapshotsPrevYear[idx] ?? [] }))),
-        Promise.all(
-          movementRows.map(async (mv) => {
-            let amount = mv.amount ?? 0;
-            if (mv.encryptedPayload) {
-              const pl = await decryptPayload<{ amount?: number }>(mv.encryptedPayload);
-              if (pl != null && typeof pl.amount === "number") amount = pl.amount;
-            }
-            const month = mv.month ?? (mv.date ? new Date(mv.date).getUTCMonth() + 1 : 0);
-            return { ...mv, amount, month };
-          })
-        ),
-      ]);
+      // TEMP DISABLED: skip all decrypt Promise.all to test if freeze is from decryption
+      const incomeDecrypted = [] as Array<{ month: number; total: number }>;
+      const decryptedPlanned = [] as Array<{ month: number; amountUsd: number }>;
+      const resolvedMonths = [] as Array<{ m: { month: number }; otherExpensesUsd: number; resolved: (typeof r.months)[number] }>;
+      const expenseAmounts = [] as Array<{ monthNum: number; amountUsd: number }>;
+      const filledYear = [] as SnapRow[][];
+      const filledPrevYear = [] as SnapRow[][];
+      const movementsDecrypted = [] as Array<{ month?: number; amount?: number; investmentId: string; type?: string; currencyId?: string; date?: string }>;
+      void snapshotsYear;
+      void snapshotsPrevYear;
+      void decryptAndFill;
+      void incomeRows;
+      void plannedRows;
+      void movementRows;
       console.timeEnd("budgets-decrypt-phase");
 
       console.time("financial-calculation-phase");
