@@ -39,6 +39,8 @@ export function EncryptionProvider(props: { children: React.ReactNode }) {
     decryptCounter = 0;
   }, [encryptionKey]);
 
+  void decryptWithKey; // TEMP: stub decryptPayload so not used
+
   const encryptPayload = useCallback(
     async <T,>(payload: T): Promise<string | null> => {
       if (!encryptionKey) return null;
@@ -53,21 +55,8 @@ export function EncryptionProvider(props: { children: React.ReactNode }) {
   );
 
   const decryptPayload = useCallback(
-    async <T,>(ciphertextBase64: string): Promise<T | null> => {
-      if (!encryptionKey) return null;
-
-      decryptCounter++;
-
-      if (decryptCounter % 50 === 0) {
-        console.trace("decryptPayload calls:", decryptCounter);
-      }
-
-      try {
-        const json = await decryptWithKey(ciphertextBase64, encryptionKey);
-        return JSON.parse(json) as T;
-      } catch {
-        return null;
-      }
+    async <T,>(_ciphertextBase64: string): Promise<T | null> => {
+      return null;
     },
     [encryptionKey]
   );
