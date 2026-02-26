@@ -59,7 +59,7 @@ export function EncryptionProvider(props: { children: React.ReactNode }) {
       decryptCounter++;
 
       if (decryptCounter % 50 === 0) {
-        console.log("decryptPayload calls:", decryptCounter);
+        console.trace("decryptPayload calls:", decryptCounter);
       }
 
       try {
