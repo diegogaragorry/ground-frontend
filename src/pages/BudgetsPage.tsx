@@ -466,6 +466,7 @@ export default function BudgetsPage() {
       [b.month]: (prev[b.month] ?? []).map((x) => (x.id === b.id ? { ...x, amount: newAmount } : x)),
     }));
   }
+  void saveBudgetAmount; // TEMP: keep ref while monthly budget JSX is disabled
 
   useEffect(() => {
     load();
@@ -883,6 +884,7 @@ export default function BudgetsPage() {
           </table>
         </div>
 
+        {/* TEMP DISABLED FOR DEBUG - monthly budget section
         {(budgetsByMonth[currentMonth]?.length ?? 0) > 0 && (
           <div className="card" style={{ marginTop: 24 }}>
             <div style={{ fontWeight: 800, marginBottom: 12 }}>{t("budgets.byCategoryTitle")} ({currentMonth})</div>
@@ -932,6 +934,7 @@ export default function BudgetsPage() {
             </table>
           </div>
         )}
+        */}
 
         <div className="budgets-tip" style={{ marginTop: 16 }}>
           {t("budgets.tipBaseExpenses")}
