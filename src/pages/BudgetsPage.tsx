@@ -355,6 +355,8 @@ const MonthlyBudgets = React.memo(function MonthlyBudgets({
   );
 });
 
+let loadCounter = 0;
+
 export default function BudgetsPage() {
   console.log("BUDGETS COMPONENT RENDER");
   const nav = useNavigate();
@@ -425,6 +427,8 @@ export default function BudgetsPage() {
   }
 
   async function load() {
+    loadCounter++;
+    console.log("LOAD COUNT:", loadCounter);
     console.log("LOAD CALLED", { year, currentMonth });
     setLoading(true);
     setError("");
