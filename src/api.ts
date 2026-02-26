@@ -109,5 +109,9 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     return (await res.text()) as unknown as T;
   }
 
-  return (await res.json()) as T;
+  const t0 = performance.now();
+  const data = await res.json();
+  const t1 = performance.now();
+  console.log("JSON parse time (ms):", t1 - t0);
+  return data as T;
 }
