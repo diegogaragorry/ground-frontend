@@ -231,7 +231,7 @@ function AnnualBarChart({
         })}
         {data.map((v, i) => {
           const x = CHART_PAD.left + i * (CHART_INNER_WIDTH / MONTHS_N) + gap / 2;
-          const h = max > 0 ? (v / max) * CHART_INNER_HEIGHT : 0;
+          const h = Math.max(0, max > 0 ? (v / max) * CHART_INNER_HEIGHT : 0);
           const y = CHART_PAD.top + CHART_INNER_HEIGHT - h;
           return (
             <g key={i}>
@@ -377,7 +377,7 @@ function IncomeVsExpensesChart({
         {income.map((v, i) => {
           const slotCenter = CHART_PAD.left + (i + 0.5) * (CHART_INNER_WIDTH / MONTHS_N);
           const xIncome = slotCenter - barW - gap / 2;
-          const hIncome = max > 0 ? (v / max) * CHART_INNER_HEIGHT : 0;
+          const hIncome = Math.max(0, max > 0 ? (v / max) * CHART_INNER_HEIGHT : 0);
           const yIncome = CHART_PAD.top + CHART_INNER_HEIGHT - hIncome;
           return (
             <g key={`in-${i}`}>
@@ -396,7 +396,7 @@ function IncomeVsExpensesChart({
         {expenses.map((v, i) => {
           const slotCenter = CHART_PAD.left + (i + 0.5) * (CHART_INNER_WIDTH / MONTHS_N);
           const xExp = slotCenter + gap / 2;
-          const hExp = max > 0 ? (v / max) * CHART_INNER_HEIGHT : 0;
+          const hExp = Math.max(0, max > 0 ? (v / max) * CHART_INNER_HEIGHT : 0);
           const yExp = CHART_PAD.top + CHART_INNER_HEIGHT - hExp;
           return (
             <g key={`ex-${i}`}>
