@@ -1034,7 +1034,7 @@ export default function BudgetsPage() {
           }
           .budgets-page .budgets-th-label,
           .budgets-page .budgets-td-label {
-            position: sticky;
+            position: static;
             left: 0;
             z-index: 1;
             background: var(--card) !important;
