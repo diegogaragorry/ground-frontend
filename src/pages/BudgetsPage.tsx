@@ -482,15 +482,12 @@ export default function BudgetsPage() {
       const snapshotsPrevYear = payload.snapshotsPrevYear ?? [];
       const movResp = payload.movements ?? { rows: [] };
       const portfolios = (invs ?? []).filter((i: InvLite) => i.type === "PORTFOLIO");
-      type ExpenseRow = { amountUsd?: number; encryptedPayload?: string | null };
-      const expenseListsRaw = expenseResp?.byMonth ?? Array.from({ length: 12 }, () => []);
-      const expenseLists = expenseListsRaw.length >= 12 ? expenseListsRaw : [...expenseListsRaw, ...Array.from({ length: Math.max(0, 12 - expenseListsRaw.length) }, () => [])];
-      const expenseItems: { monthNum: number; e: ExpenseRow }[] = [];
-      for (let i = 0; i < 12; i++) {
-        for (const e of expenseLists[i] ?? []) {
-          expenseItems.push({ monthNum: i + 1, e });
-        }
-      }
+      // convert aggregated expense response into simple totals per month
+      const expenseTotals: Record<number, number> = {};
+      (expenseResp.byMonth || []).forEach((arr, idx) => {
+        const amt = arr && arr[0] ? arr[0].amountUsd ?? 0 : 0;
+        if (amt !== 0) expenseTotals[idx + 1] = amt;
+      });
 
       async function decryptAndFill(resp: SnapshotsResp): Promise<SnapRow[]> {
         const raw = (resp?.months ?? resp?.data?.months ?? []).slice();
@@ -527,7 +524,6 @@ export default function BudgetsPage() {
         incomeDecrypted,
         decryptedPlanned,
         resolvedMonths,
-        expenseAmounts,
         filledYear,
         filledPrevYear,
         movementsDecrypted,
@@ -588,15 +584,6 @@ export default function BudgetsPage() {
             return { m, otherExpensesUsd: 0, resolved: m };
           })
         ),
-        Promise.all(
-          expenseItems.map(async ({ monthNum, e }) => {
-            if (e.encryptedPayload) {
-              const pl = await decryptPayload<{ amountUsd?: number }>(e.encryptedPayload);
-              return { monthNum, amountUsd: pl != null && typeof pl.amountUsd === "number" ? pl.amountUsd : 0 };
-            }
-            return { monthNum, amountUsd: e.amountUsd ?? 0 };
-          })
-        ),
         Promise.all(portfolios.map((_, idx) => decryptAndFill({ months: snapshotsYear[idx] ?? [] }))),
         Promise.all(portfolios.map((_, idx) => decryptAndFill({ months: snapshotsPrevYear[idx] ?? [] }))),
         Promise.all(
@@ -626,13 +613,7 @@ export default function BudgetsPage() {
         return resolved;
       });
 
-      const expensesByMonth: Record<number, number> = {};
-      for (const { monthNum, amountUsd } of expenseAmounts) {
-        expensesByMonth[monthNum] = (expensesByMonth[monthNum] ?? 0) + amountUsd;
-      }
-      for (let i = 0; i < 12; i++) {
-        if ((expenseLists[i] ?? []).length > 0) expensesByMonth[i + 1] = expensesByMonth[i + 1] ?? 0;
-      }
+      const expensesByMonth: Record<number, number> = { ...expenseTotals };
       const snapsByInvId: Record<string, SnapRow[]> = {};
       for (let idx = 0; idx < portfolios.length; idx++) snapsByInvId[portfolios[idx].id] = filledYear[idx] ?? [];
       function valueUsdSnapPrev(snap: SnapRow | undefined, currencyId: string): number | null {
