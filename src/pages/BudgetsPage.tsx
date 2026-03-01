@@ -443,26 +443,15 @@ export default function BudgetsPage() {
     });
   }, [setHeader, year, t, currencyLabel]);
 
-  const usdUyuRate = serverFxRate ?? getFxDefault();
-
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      type InvLite = { id: string; type: string; currencyId?: string | null; targetAnnualReturn?: number | null; yieldStartYear?: number | null; yieldStartMonth?: number | null };
-      type SnapRow = { month: number; closingCapital?: number | null; closingCapitalUsd?: number | null; encryptedPayload?: string | null; _decryptedZero?: boolean };
-      type SnapshotsResp = { months?: SnapRow[]; data?: { months?: SnapRow[] } };
-      const prevYear = year - 1;
-
       type PageDataPayload = {
         annual: AnnualResp;
         income: { year: number; rows: Array<{ month: number; totalUsd: number; encryptedPayload?: string }> };
         planned: { year: number; rows: Array<{ month: number; amountUsd?: number | null; encryptedPayload?: string | null }> };
         expensesByMonth: { byMonth: Array<{ amountUsd?: number; encryptedPayload?: string | null }[]> };
-        investments: InvLite[];
-        snapshotsYear: SnapRow[][];
-        snapshotsPrevYear: SnapRow[][];
-        movements: { year: number; rows: Array<{ month?: number; date?: string; investmentId: string; type: string; amount?: number; currencyId?: string; encryptedPayload?: string | null }> };
       };
 
       const ensureYearPromise = api(`/plannedExpenses/ensure-year`, {
@@ -476,12 +465,7 @@ export default function BudgetsPage() {
       const r = payload.annual;
       const incomeResp = payload.income;
       const plannedResp = payload.planned;
-      const invs = payload.investments ?? [];
       const expenseResp = payload.expensesByMonth ?? { byMonth: Array.from({ length: 12 }, () => []) };
-      const snapshotsYear = payload.snapshotsYear ?? [];
-      const snapshotsPrevYear = payload.snapshotsPrevYear ?? [];
-      const movResp = payload.movements ?? { rows: [] };
-      const portfolios = (invs ?? []).filter((i: InvLite) => i.type === "PORTFOLIO");
       // convert aggregated expense response into simple totals per month
       const expenseTotals: Record<number, number> = {};
       (expenseResp.byMonth || []).forEach((arr, idx) => {
@@ -489,44 +473,13 @@ export default function BudgetsPage() {
         if (amt !== 0) expenseTotals[idx + 1] = amt;
       });
 
-      async function decryptAndFill(resp: SnapshotsResp): Promise<SnapRow[]> {
-        const raw = (resp?.months ?? resp?.data?.months ?? []).slice();
-        const decrypted = await Promise.all(
-          raw.map(async (s: SnapRow) => {
-            if (s.encryptedPayload) {
-              const pl = await decryptPayload<{ closingCapital?: number; closingCapitalUsd?: number }>(s.encryptedPayload);
-              if (pl != null) {
-                const cap = pl.closingCapital ?? null;
-                const capUsd = typeof pl.closingCapitalUsd === "number" ? pl.closingCapitalUsd : (typeof pl.closingCapital === "number" ? pl.closingCapital : null);
-                const isZero = (cap === 0 || cap === null) && (capUsd === 0 || capUsd === null);
-                return { ...s, closingCapital: cap, closingCapitalUsd: capUsd, _decryptedZero: isZero };
-              }
-              return { ...s, closingCapital: null, closingCapitalUsd: null };
-            }
-            return s;
-          })
-        );
-        decrypted.sort((a: SnapRow, b: SnapRow) => (Number(a.month) ?? 99) - (Number(b.month) ?? 99));
-        const filled: SnapRow[] = [];
-        for (let i = 0; i < 12; i++) {
-          const monthNum = i + 1;
-          const existing = decrypted.find((x: SnapRow) => Number(x.month) === monthNum);
-          filled.push(existing ?? { month: monthNum, closingCapital: null, closingCapitalUsd: null });
-        }
-        return filled;
-      }
-
       const incomeRows = incomeResp.rows ?? [];
       const plannedRows = plannedResp?.rows ?? [];
-      const movementRows = movResp?.rows ?? [];
 
       const [
         incomeDecrypted,
         decryptedPlanned,
         resolvedMonths,
-        filledYear,
-        filledPrevYear,
-        movementsDecrypted,
       ] = await Promise.all([
         Promise.all(
           incomeRows.map(async (row) => {
@@ -584,19 +537,6 @@ export default function BudgetsPage() {
             return { m, otherExpensesUsd: 0, resolved: m };
           })
         ),
-        Promise.all(portfolios.map((_, idx) => decryptAndFill({ months: snapshotsYear[idx] ?? [] }))),
-        Promise.all(portfolios.map((_, idx) => decryptAndFill({ months: snapshotsPrevYear[idx] ?? [] }))),
-        Promise.all(
-          movementRows.map(async (mv) => {
-            let amount = mv.amount ?? 0;
-            if (mv.encryptedPayload) {
-              const pl = await decryptPayload<{ amount?: number }>(mv.encryptedPayload);
-              if (pl != null && typeof pl.amount === "number") amount = pl.amount;
-            }
-            const month = mv.month ?? (mv.date ? new Date(mv.date).getUTCMonth() + 1 : 0);
-            return { ...mv, amount, month };
-          })
-        ),
       ]);
 
       const byMonth: Record<number, number> = {};
@@ -614,92 +554,9 @@ export default function BudgetsPage() {
       });
 
       const expensesByMonth: Record<number, number> = { ...expenseTotals };
-      const snapsByInvId: Record<string, SnapRow[]> = {};
-      for (let idx = 0; idx < portfolios.length; idx++) snapsByInvId[portfolios[idx].id] = filledYear[idx] ?? [];
-      function valueUsdSnapPrev(snap: SnapRow | undefined, currencyId: string): number | null {
-        if (!snap) return null;
-        const hasEnc = !!snap.encryptedPayload;
-        const bothZero = (snap.closingCapitalUsd === 0 && snap.closingCapital === 0) || (snap.closingCapitalUsd == null && snap.closingCapital == null);
-        if (hasEnc && bothZero && !snap._decryptedZero) return null;
-        if (snap.closingCapitalUsd != null && typeof snap.closingCapitalUsd === "number") return snap.closingCapitalUsd;
-        if (currencyId === "USD" && snap.closingCapital != null && typeof snap.closingCapital === "number") return snap.closingCapital;
-        return null;
-      }
-      function capitalUsdPortfolioPrevYear(inv: InvLite, snaps: SnapRow[], m: number, y: number): number {
-        const idx = m - 1;
-        const s = snaps[idx];
-        const direct = valueUsdSnapPrev(s, inv.currencyId ?? "USD");
-        if (direct != null) return direct;
-        const monthlyFactor = 1 + (inv.targetAnnualReturn ?? 0) / 12;
-        const yieldStart = inv.yieldStartYear != null && inv.yieldStartYear > y ? 13 : inv.yieldStartYear === y ? (inv.yieldStartMonth ?? 1) : 1;
-        for (let i = m - 2; i >= 0; i--) {
-          const prevVal = valueUsdSnapPrev(snaps[i], inv.currencyId ?? "USD");
-          if (prevVal != null) {
-            const start = Math.max(yieldStart, i + 1);
-            const diff = m - start;
-            if (diff <= 0) return prevVal;
-            return prevVal * Math.pow(monthlyFactor, diff);
-          }
-        }
-        return 0;
-      }
-      let prevYearDecNW = 0;
-      for (let idx = 0; idx < portfolios.length; idx++) {
-        prevYearDecNW += capitalUsdPortfolioPrevYear(portfolios[idx], filledPrevYear[idx] ?? [], 12, prevYear);
-      }
-      function valueUsdSnap(snap: SnapRow | undefined, currencyId: string): number | null {
-        if (!snap) return null;
-        const hasEnc = !!snap.encryptedPayload;
-        const bothZero = (snap.closingCapitalUsd === 0 && snap.closingCapital === 0) || (snap.closingCapitalUsd == null && snap.closingCapital == null);
-        if (hasEnc && bothZero && !snap._decryptedZero) return null;
-        if (snap.closingCapitalUsd != null && typeof snap.closingCapitalUsd === "number") return snap.closingCapitalUsd;
-        if (currencyId === "USD" && snap.closingCapital != null && typeof snap.closingCapital === "number") return snap.closingCapital;
-        return null;
-      }
-      function capitalUsdPortfolioInv(inv: InvLite, snaps: SnapRow[], m: number): number {
-        const idx = m - 1;
-        const s = snaps[idx];
-        const direct = valueUsdSnap(s, inv.currencyId ?? "USD");
-        if (direct != null) return direct;
-        const monthlyFactor = 1 + (inv.targetAnnualReturn ?? 0) / 12;
-        const yieldStart = inv.yieldStartYear != null && inv.yieldStartYear > year ? 13 : inv.yieldStartYear === year ? (inv.yieldStartMonth ?? 1) : 1;
-        for (let i = m - 2; i >= 0; i--) {
-          const prevVal = valueUsdSnap(snaps[i], inv.currencyId ?? "USD");
-          if (prevVal != null) {
-            const start = Math.max(yieldStart, i + 1);
-            const diff = m - start;
-            if (diff <= 0) return prevVal;
-            return prevVal * Math.pow(monthlyFactor, diff);
-          }
-        }
-        return 0;
-      }
-      const portfolioNW = months12.map((m) => portfolios.reduce((acc, inv) => acc + capitalUsdPortfolioInv(inv, snapsByInvId[inv.id] ?? [], m), 0));
-      const projectedNextJan = portfolios.reduce((acc, inv) => {
-        const snaps = snapsByInvId[inv.id] ?? [];
-        const decCap = capitalUsdPortfolioInv(inv, snaps, 12);
-        return acc + decCap * (1 + (inv.targetAnnualReturn ?? 0) / 12);
-      }, 0);
-      const flows = months12.map(() => 0);
-      const invById = new Map(portfolios.map((i) => [i.id, i]));
-      const fx = Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : null;
-      for (const mv of movementsDecrypted) {
-        const m = mv.month ?? 0;
-        if (m < 1 || m > 12) continue;
-        const inv = invById.get(mv.investmentId);
-        if (!inv || inv.type !== "PORTFOLIO") continue;
-        const sign = mv.type === "deposit" ? 1 : mv.type === "withdrawal" ? -1 : 0;
-        const amount = mv.amount ?? 0;
-        const cur = (mv.currencyId ?? "USD").toUpperCase();
-        if (cur === "USD") flows[m - 1] += sign * amount;
-        else if (cur === "UYU" && fx) flows[m - 1] += sign * (amount / fx);
-      }
-      const variation = months12.map((_, i) =>
-        i < 11 ? (portfolioNW[i + 1] ?? 0) - (portfolioNW[i] ?? 0) : projectedNextJan - (portfolioNW[11] ?? 0)
-      );
       const earningsByMonth: Record<number, number> = {};
-      for (let i = 0; i < 12; i++) {
-        earningsByMonth[i + 1] = (variation[i] ?? 0) - (flows[i] ?? 0);
+      for (const m of resolvedMonthsMapped) {
+        earningsByMonth[m.month] = m.investmentEarningsUsd ?? 0;
       }
 
       const budgetList = await api<BudgetRow[]>(
