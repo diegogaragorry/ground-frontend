@@ -31,6 +31,14 @@ type Expense = {
 
 type MonthCloseRow = { year: number; month: number; isClosed?: boolean };
 type MonthClosesResp = { year: number; rows: MonthCloseRow[] };
+type ExpensesPageData = {
+  year: number;
+  month: number;
+  categories: Category[];
+  expenses: Expense[];
+  planned: { rows: PlannedExpense[] };
+  monthCloses: MonthClosesResp;
+};
 
 type PlannedExpense = {
   id: string;
@@ -191,10 +199,8 @@ export default function ExpensesPage() {
     return c?.expenseType ?? null;
   }
 
-  async function loadCategories() {
-    const cats = await api<Category[]>("/categories");
+  function applyCategories(cats: Category[]) {
     setCategories(cats);
-
     const list = cats.filter((c) => c.expenseType === expenseTypeCreate);
     if (list.length > 0) {
       const stillValid = list.some((c) => c.id === categoryId);
@@ -204,9 +210,8 @@ export default function ExpensesPage() {
     }
   }
 
-  async function loadExpenses() {
-    const list = await api<Expense[]>(`/expenses?year=${year}&month=${month}`);
-    const decrypted = await Promise.all(
+  async function resolveExpenses(list: Expense[]) {
+    return Promise.all(
       list.map(async (e) => {
         if (e.encryptedPayload) {
           const pl = await decryptPayload<{ description?: string; amount?: number; amountUsd?: number; defaultAmountUsd?: number }>(e.encryptedPayload);
@@ -231,37 +236,44 @@ export default function ExpensesPage() {
         return e;
       })
     );
-    setExpenses(decrypted);
   }
 
-  async function loadPlanned() {
-    const r = await api<{ rows: PlannedExpense[] }>(`/plannedExpenses?year=${year}&month=${month}`);
-    const raw = (r.rows ?? []).filter((p) => !p.isConfirmed);
-    const resolved: PlannedExpense[] = [];
-    for (const p of raw) {
-      if (p.encryptedPayload) {
-        const pl = await decryptPayload<{ description?: string; amountUsd?: number | null; amount?: number | null; defaultAmountUsd?: number | null }>(p.encryptedPayload);
-        if (pl != null) {
-          const amountUsd = pl.amountUsd ?? pl.defaultAmountUsd ?? p.amountUsd ?? null;
-          resolved.push({
-            ...p,
-            description: typeof pl.description === "string" ? pl.description : p.description,
-            amountUsd,
-            amount: pl.amount ?? p.amount ?? null,
-          });
-        } else {
-          resolved.push({ ...p, description: "—", amountUsd: null, amount: null });
+  async function resolvePlanned(rows: PlannedExpense[]) {
+    const raw = rows.filter((p) => !p.isConfirmed);
+    return Promise.all(
+      raw.map(async (p) => {
+        if (p.encryptedPayload) {
+          const pl = await decryptPayload<{ description?: string; amountUsd?: number | null; amount?: number | null; defaultAmountUsd?: number | null }>(p.encryptedPayload);
+          if (pl != null) {
+            const amountUsd = pl.amountUsd ?? pl.defaultAmountUsd ?? p.amountUsd ?? null;
+            return {
+              ...p,
+              description: typeof pl.description === "string" ? pl.description : p.description,
+              amountUsd,
+              amount: pl.amount ?? p.amount ?? null,
+            };
+          }
+          return { ...p, description: "—", amountUsd: null, amount: null };
         }
-      } else {
-        resolved.push(p);
-      }
-    }
-    setPlanned(resolved);
+        return p;
+      })
+    );
   }
 
-  async function loadMonthCloses() {
-    const r = await api<MonthClosesResp>(`/monthCloses?year=${year}`);
+  function applyMonthCloses(r: MonthClosesResp) {
     setClosedMonths(new Set((r.rows ?? []).filter((x) => x.isClosed !== false).map((x) => x.month)));
+  }
+
+  async function loadPageData() {
+    const payload = await api<ExpensesPageData>(`/expenses/page-data?year=${year}&month=${month}`);
+    const [resolvedExpenses, resolvedPlanned] = await Promise.all([
+      resolveExpenses(payload.expenses ?? []),
+      resolvePlanned(payload.planned?.rows ?? []),
+    ]);
+    applyCategories(payload.categories ?? []);
+    setExpenses(resolvedExpenses);
+    setPlanned(resolvedPlanned);
+    applyMonthCloses(payload.monthCloses ?? { year, rows: [] });
   }
 
   async function loadAll() {
@@ -269,8 +281,7 @@ export default function ExpensesPage() {
     setInfo("");
     setLoading(true);
     try {
-      await loadCategories();
-      await Promise.all([loadExpenses(), loadPlanned(), loadMonthCloses()]);
+      await loadPageData();
       setYmCreate(ymToInputValue(year, month));
     } catch (err: any) {
       setError(err?.message ?? t("common.error"));
@@ -431,7 +442,7 @@ export default function ExpensesPage() {
         body: JSON.stringify(body),
       });
 
-      await Promise.all([loadExpenses(), loadPlanned()]);
+      await loadPageData();
       setInfo(t("expenses.expenseCreated"));
       showSuccess(t("expenses.expenseCreated"));
     } catch (err: any) {
@@ -447,7 +458,7 @@ export default function ExpensesPage() {
 
     try {
       await api(`/expenses/${expenseId}`, { method: "DELETE" });
-      await loadExpenses();
+      await loadPageData();
       setInfo(t("expenses.expenseDeleted"));
       showSuccess(t("expenses.expenseDeleted"));
     } catch (err: any) {
@@ -491,7 +502,7 @@ export default function ExpensesPage() {
       method: "PUT",
       body: JSON.stringify(body),
     });
-    await loadExpenses();
+    await loadPageData();
   }
 
   async function patchPlanned(plannedId: string, patch: any) {
@@ -522,7 +533,7 @@ export default function ExpensesPage() {
       method: "PUT",
       body: JSON.stringify(body),
     });
-    await loadPlanned();
+    await loadPageData();
   }
 
   /** Build patch from draft so backend has latest values before confirm (e.g. if user edited amount without blur). */
@@ -581,7 +592,7 @@ export default function ExpensesPage() {
           : undefined;
 
       await api(`/plannedExpenses/${p.id}/confirm`, { method: "POST", ...(body ? { body } : {}) });
-      await Promise.all([loadPlanned(), loadExpenses()]);
+      await loadPageData();
       setInfo(t("expenses.draftConfirmed"));
       showSuccess(t("expenses.draftConfirmed"));
     } catch (err: any) {
@@ -611,7 +622,7 @@ export default function ExpensesPage() {
             : undefined;
         await api(`/plannedExpenses/${p.id}/confirm`, { method: "POST", ...(body ? { body } : {}) });
       }
-      await Promise.all([loadPlanned(), loadExpenses()]);
+      await loadPageData();
       setInfo(t("expenses.allDraftsConfirmed"));
       showSuccess(t("expenses.allDraftsConfirmed"));
     } catch (err: any) {

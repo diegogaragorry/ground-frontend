@@ -59,6 +59,11 @@ type MovementRow = {
 
 type MonthCloseRow = { year: number; month: number; isClosed?: boolean };
 type MonthClosesResp = { year: number; rows: MonthCloseRow[] };
+type InvestmentPageData = {
+  investments?: Investment[];
+  investmentSnapshotsYear?: Array<{ investmentId: string; months?: SnapshotMonth[] }>;
+  movements?: { year: number; rows?: MovementApiRow[] };
+};
 
 
 const months = Array.from({ length: 12 }, (_, i) => i + 1);
@@ -73,14 +78,18 @@ function firstDayUtc(year: number, month: number) {
   return new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
 }
 
-function normalizeMovement(x: MovementApiRow & { _decryptFailed?: boolean }): MovementRow {
+function normalizeMovement(
+  x: MovementApiRow & { _decryptFailed?: boolean },
+  investmentById?: Map<string, Investment>
+): MovementRow {
+  const investment = investmentById?.get(x.investmentId);
   return {
     id: x.id,
     date: x.date,
     month: toMonthFromIso(x.date),
     investmentId: x.investmentId,
-    investmentName: x.investment?.name ?? undefined,
-    investmentType: x.investment?.type ?? undefined,
+    investmentName: x.investment?.name ?? investment?.name ?? undefined,
+    investmentType: x.investment?.type ?? investment?.type ?? undefined,
     type: x.type,
     currencyId: x.currencyId,
     amount: x.amount ?? 0,
@@ -156,27 +165,22 @@ export default function InvestmentsPage() {
   const [closedMonths, setClosedMonths] = useState<Set<number>>(new Set());
   const isClosed = (m: number) => closedMonths.has(m);
 
-  async function loadMonthCloses() {
-    const r = await api<MonthClosesResp>(`/monthCloses?year=${year}`);
-    const set = new Set<number>();
-    for (const row of r.rows ?? []) {
-      if (row.isClosed !== false) set.add(row.month);
-    }
-    setClosedMonths(set);
-  }
-
   async function load() {
     setLoading(true);
     setError("");
     try {
-      const invs = await api<Investment[]>("/investments");
+      const [payload, monthCloses] = await Promise.all([
+        api<InvestmentPageData>(`/budgets/page-data?year=${year}`),
+        api<MonthClosesResp>(`/monthCloses?year=${year}`),
+      ]);
+      const invs = payload.investments ?? [];
       setInvestments(invs);
+      const investmentById = new Map(invs.map((inv) => [inv.id, inv]));
 
       const snaps: Record<string, SnapshotMonth[]> = {};
       for (const inv of invs) {
-        const r = await api<{ months?: SnapshotMonth[]; data?: { months?: SnapshotMonth[] } }>(`/investments/${inv.id}/snapshots?year=${year}`);
-        const raw = (r.months ?? r.data?.months ?? []).slice();
-        const months = await Promise.all(
+        const raw = (payload.investmentSnapshotsYear?.find((row) => row.investmentId === inv.id)?.months ?? []).slice();
+        const resolvedMonths = await Promise.all(
           raw.map(async (s) => {
             if (s.encryptedPayload) {
               const pl = await decryptPayload<{ closingCapital?: number; closingCapitalUsd?: number }>(s.encryptedPayload);
@@ -192,11 +196,11 @@ export default function InvestmentsPage() {
           })
         );
         // Garantizar orden por mes (1..12) y siempre 12 elementos para que snaps[i] = mes i+1
-        months.sort((a, b) => (Number(a.month) ?? 99) - (Number(b.month) ?? 99));
+        resolvedMonths.sort((a, b) => (Number(a.month) ?? 99) - (Number(b.month) ?? 99));
         const filled: SnapshotMonth[] = [];
         for (let i = 0; i < 12; i++) {
           const monthNum = i + 1;
-          const existing = months.find((x) => Number(x.month) === monthNum);
+          const existing = resolvedMonths.find((x) => Number(x.month) === monthNum);
           filled.push(
             existing ?? {
               id: null,
@@ -213,9 +217,8 @@ export default function InvestmentsPage() {
       }
       setSnapshots(snaps);
 
-      const mov = await api<{ year: number; rows: MovementApiRow[] }>(`/investments/movements?year=${year}`);
       const rows = await Promise.all(
-        (mov.rows ?? []).map(async (r) => {
+        (payload.movements?.rows ?? []).map(async (r) => {
           if (r.encryptedPayload) {
             const pl = await decryptPayload<{ amount?: number }>(r.encryptedPayload);
             if (pl != null && typeof pl.amount === "number") return { ...r, amount: pl.amount };
@@ -224,9 +227,13 @@ export default function InvestmentsPage() {
           return r;
         })
       );
-      setMovements(rows.map(normalizeMovement));
+      setMovements(rows.map((row) => normalizeMovement(row, investmentById)));
 
-      await loadMonthCloses();
+      const set = new Set<number>();
+      for (const row of monthCloses.rows ?? []) {
+        if (row.isClosed !== false) set.add(row.month);
+      }
+      setClosedMonths(set);
     } catch (e: any) {
       setError(e?.message ?? t("investments.errorLoadingInvestments"));
     } finally {
@@ -427,41 +434,7 @@ export default function InvestmentsPage() {
         body: JSON.stringify({ currencyId: id }),
       });
       setInvestments((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
-      const r = await api<{ months?: SnapshotMonth[]; data?: { months?: SnapshotMonth[] } }>(`/investments/${inv.id}/snapshots?year=${year}`);
-      const raw = (r.months ?? r.data?.months ?? []).slice();
-      const decrypted = await Promise.all(
-        raw.map(async (s) => {
-          if (s.encryptedPayload) {
-            const pl = await decryptPayload<{ closingCapital?: number; closingCapitalUsd?: number }>(s.encryptedPayload);
-            if (pl != null) {
-              const cap = pl.closingCapital ?? null;
-              const capUsd = typeof pl.closingCapitalUsd === "number" ? pl.closingCapitalUsd : (typeof pl.closingCapital === "number" ? pl.closingCapital : null);
-              const isZero = (cap === 0 || cap === null) && (capUsd === 0 || capUsd === null);
-              return { ...s, closingCapital: cap, closingCapitalUsd: capUsd, _decryptedZero: isZero };
-            }
-            return { ...s, closingCapital: null, closingCapitalUsd: null, _decryptFailed: true };
-          }
-          return s;
-        })
-      );
-      decrypted.sort((a, b) => (Number(a.month) ?? 99) - (Number(b.month) ?? 99));
-      const filled: SnapshotMonth[] = [];
-      for (let i = 0; i < 12; i++) {
-        const monthNum = i + 1;
-        const existing = decrypted.find((x) => Number(x.month) === monthNum);
-        filled.push(
-          existing ?? {
-            id: null,
-            investmentId: inv.id,
-            year,
-            month: monthNum,
-            closingCapital: null,
-            closingCapitalUsd: null,
-            isClosed: false,
-          }
-        );
-      }
-      setSnapshots((prev) => ({ ...prev, [inv.id]: filled }));
+      await load();
       showSuccess(t("common.saved"));
     } catch (e: any) {
       setError(e?.message ?? t("investments.errorSavingTargetReturn"));
@@ -632,7 +605,7 @@ export default function InvestmentsPage() {
         body: JSON.stringify(body),
       });
 
-      setMovements((prev) => [normalizeMovement(created), ...prev]);
+      setMovements((prev) => [normalizeMovement(created, new Map(investments.map((inv) => [inv.id, inv]))), ...prev]);
       showSuccess("Movement added.");
     } catch (e: any) {
       setError(e?.message ?? t("investments.errorAddingMovement"));
@@ -661,7 +634,7 @@ export default function InvestmentsPage() {
         body: JSON.stringify(body),
       });
 
-      const normalized = normalizeMovement(res);
+      const normalized = normalizeMovement(res, new Map(investments.map((inv) => [inv.id, inv])));
       setMovements((prev) => prev.map((x) => (x.id === normalized.id ? normalized : x)));
       showSuccess("Movement updated.");
     } catch (e: any) {

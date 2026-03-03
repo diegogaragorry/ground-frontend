@@ -478,25 +478,48 @@ export default function DashboardPage() {
     setLoading(true);
     setError("");
     try {
-      const [list, invs, annualResp, incomeResp, plannedResp] = await Promise.all([
+      type DashboardPageDataPayload = {
+        annual: AnnualBudgetResp;
+        income: { year: number; rows: Array<{ month: number; totalUsd: number; encryptedPayload?: string }> };
+        planned: { year: number; rows: Array<{ month: number; amountUsd?: number | null; encryptedPayload?: string | null }> };
+        expensesByMonth: { byMonth: Array<{ amountUsd?: number; encryptedPayload?: string | null }[]> };
+        yearExpensesByMonth?: { byMonth: Array<{ amountUsd?: number; encryptedPayload?: string | null }[]> };
+        investments: Investment[];
+        investmentSnapshotsYear?: Array<{ investmentId: string; months: SnapshotMonth[] }>;
+        movements: { year: number; rows: Array<{ month?: number; date?: string; investmentId: string; type: string; amount?: number; currencyId?: string; encryptedPayload?: string | null }> };
+      };
+
+      const [list, payload] = await Promise.all([
         api<Expense[]>(`/expenses?year=${year}&month=${month}`),
-        api<Investment[]>("/investments"),
-        api<AnnualBudgetResp>(`/budgets/annual?year=${year}`),
-        api<{ year: number; rows: Array<{ month: number; totalUsd: number; encryptedPayload?: string }> }>(`/income?year=${year}`),
-        api<{ year: number; rows: Array<{ month: number; amountUsd?: number | null; encryptedPayload?: string | null }> }>(`/plannedExpenses?year=${year}`),
+        api<DashboardPageDataPayload>(`/budgets/page-data?year=${year}`),
       ]);
+
+      const annualResp = payload.annual;
+      const incomeResp = payload.income;
+      const plannedResp = payload.planned;
+      const invs = payload.investments ?? [];
 
       const decryptedExpenses = await Promise.all(
         (list ?? []).map(async (e) => {
           if (e.encryptedPayload) {
-            const pl = await decryptPayload<{ description?: string; amount?: number; amountUsd?: number }>(e.encryptedPayload);
+            const pl = await decryptPayload<{ description?: string; amount?: number; amountUsd?: number; defaultAmountUsd?: number }>(e.encryptedPayload);
             if (pl)
+              {
+              const resolvedAmountUsd = pl.amountUsd ?? pl.defaultAmountUsd ?? e.amountUsd;
+              const resolvedAmount =
+                pl.amount ??
+                (e.currencyId === "USD"
+                  ? resolvedAmountUsd
+                  : e.currencyId === "UYU" && Number((e as Expense).amountUsd) > 0 && resolvedAmountUsd > 0
+                    ? e.amount
+                    : e.amount);
               return {
                 ...e,
                 description: pl.description ?? e.description,
-                amount: pl.amount ?? e.amount,
-                amountUsd: pl.amountUsd ?? e.amountUsd,
+                amount: resolvedAmount,
+                amountUsd: resolvedAmountUsd,
               };
+            }
             return { ...e, _decryptFailed: true, description: "—", amount: 0, amountUsd: 0 };
           }
           return e;
@@ -541,10 +564,7 @@ export default function DashboardPage() {
       setPlannedAmountByMonth(plannedAmountByMonthLocal);
 
       // Gastos reales por mes (descifrados), misma lógica que Presupuestos
-      type ExpenseRow = { amountUsd: number; encryptedPayload?: string | null };
-      const expenseLists = await Promise.all(
-        months.map((m) => api<ExpenseRow[]>(`/expenses?year=${year}&month=${m}`))
-      );
+      const expenseLists = payload.yearExpensesByMonth?.byMonth ?? payload.expensesByMonth?.byMonth ?? Array.from({ length: 12 }, () => []);
       const clientExpensesUsdByMonth: Record<number, number> = {};
       for (let i = 0; i < 12; i++) {
         const list = expenseLists[i] ?? [];
@@ -564,10 +584,9 @@ export default function DashboardPage() {
       // Snapshots antes de resolvedMonths para poder calcular ganancias en cliente
       const snaps: Record<string, SnapshotMonth[]> = {};
       const invsList = invs ?? [];
-      for (const inv of invsList) {
-        const r = await api<{ months: SnapshotMonth[] }>(`/investments/${inv.id}/snapshots?year=${year}`);
+      for (const entry of payload.investmentSnapshotsYear ?? []) {
         const monthsSnap: SnapshotMonth[] = await Promise.all(
-          (r.months ?? []).map(async (s) => {
+          (entry.months ?? []).map(async (s) => {
             if (s.encryptedPayload) {
               const pl = await decryptPayload<{ closingCapital?: number; closingCapitalUsd?: number }>(s.encryptedPayload);
               if (pl != null) return { ...s, closingCapitalUsd: pl.closingCapitalUsd ?? s.closingCapitalUsd ?? 0 };
@@ -576,7 +595,7 @@ export default function DashboardPage() {
             return s;
           })
         );
-        snaps[inv.id] = monthsSnap;
+        snaps[entry.investmentId] = monthsSnap;
       }
       setSnapshots(snaps);
 
@@ -584,7 +603,7 @@ export default function DashboardPage() {
       const portfolios = invsList.filter((i) => (i as Investment).type === "PORTFOLIO");
       const usdUyuRate = serverFxRate ?? getFxDefault();
       const fx = Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : null;
-      const movResp = await api<{ year: number; rows: Array<{ month?: number; date?: string; investmentId: string; type: string; amount?: number; currencyId?: string; encryptedPayload?: string | null }> }>(`/investments/movements?year=${year}`).catch(() => ({ rows: [] }));
+      const movResp = payload.movements ?? { rows: [] };
       const movementRows = movResp?.rows ?? [];
       const movementsDecrypted = await Promise.all(
         movementRows.map(async (mv) => {
