@@ -57,7 +57,7 @@ type MovementRow = {
   _decryptFailed?: boolean;
 };
 
-type MonthCloseRow = { year: number; month: number };
+type MonthCloseRow = { year: number; month: number; isClosed?: boolean };
 type MonthClosesResp = { year: number; rows: MonthCloseRow[] };
 
 
@@ -160,7 +160,7 @@ export default function InvestmentsPage() {
     const r = await api<MonthClosesResp>(`/monthCloses?year=${year}`);
     const set = new Set<number>();
     for (const row of r.rows ?? []) {
-      set.add(row.month);
+      if (row.isClosed !== false) set.add(row.month);
     }
     setClosedMonths(set);
   }

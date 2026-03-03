@@ -29,7 +29,7 @@ type Expense = {
   _decryptFailed?: boolean;
 };
 
-type MonthCloseRow = { year: number; month: number };
+type MonthCloseRow = { year: number; month: number; isClosed?: boolean };
 type MonthClosesResp = { year: number; rows: MonthCloseRow[] };
 
 type PlannedExpense = {
@@ -209,13 +209,21 @@ export default function ExpensesPage() {
     const decrypted = await Promise.all(
       list.map(async (e) => {
         if (e.encryptedPayload) {
-          const pl = await decryptPayload<{ description?: string; amount?: number; amountUsd?: number }>(e.encryptedPayload);
+          const pl = await decryptPayload<{ description?: string; amount?: number; amountUsd?: number; defaultAmountUsd?: number }>(e.encryptedPayload);
           if (pl) {
+            const resolvedAmountUsd = pl.amountUsd ?? pl.defaultAmountUsd ?? e.amountUsd;
+            const resolvedAmount =
+              pl.amount ??
+              (e.currencyId === "USD"
+                ? resolvedAmountUsd
+                : e.currencyId === "UYU" && Number(e.usdUyuRate) > 0
+                  ? Math.round(resolvedAmountUsd * Number(e.usdUyuRate))
+                  : e.amount);
             return {
               ...e,
               description: pl.description ?? e.description,
-              amount: pl.amount ?? e.amount,
-              amountUsd: pl.amountUsd ?? e.amountUsd,
+              amount: resolvedAmount,
+              amountUsd: resolvedAmountUsd,
             };
           }
           return { ...e, _decryptFailed: true, description: "—", amount: 0, amountUsd: 0 };
@@ -253,7 +261,7 @@ export default function ExpensesPage() {
 
   async function loadMonthCloses() {
     const r = await api<MonthClosesResp>(`/monthCloses?year=${year}`);
-    setClosedMonths(new Set((r.rows ?? []).map((x) => x.month)));
+    setClosedMonths(new Set((r.rows ?? []).filter((x) => x.isClosed !== false).map((x) => x.month)));
   }
 
   async function loadAll() {
@@ -285,6 +293,27 @@ export default function ExpensesPage() {
     () => expenses.filter((e) => !e._decryptFailed).reduce((acc, e) => acc + (e.amountUsd ?? 0), 0),
     [expenses]
   );
+
+  const plannedSorted = useMemo(() => {
+    const typeRank = (type: ExpenseType) => (type === "FIXED" ? 0 : 1);
+    return [...planned].sort((a, b) => {
+      const typeCmp = typeRank(a.expenseType) - typeRank(b.expenseType);
+      if (typeCmp !== 0) return typeCmp;
+
+      const aCategory = getCategoryDisplayName(
+        { name: a.category?.name ?? "", expenseType: a.expenseType },
+        t
+      );
+      const bCategory = getCategoryDisplayName(
+        { name: b.category?.name ?? "", expenseType: b.expenseType },
+        t
+      );
+      const categoryCmp = aCategory.localeCompare(bCategory);
+      if (categoryCmp !== 0) return categoryCmp;
+
+      return (a.description ?? "").localeCompare(b.description ?? "");
+    });
+  }, [planned, t]);
 
   function exportExpensesCsv() {
     const headers = [
@@ -333,8 +362,29 @@ export default function ExpensesPage() {
       .sort((a, b) => b.total - a.total);
   }, [expenses]);
 
-  const expensesFixed = useMemo(() => expenses.filter((e) => e.expenseType === "FIXED"), [expenses]);
-  const expensesVariable = useMemo(() => expenses.filter((e) => e.expenseType === "VARIABLE"), [expenses]);
+  const expensesSorted = useMemo(() => {
+    const typeRank = (type: ExpenseType) => (type === "FIXED" ? 0 : 1);
+    return [...expenses].sort((a, b) => {
+      const typeCmp = typeRank(a.expenseType) - typeRank(b.expenseType);
+      if (typeCmp !== 0) return typeCmp;
+
+      const aCategory = getCategoryDisplayName(
+        { name: a.category?.name ?? "", expenseType: a.expenseType },
+        t
+      );
+      const bCategory = getCategoryDisplayName(
+        { name: b.category?.name ?? "", expenseType: b.expenseType },
+        t
+      );
+      const categoryCmp = aCategory.localeCompare(bCategory);
+      if (categoryCmp !== 0) return categoryCmp;
+
+      return (a.description ?? "").localeCompare(b.description ?? "");
+    });
+  }, [expenses, t]);
+
+  const expensesFixed = useMemo(() => expensesSorted.filter((e) => e.expenseType === "FIXED"), [expensesSorted]);
+  const expensesVariable = useMemo(() => expensesSorted.filter((e) => e.expenseType === "VARIABLE"), [expensesSorted]);
 
   async function createExpense(e: React.FormEvent) {
     e.preventDefault();
@@ -957,7 +1007,7 @@ export default function ExpensesPage() {
               </tr>
             </thead>
             <tbody>
-              {planned.map((p) => {
+              {plannedSorted.map((p) => {
                 const d = getPlannedDraft(p.id);
                 const currentCategoryId = d.categoryId ?? p.categoryId;
                 const enforcedType = categoryTypeOf(currentCategoryId) ?? (d.expenseType ?? p.expenseType);
