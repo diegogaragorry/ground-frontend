@@ -924,7 +924,7 @@ export default function DashboardPage() {
   /* ---------------- Datos para gráficos históricos ---------------- */
   const { i18n } = useTranslation();
   const annualMonthsOrdered = useMemo(() => {
-    const raw = annual?.months ?? [];
+    const raw = annualMonthsResolved;
     const byMonth = new Map(raw.map((m) => [m.month, m]));
     return months.map((m) => {
       const x = byMonth.get(m);
@@ -933,10 +933,10 @@ export default function DashboardPage() {
         month: m,
         incomeUsd,
         expensesUsd: x?.expensesUsd ?? 0,
-        netWorthUsd: x?.netWorthUsd ?? 0,
+        netWorthUsd: netWorthByMonth[m - 1] ?? x?.netWorthUsd ?? 0,
       };
     });
-  }, [annual, decryptedIncomeByMonth]);
+  }, [annualMonthsResolved, decryptedIncomeByMonth, netWorthByMonth]);
 
   const monthShortLabels = useMemo(() => {
     const fmt = new Intl.DateTimeFormat(i18n.language?.startsWith("es") ? "es" : "en", { month: "short" });
