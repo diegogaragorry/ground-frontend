@@ -765,14 +765,14 @@ export default function BudgetsPage() {
 
       {/* Card Resumen (como Gastos) */}
       <div className="card budgets-page budgets-summary-card-standalone">
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 12 }}>
+        <div className="row budgets-summary-head" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 12 }}>
           <div>
             <div style={{ fontWeight: 850, fontSize: 18 }}>
               {t("budgets.summaryPrefix")} (<span style={{ color: "var(--brand-green)" }}>{currencyLabel}</span>)
             </div>
             <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{t("budgets.closedMonthsLocked")}</div>
           </div>
-          <div className="row" style={{ gap: 16, alignItems: "baseline", flexWrap: "wrap" }}>
+          <div className="row budgets-summary-metrics" style={{ gap: 16, alignItems: "baseline", flexWrap: "wrap" }}>
             <div>
               <div className="muted" style={{ fontSize: 12 }}>{t("budgets.summaryBalanceLabel")}</div>
               <div style={{ fontSize: 22, fontWeight: 900, lineHeight: 1.2, color: (totals.balance ?? 0) >= 0 ? "var(--brand-green)" : "var(--danger)" }}>
@@ -789,7 +789,7 @@ export default function BudgetsPage() {
             </div>
           </div>
         </div>
-        <div className="row" style={{ gap: 10, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <div className="row budgets-summary-actions" style={{ gap: 10, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
           <Badge>{loading ? t("common.loading") : t("common.ready")}</Badge>
           <button className="btn" type="button" onClick={load}>
             {loading ? (
@@ -949,6 +949,29 @@ export default function BudgetsPage() {
           }
 
           .input.compact { padding: 4px 6px; font-size: 11px; border-radius: var(--radius-md); }
+          @media (max-width: 900px) {
+            .budgets-summary-head,
+            .budgets-summary-metrics,
+            .budgets-summary-actions {
+              display: grid !important;
+              gap: 10px;
+            }
+            .budgets-summary-metrics > div {
+              padding: 10px 12px;
+              border: 1px solid var(--border);
+              border-radius: 12px;
+              background: rgba(248, 250, 252, 0.78);
+              width: 100%;
+            }
+            .budgets-page .budgets-table-wrap {
+              margin-left: -6px;
+              margin-right: -6px;
+            }
+            .budgets-page .budgets-tip {
+              font-size: 13px;
+              line-height: 1.45;
+            }
+          }
         `}</style>
       </div>
     </div>

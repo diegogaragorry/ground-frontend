@@ -7,7 +7,6 @@ import { APP_BASE, CONTACT_WHATSAPP_URL } from "../constants";
 const TOUR_STEP_PATH: (string | null)[] = [`${APP_BASE}/expenses`, `${APP_BASE}/investments`, `${APP_BASE}/income`, `${APP_BASE}/budgets`, APP_BASE];
 
 type SidebarProps = {
-  /** En móvil solo se muestran Panel, Gastos y Salir */
   isMobile?: boolean;
   /** Llamar al hacer click en un enlace de navegación (p. ej. cerrar drawer en móvil) */
   onNavigateClick?: () => void;
@@ -63,33 +62,27 @@ export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
         >
           {t("sidebar.dashboard")}
         </NavLink>
-        {!isMobile && (
-          <NavLink to={`${APP_BASE}/income`} className={({ isActive }) => [isActive && "active"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
-            {t("sidebar.income")}
-          </NavLink>
-        )}
+        <NavLink to={`${APP_BASE}/income`} className={({ isActive }) => [isActive && "active"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
+          {t("sidebar.income")}
+        </NavLink>
         <NavLink to={`${APP_BASE}/expenses`} className={({ isActive }) => [isActive && "active", tourHighlightPath === `${APP_BASE}/expenses` && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
           {t("sidebar.expenses")}
         </NavLink>
-        {!isMobile && (
-          <>
-            <NavLink to={`${APP_BASE}/investments`} className={({ isActive }) => [isActive && "active", tourHighlightPath === `${APP_BASE}/investments` && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
-              {t("sidebar.investments")}
-            </NavLink>
-            <NavLink to={`${APP_BASE}/budgets`} className={({ isActive }) => [isActive && "active", tourHighlightPath === `${APP_BASE}/budgets` && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
-              {t("sidebar.budgets")}
-            </NavLink>
-            <NavLink to={`${APP_BASE}/admin`} className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
-              {t("sidebar.admin")}
-            </NavLink>
-            <NavLink to={`${APP_BASE}/account`} className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
-              {t("sidebar.account")}
-            </NavLink>
-            <NavLink to={`${APP_BASE}/help`} className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
-              {t("sidebar.help")}
-            </NavLink>
-          </>
-        )}
+        <NavLink to={`${APP_BASE}/investments`} className={({ isActive }) => [isActive && "active", tourHighlightPath === `${APP_BASE}/investments` && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
+          {t("sidebar.investments")}
+        </NavLink>
+        <NavLink to={`${APP_BASE}/budgets`} className={({ isActive }) => [isActive && "active", tourHighlightPath === `${APP_BASE}/budgets` && "tour-highlight"].filter(Boolean).join(" ") || ""} onClick={onNavigateClick}>
+          {t("sidebar.budgets")}
+        </NavLink>
+        <NavLink to={`${APP_BASE}/admin`} className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
+          {t("sidebar.admin")}
+        </NavLink>
+        <NavLink to={`${APP_BASE}/account`} className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
+          {t("sidebar.account")}
+        </NavLink>
+        <NavLink to={`${APP_BASE}/help`} className={({ isActive }) => (isActive ? "active" : "")} onClick={onNavigateClick}>
+          {t("sidebar.help")}
+        </NavLink>
       </nav>
 
       <div className="sidebar-footer">
@@ -188,6 +181,16 @@ export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
           font-weight: 600;
           font-size: 0.9375rem;
           transition: background 0.15s, color 0.15s;
+        }
+        @media (max-width: 900px) {
+          .sidebar-ground {
+            min-height: 100%;
+            padding-bottom: 28px;
+          }
+          .sidebar-nav a {
+            padding: 13px 14px;
+            font-size: 0.98rem;
+          }
         }
 
         .sidebar-nav a:hover {

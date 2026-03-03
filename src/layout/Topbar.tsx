@@ -26,7 +26,7 @@ export function Topbar(props: TopbarProps) {
         </div>
       </div>
 
-      <div className="row" style={{ gap: 12, alignItems: "center" }}>
+      <div className="topbar-right">
         {right}
         <button
           className="btn mobile-menu-btn"

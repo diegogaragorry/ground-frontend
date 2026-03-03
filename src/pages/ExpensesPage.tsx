@@ -699,54 +699,67 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      {/* Monthly summary (hidden on mobile) */}
-      {!isMobile && (
-        <div className="card" style={{ minWidth: 0 }}>
-          <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
-            <div>
-              <div style={{ fontWeight: 850, fontSize: 18 }}>
-                {t("expenses.monthlySummaryPrefix")} (
-                <span style={{ color: "var(--brand-green)" }}>{currencyLabel}</span>)
-              </div>
-              <div className="muted" style={{ fontSize: 12 }}>
-                {t("expenses.viewing")}: {monthLabel} • {t("expenses.status")}:{" "}
-                <span style={{ fontWeight: 850, color: isClosed(month) ? "var(--text)" : "var(--muted)" }}>
-                  {isClosed(month) ? t("common.closed") : t("common.open")}
-                </span>
-              </div>
+      <div className="card expenses-summary-card" style={{ minWidth: 0 }}>
+        <div className="row" style={{ justifyContent: "space-between", alignItems: isMobile ? "flex-start" : "baseline", gap: 12 }}>
+          <div>
+            <div style={{ fontWeight: 850, fontSize: isMobile ? 16 : 18 }}>
+              {t("expenses.monthlySummaryPrefix")} (
+              <span style={{ color: "var(--brand-green)" }}>{currencyLabel}</span>)
             </div>
-
-            <div className="right">
-              <div className="muted" style={{ fontSize: 12 }}>{t("expenses.totalMonth")}</div>
-              <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1 }}>{formatAmountUsd(totalUsdMonth)}</div>
-            </div>
-          </div>
-
-          <div className="row" style={{ gap: 10, marginTop: 10, flexWrap: "wrap" }}>
-            <button className="btn" type="button" onClick={loadAll}>
-              {loading ? (
-              <span className="loading-inline">
-                <span className="loading-spinner" aria-hidden />
-                {t("common.loading")}
+            <div className="muted" style={{ fontSize: 12 }}>
+              {t("expenses.viewing")}: {monthLabel} • {t("expenses.status")}:{" "}
+              <span style={{ fontWeight: 850, color: isClosed(month) ? "var(--text)" : "var(--muted)" }}>
+                {isClosed(month) ? t("common.closed") : t("common.open")}
               </span>
-            ) : (
-              t("common.refresh")
-            )}
-            </button>
-            <button className="btn" type="button" onClick={exportExpensesCsv} aria-label={t("common.exportCsv")}>
-              {t("common.exportCsv")}
-            </button>
-            {info && <div style={{ color: "rgba(15,23,42,0.75)", fontWeight: 650 }}>{info}</div>}
+            </div>
           </div>
 
-          {error && <div style={{ marginTop: 10, color: "var(--danger)" }}>{error}</div>}
+          <div className={isMobile ? "" : "right"}>
+            <div className="muted" style={{ fontSize: 12 }}>{t("expenses.totalMonth")}</div>
+            <div style={{ fontSize: isMobile ? 22 : 26, fontWeight: 900, lineHeight: 1 }}>{formatAmountUsd(totalUsdMonth)}</div>
+          </div>
+        </div>
 
-          <div style={{ marginTop: 12, overflowX: "auto", maxWidth: "100%" }}>
-            {summaryByCategory.length === 0 ? (
-              <div className="muted">
-                {t("expenses.noExpensesYet")}
-              </div>
-            ) : (
+        <div className="row" style={{ gap: 10, marginTop: 10, flexWrap: "wrap" }}>
+          <button className="btn" type="button" onClick={loadAll} disabled={loading}>
+            {loading ? (
+            <span className="loading-inline">
+              <span className="loading-spinner" aria-hidden />
+              {t("common.loading")}
+            </span>
+          ) : (
+            t("common.refresh")
+          )}
+          </button>
+          <button className="btn" type="button" onClick={exportExpensesCsv} aria-label={t("common.exportCsv")}>
+            {t("common.exportCsv")}
+          </button>
+          {info && <div style={{ color: "rgba(15,23,42,0.75)", fontWeight: 650, fontSize: isMobile ? 13 : undefined }}>{info}</div>}
+        </div>
+
+        {error && <div style={{ marginTop: 10, color: "var(--danger)" }}>{error}</div>}
+
+        <div style={{ marginTop: 12 }}>
+          {summaryByCategory.length === 0 ? (
+            <div className="muted">
+              {t("expenses.noExpensesYet")}
+            </div>
+          ) : isMobile ? (
+            <div className="expenses-summary-mobile-list">
+              {summaryByCategory.map((c) => (
+                <div key={c.categoryId} className="expenses-summary-mobile-item">
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    {getCategoryDisplayName(
+                      categories.find((cat) => cat.id === c.categoryId) ?? { name: c.categoryName, expenseType: "VARIABLE" },
+                      t
+                    )}
+                  </span>
+                  <strong>{formatAmountUsd(c.total)}</strong>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto", maxWidth: "100%" }}>
               <table className="table">
                 <thead>
                   <tr>
@@ -770,28 +783,10 @@ export default function ExpensesPage() {
                   </tr>
                 </tbody>
               </table>
-            )}
-          </div>
+            </div>
+          )}
         </div>
-      )}
-
-      {/* Mobile: refresh + error/info only */}
-      {isMobile && (
-        <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <button className="btn" type="button" onClick={loadAll} disabled={loading}>
-            {loading ? (
-              <span className="loading-inline">
-                <span className="loading-spinner" aria-hidden />
-                {t("common.loading")}
-              </span>
-            ) : (
-              t("common.refresh")
-            )}
-          </button>
-          {info && <span style={{ color: "rgba(15,23,42,0.75)", fontWeight: 650, fontSize: 13 }}>{info}</span>}
-          {error && <span style={{ color: "var(--danger)", fontSize: 13 }}>{error}</span>}
-        </div>
-      )}
+      </div>
 
       {/* Add real expense */}
       <div className="card">
@@ -924,6 +919,7 @@ export default function ExpensesPage() {
         <RealExpensesTable
           expenses={expensesFixed}
           categories={categories}
+          isMobile={isMobile}
           isMonthClosed={isClosed}
           getDraft={getDraft}
           setDraft={setDraft}
@@ -947,6 +943,7 @@ export default function ExpensesPage() {
         <RealExpensesTable
           expenses={expensesVariable}
           categories={categories}
+          isMobile={isMobile}
           isMonthClosed={isClosed}
           getDraft={getDraft}
           setDraft={setDraft}
@@ -960,8 +957,6 @@ export default function ExpensesPage() {
         </div>
       </div>
 
-      {/* Drafts (hidden on mobile) */}
-      {!isMobile && (
       <div className="card" ref={draftsRef}>
         <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
           <div>
@@ -1002,6 +997,142 @@ export default function ExpensesPage() {
           </div>
         )}
 
+        {isMobile ? (
+          <div className="expenses-drafts-mobile-list" style={{ marginTop: 12 }}>
+            {plannedSorted.map((p) => {
+              const d = getPlannedDraft(p.id);
+              const currentCategoryId = d.categoryId ?? p.categoryId;
+              const enforcedType = categoryTypeOf(currentCategoryId) ?? (d.expenseType ?? p.expenseType);
+              const isUyu = p.template?.defaultCurrencyId === "UYU";
+              const hasLockedUyu = isUyu && p.amount != null && p.usdUyuRate != null && Number.isFinite(p.amount) && p.usdUyuRate > 0;
+              const rate = hasLockedUyu ? p.usdUyuRate! : isUyu && Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : 1;
+              const amountUsd = Number(d.amountUsd ?? p.amountUsd ?? 0) || 0;
+              const displayValue = hasLockedUyu ? Math.round(p.amount!) : isUyu ? Math.round(amountUsd * rate) : Math.round(amountUsd);
+              const locked = isClosed(month);
+              const ymDisplay = `${p.year}-${String(p.month).padStart(2, "0")}`;
+
+              return (
+                <div key={p.id} className="expenses-draft-mobile-card" style={locked ? { opacity: 0.85 } : undefined}>
+                  <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div>
+                      <div style={{ fontWeight: 800 }}>{getTemplateDescriptionDisplay({ description: d.description ?? p.description, expenseType: enforcedType }, t)}</div>
+                      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{ymDisplay}</div>
+                    </div>
+                    <Badge>{getExpenseTypeLabel(enforcedType, t)}</Badge>
+                  </div>
+
+                  <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+                    <div>
+                      <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.category")}</div>
+                      <select
+                        className="select"
+                        value={currentCategoryId}
+                        disabled={locked}
+                        onChange={(e) => {
+                          if (locked) return;
+                          const newCat = e.target.value;
+                          const newType = categoryTypeOf(newCat) ?? enforcedType;
+                          setPlannedDraft(p.id, { categoryId: newCat, expenseType: newType });
+                          patchPlanned(p.id, { categoryId: newCat, expenseType: newType }).then(() => clearPlannedDraft(p.id));
+                        }}
+                      >
+                        {categories
+                          .slice()
+                          .sort((a, b) => a.name.localeCompare(b.name))
+                          .map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {getCategoryDisplayName(c, t)} ({getExpenseTypeLabel(c.expenseType, t)})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.description")}</div>
+                      <input
+                        className="input"
+                        value={getTemplateDescriptionDisplay(
+                          { description: d.description ?? p.description, expenseType: enforcedType },
+                          t
+                        )}
+                        disabled={locked}
+                        onChange={(e) => setPlannedDraft(p.id, { description: e.target.value })}
+                        onBlur={(e) => {
+                          if (locked) return;
+                          const v = e.target.value.trim();
+                          if (!v) return;
+                          const canonical = p.description;
+                          const translatedCanonical = getTemplateDescriptionDisplay(
+                            { description: canonical, expenseType: enforcedType },
+                            t
+                          );
+                          const toSend = v === translatedCanonical ? canonical : v;
+                          patchPlanned(p.id, { description: toSend }).then(() => clearPlannedDraft(p.id));
+                        }}
+                      />
+                    </div>
+
+                    <div className="row" style={{ alignItems: "flex-end" }}>
+                      <div style={{ flex: 1 }}>
+                        <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.amount")}</div>
+                        <input
+                          className="input"
+                          type="number"
+                          value={displayValue}
+                          disabled={locked}
+                          onChange={(e) => {
+                            const raw = Number(e.target.value);
+                            const usd = isUyu ? (Number.isFinite(rate) && rate > 0 ? raw / rate : raw) : raw;
+                            setPlannedDraft(p.id, { amountUsd: usd });
+                          }}
+                          onBlur={() => {
+                            if (locked) return;
+                            const v = Number(d.amountUsd ?? p.amountUsd ?? 0);
+                            if (!Number.isFinite(v)) return;
+                            const payload = isUyu && Number.isFinite(rate) && rate > 0
+                              ? { amount: Math.round(v * rate), usdUyuRate: rate }
+                              : { amountUsd: Math.round(v * 100) / 100 };
+                            patchPlanned(p.id, payload).then(() => clearPlannedDraft(p.id));
+                          }}
+                        />
+                      </div>
+                      <div style={{ minWidth: 88 }}>
+                        <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.curr")}</div>
+                        <div style={{ fontWeight: 700, minHeight: 44, display: "flex", alignItems: "center" }}>{isUyu ? "UYU" : "USD"}</div>
+                      </div>
+                    </div>
+
+                    <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <span className="muted" style={{ fontSize: 12 }}>
+                        {isUyu ? `${t("expenses.fx")}: ${Number(rate).toFixed(2)}` : "USD"}
+                      </span>
+                      <strong>{usd0.format(amountUsd)} USD</strong>
+                    </div>
+
+                    <button
+                      className="btn primary"
+                      type="button"
+                      disabled={locked}
+                      onClick={() => confirmPlanned(p)}
+                      title={locked ? t("expenses.monthClosed") : t("expenses.confirmAndCreateReal")}
+                    >
+                      {t("expenses.confirmDraft")}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+
+            {planned.length === 0 && (
+              <div className="muted" style={{ padding: "8px 0" }}>
+                <div style={{ fontWeight: 800, marginBottom: 4 }}>{t("expenses.noDrafts")}</div>
+                <div className="muted" style={{ fontSize: 13 }}>
+                  {t("expenses.draftsFromTemplates")}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
         <div style={{ marginTop: 12, overflowX: "auto" }}>
           <table className="table">
             <thead>
@@ -1163,6 +1294,7 @@ export default function ExpensesPage() {
             </tbody>
           </table>
         </div>
+        )}
 
         <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
           {t("expenses.confirmCreatesRealNote")}
@@ -1179,10 +1311,27 @@ export default function ExpensesPage() {
           </div>
         )}
       </div>
-      )}
 
       <style>{`
         .table th, .table td { vertical-align: middle; }
+        .expenses-summary-mobile-list,
+        .expenses-drafts-mobile-list {
+          display: grid;
+          gap: 10px;
+        }
+        .expenses-summary-mobile-item,
+        .expenses-draft-mobile-card,
+        .expenses-real-mobile-card {
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          padding: 12px;
+          background: rgba(248, 250, 252, 0.78);
+        }
+        .expenses-summary-mobile-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
         @media (max-width: 900px) {
           .expenses-form-mobile input,
           .expenses-form-mobile select { width: 100%; max-width: 100%; box-sizing: border-box; }
@@ -1200,6 +1349,7 @@ export default function ExpensesPage() {
 function RealExpensesTable(props: {
   expenses: Expense[];
   categories: Category[];
+  isMobile: boolean;
   isMonthClosed: (m: number) => boolean;
   getDraft: (id: string) => Draft;
   setDraft: (id: string, patch: Draft) => void;
@@ -1209,10 +1359,177 @@ function RealExpensesTable(props: {
   fallbackMonth: number;
 }) {
   const { t } = useTranslation();
-  const { expenses, categories, isMonthClosed, getDraft, setDraft, clearDraft, patchExpense, removeExpense, fallbackMonth } =
+  const { expenses, categories, isMobile, isMonthClosed, getDraft, setDraft, clearDraft, patchExpense, removeExpense, fallbackMonth } =
     props;
 
   const categoriesSorted = useMemo(() => categories.slice().sort((a, b) => a.name.localeCompare(b.name)), [categories]);
+
+  if (isMobile) {
+    return (
+      <div className="expenses-real-mobile-list" style={{ display: "grid", gap: 10 }}>
+        {expenses.map((e) => {
+          const d = getDraft(e.id);
+          const currentCurrency = (d.currencyId ?? (e.currencyId as any)) as "UYU" | "USD";
+          const currentAmount = d.amount ?? e.amount;
+          const currentRate =
+            currentCurrency === "UYU"
+              ? (d.usdUyuRate ?? (e.usdUyuRate ?? getFxDefault()))
+              : (d.usdUyuRate ?? getFxDefault());
+          const ymValue = d.ym ?? e.date.slice(0, 7);
+          const usdPreview = currentCurrency === "USD" ? currentAmount : currentAmount / (currentRate || 1);
+          const parsed = isoToYm(e.date);
+          const expMonth = parsed?.month ?? fallbackMonth;
+          const locked = isMonthClosed(expMonth);
+
+          return (
+            <div key={e.id} className="expenses-real-mobile-card" style={locked ? { opacity: 0.85 } : undefined}>
+              <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <div style={{ fontWeight: 800 }}>{getTemplateDescriptionDisplay({ description: d.description ?? e.description, expenseType: e.expenseType }, t)}</div>
+                  <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{ymValue}</div>
+                </div>
+                <Badge>{getExpenseTypeLabel(e.expenseType, t)}</Badge>
+              </div>
+
+              <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+                <div>
+                  <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.category")}</div>
+                  <select
+                    className="select"
+                    value={d.categoryId ?? e.categoryId}
+                    disabled={locked}
+                    onChange={(ev) => {
+                      if (locked) return;
+                      const v = ev.target.value;
+                      const cat = categories.find((c) => c.id === v);
+                      const enforcedType = cat?.expenseType ?? e.expenseType;
+
+                      setDraft(e.id, { categoryId: v });
+                      patchExpense(e.id, expMonth, { categoryId: v, expenseType: enforcedType }).then(() => clearDraft(e.id));
+                    }}
+                  >
+                    {categoriesSorted.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {getCategoryDisplayName(c, t)} ({getExpenseTypeLabel(c.expenseType, t)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.description")}</div>
+                  <input
+                    className="input"
+                    value={getTemplateDescriptionDisplay(
+                      { description: d.description ?? e.description, expenseType: e.expenseType },
+                      t
+                    )}
+                    disabled={locked}
+                    onChange={(ev) => setDraft(e.id, { description: ev.target.value })}
+                    onBlur={(ev) => {
+                      if (locked) return;
+                      const v = ev.target.value.trim();
+                      if (!v) return;
+                      const canonical = e.description;
+                      const translatedCanonical = getTemplateDescriptionDisplay(
+                        { description: canonical, expenseType: e.expenseType },
+                        t
+                      );
+                      const toSend = v === translatedCanonical ? canonical : v;
+                      patchExpense(e.id, expMonth, { description: toSend }).then(() => clearDraft(e.id));
+                    }}
+                  />
+                </div>
+
+                <div className="row" style={{ alignItems: "flex-end" }}>
+                  <div style={{ flex: 1 }}>
+                    <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.amount")}</div>
+                    <input
+                      className="input"
+                      type="number"
+                      value={Number.isFinite(currentAmount) ? currentAmount : 0}
+                      disabled={locked}
+                      onChange={(ev) => setDraft(e.id, { amount: Number(ev.target.value) })}
+                      onBlur={() => {
+                        if (locked) return;
+                        if (!Number.isFinite(currentAmount) || currentAmount === 0) return;
+                        patchExpense(e.id, expMonth, { amount: Number(currentAmount) }).then(() => clearDraft(e.id));
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ minWidth: 88 }}>
+                    <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.curr")}</div>
+                    <select
+                      className="select"
+                      value={currentCurrency}
+                      disabled={locked}
+                      onChange={(ev) => {
+                        if (locked) return;
+                        const v = ev.target.value as "UYU" | "USD";
+                        setDraft(e.id, { currencyId: v });
+
+                        if (v === "UYU") {
+                          const rate = getFxDefault();
+                          setDraft(e.id, { currencyId: v, usdUyuRate: rate });
+                          patchExpense(e.id, expMonth, { currencyId: v, usdUyuRate: rate }).then(() => clearDraft(e.id));
+                        } else {
+                          patchExpense(e.id, expMonth, { currencyId: v, usdUyuRate: undefined }).then(() => clearDraft(e.id));
+                        }
+                      }}
+                    >
+                      <option value="UYU">UYU</option>
+                      <option value="USD">USD</option>
+                    </select>
+                  </div>
+                </div>
+
+                {currentCurrency === "UYU" && (
+                  <div>
+                    <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.fx")}</div>
+                    <input
+                      className="input"
+                      type="number"
+                      step="0.001"
+                      value={Number.isFinite(currentRate) ? Number(currentRate).toFixed(2) : ""}
+                      disabled={locked}
+                      onChange={(ev) => setDraft(e.id, { usdUyuRate: Number(ev.target.value) })}
+                      onBlur={() => {
+                        if (locked) return;
+                        if (!Number.isFinite(currentRate) || currentRate <= 0) return;
+                        setFxDefault(Number(currentRate));
+                        patchExpense(e.id, expMonth, { usdUyuRate: Number(currentRate) }).then(() => clearDraft(e.id));
+                      }}
+                    />
+                  </div>
+                )}
+
+                <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                  <span className="muted" style={{ fontSize: 12 }}>
+                    {currentCurrency === "UYU" ? `≈ ${usd0.format(usdPreview)} USD` : `${usd0.format(currentAmount)} USD`}
+                  </span>
+                  <button
+                    className="btn danger"
+                    type="button"
+                    disabled={locked}
+                    onClick={() => removeExpense(e.id, expMonth)}
+                  >
+                    {t("common.delete")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {expenses.length === 0 && (
+          <div className="muted" style={{ padding: "12px 0" }}>
+            {t("expenses.noExpensesInList")}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ overflowX: "auto" }}>

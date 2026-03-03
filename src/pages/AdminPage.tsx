@@ -963,7 +963,7 @@ export default function AdminPage() {
   const nav = useNavigate();
   const { t } = useTranslation();
 
-  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess, serverFxRate } = useAppShell();
+  const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess, serverFxRate, isMobile } = useAppShell();
   const { year: appYear } = useAppYearMonth();
   const { formatAmountUsd } = useDisplayCurrency();
   const { encryptPayload, decryptPayload, hasEncryptionSupport } = useEncryption();
@@ -1521,7 +1521,7 @@ export default function AdminPage() {
         <div className="muted" style={{ fontSize: 12, padding: "10px 16px 6px", fontWeight: 600 }}>
           {t("admin.tabsHint")}
         </div>
-        <div className="row" style={{ gap: 0, flexWrap: "wrap", padding: "0 12px 0 8px" }}>
+        <div className="row admin-tabs-row" style={{ gap: 0, flexWrap: "wrap", padding: "0 12px 0 8px" }}>
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -1553,6 +1553,19 @@ export default function AdminPage() {
         .admin-tab--active {
           color: var(--text);
           border-bottom-color: var(--text);
+        }
+        @media (max-width: 900px) {
+          .admin-tabs-row {
+            display: flex !important;
+            flex-wrap: nowrap !important;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 6px !important;
+          }
+          .admin-tab {
+            white-space: nowrap;
+            flex: 0 0 auto;
+          }
         }
       `}</style>
 
@@ -1600,6 +1613,73 @@ export default function AdminPage() {
             <span className="muted" style={{ fontSize: 12 }}>{t("admin.categoryCount", { count: categories.length })}</span>
           </div>
 
+          {isMobile ? (
+            <div className="admin-mobile-card-list">
+              {categories.map((c) => {
+                const isEditing = editingId === c.id;
+
+                return (
+                  <div key={c.id} className="admin-mobile-card">
+                    <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <div style={{ fontWeight: 800 }}>
+                          {isEditing ? (
+                            <input
+                              className="input"
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveEdit();
+                                if (e.key === "Escape") cancelEdit();
+                              }}
+                            />
+                          ) : (
+                            getCategoryDisplayName(c, t)
+                          )}
+                        </div>
+                        <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                          {isEditing ? (
+                            <select className="select" value={editType} onChange={(e) => setEditType(e.target.value as any)} style={{ marginTop: 6 }}>
+                              <option value="VARIABLE">{t("expenses.typeVariable")}</option>
+                              <option value="FIXED">{t("expenses.typeFixed")}</option>
+                            </select>
+                          ) : (
+                            getExpenseTypeLabel(c.expenseType, t)
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="row admin-mobile-actions" style={{ marginTop: 12, gap: 10 }}>
+                      {isEditing ? (
+                        <>
+                          <button className="btn primary" type="button" onClick={saveEdit}>
+                            {t("common.save")}
+                          </button>
+                          <button className="btn" type="button" onClick={cancelEdit}>
+                            {t("common.cancel")}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button className="btn" type="button" onClick={() => startEdit(c)}>
+                            {t("admin.edit")}
+                          </button>
+                          <button className="btn danger" type="button" onClick={() => removeCategory(c.id)}>
+                            {t("common.delete")}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {categories.length === 0 && (
+                <div className="muted" style={{ padding: 12, textAlign: "center" }}>{t("admin.noCategoriesYet")}</div>
+              )}
+            </div>
+          ) : (
           <div className="admin-table-wrap">
           <table className="table admin-table">
             <thead>
@@ -1675,6 +1755,7 @@ export default function AdminPage() {
             </tbody>
           </table>
           </div>
+          )}
         </div>
       </div>
       )}
@@ -1728,23 +1809,40 @@ export default function AdminPage() {
         {mcInfo && <div style={{ marginTop: 12, color: "rgba(15,23,42,0.75)" }}>{mcInfo}</div>}
 
         {selectedClose && (
-          <div style={{ overflowX: "auto", marginTop: 12 }}>
-            <table className="table compact">
-              <thead>
-                <tr>
-                  <th>{t("admin.closePreviewConcept")}</th>
-                  <th className="right">{t("admin.closePreviewValue")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>{t("budgets.income")}</td><td className="right">{formatAmountUsd(selectedClose.incomeUsd)}</td></tr>
-                <tr><td>{t("budgets.expensesCol")}</td><td className="right">{formatAmountUsd(selectedClose.expensesUsd)}</td></tr>
-                <tr><td>{t("budgets.investmentEarnings")}</td><td className="right">{formatAmountUsd(selectedClose.investmentEarningsUsd)}</td></tr>
-                <tr><td>{t("budgets.balance")}</td><td className="right">{formatAmountUsd(selectedClose.balanceUsd)}</td></tr>
-                <tr><td>{t("budgets.netWorthStart")}</td><td className="right">{formatAmountUsd(selectedClose.netWorthStartUsd)}</td></tr>
-              </tbody>
-            </table>
-          </div>
+          isMobile ? (
+            <div className="admin-mobile-card-list" style={{ marginTop: 12 }}>
+              {[
+                { label: t("budgets.income"), value: formatAmountUsd(selectedClose.incomeUsd) },
+                { label: t("budgets.expensesCol"), value: formatAmountUsd(selectedClose.expensesUsd) },
+                { label: t("budgets.investmentEarnings"), value: formatAmountUsd(selectedClose.investmentEarningsUsd) },
+                { label: t("budgets.balance"), value: formatAmountUsd(selectedClose.balanceUsd) },
+                { label: t("budgets.netWorthStart"), value: formatAmountUsd(selectedClose.netWorthStartUsd) },
+              ].map((item) => (
+                <div key={item.label} className="admin-mobile-card admin-mobile-card--compact">
+                  <span className="muted" style={{ fontSize: 12 }}>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto", marginTop: 12 }}>
+              <table className="table compact">
+                <thead>
+                  <tr>
+                    <th>{t("admin.closePreviewConcept")}</th>
+                    <th className="right">{t("admin.closePreviewValue")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td>{t("budgets.income")}</td><td className="right">{formatAmountUsd(selectedClose.incomeUsd)}</td></tr>
+                  <tr><td>{t("budgets.expensesCol")}</td><td className="right">{formatAmountUsd(selectedClose.expensesUsd)}</td></tr>
+                  <tr><td>{t("budgets.investmentEarnings")}</td><td className="right">{formatAmountUsd(selectedClose.investmentEarningsUsd)}</td></tr>
+                  <tr><td>{t("budgets.balance")}</td><td className="right">{formatAmountUsd(selectedClose.balanceUsd)}</td></tr>
+                  <tr><td>{t("budgets.netWorthStart")}</td><td className="right">{formatAmountUsd(selectedClose.netWorthStartUsd)}</td></tr>
+                </tbody>
+              </table>
+            </div>
+          )
         )}
       </div>
       )}
@@ -1770,7 +1868,7 @@ export default function AdminPage() {
           <div
             className="card"
             id="close-preview-title"
-            style={{ maxWidth: 480, width: "100%" }}
+            style={{ maxWidth: 480, width: "100%", ...(isMobile ? { marginTop: "auto", borderRadius: "18px 18px 0 0", maxHeight: "78vh", overflow: "auto" } : {}) }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ fontWeight: 900, marginBottom: 12 }}>{t("admin.closeMonthTitle")}</div>
@@ -1884,6 +1982,34 @@ export default function AdminPage() {
         }
         .admin-page .admin-table .input.compact,
         .admin-page .admin-table .select { padding: 6px 8px; border-radius: var(--radius-sm); font-size: 12px; }
+        .admin-page .admin-mobile-card-list {
+          display: grid;
+          gap: 10px;
+        }
+        .admin-page .admin-mobile-card {
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          padding: 12px;
+          background: rgba(248,250,252,0.78);
+        }
+        .admin-page .admin-mobile-card--compact {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+        .admin-page .admin-mobile-actions .btn {
+          flex: 1 1 0;
+        }
+        @media (max-width: 900px) {
+          .admin-page .admin-inner-card {
+            padding: 12px;
+          }
+          .admin-page .admin-table-wrap {
+            margin-left: -6px;
+            margin-right: -6px;
+          }
+        }
       `}</style>
     </div>
   );

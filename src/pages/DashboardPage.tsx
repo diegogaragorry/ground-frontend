@@ -1625,6 +1625,102 @@ export default function DashboardPage() {
           fill: var(--muted);
           font-family: var(--font-sans);
         }
+        @media (max-width: 900px){
+          .dashTop{
+            display:grid;
+            gap:10px;
+          }
+          .dashTopLeft,
+          .dashActions{
+            width: 100%;
+          }
+          .dashActions{
+            display:grid;
+            grid-template-columns: 1fr 1fr;
+          }
+          .dashActions .btn{
+            width: 100%;
+          }
+          .kpiGrid{
+            gap: 10px;
+          }
+          .kpi{
+            padding: 14px;
+          }
+          .kpiValue{
+            font-size: 24px;
+          }
+          .kpiValueSm{
+            font-size: 20px;
+          }
+          .sectionHead,
+          .cardHead{
+            gap: 6px;
+            align-items: flex-start;
+            flex-direction: column;
+          }
+          .card.list{
+            padding: 12px;
+          }
+          .rowLine{
+            gap: 8px;
+            padding: 8px 0;
+          }
+          .rowRight{
+            font-size: 12px;
+          }
+          .cardCategoriesSplit .categoriesSplitInner{
+            gap: 14px;
+          }
+          .cardCategoriesSplit .donutChartSvg{
+            width: 168px;
+            flex-basis: 168px;
+          }
+          .yearStack{
+            gap: 8px;
+          }
+          .yearKpi{
+            padding: 12px;
+          }
+          .historyChartCard{
+            padding: 12px;
+          }
+        }
+        @media (max-width: 560px){
+          .dashActions{
+            grid-template-columns: 1fr;
+          }
+          .rowLine{
+            flex-direction: column;
+          }
+          .rowRight{
+            margin-top: 0;
+          }
+          .rowLineSingle{
+            display:block;
+          }
+          .rowLineSingle .rowDescCat,
+          .rowLineSingle .rowDateCompact{
+            display:block;
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+            margin-left: 0;
+            margin-top: 2px;
+          }
+          .rowLineSingle .rowDescCatSep{
+            display:none;
+          }
+          .cardCategoriesSplit .donutChartWrap{
+            gap: 8px;
+          }
+          .cardCategoriesSplit .donutLegend{
+            width: 100%;
+          }
+          .cardCategoriesSplit .donutLegendItem{
+            justify-content: space-between;
+          }
+        }
       `}</style>
     </div>
   );

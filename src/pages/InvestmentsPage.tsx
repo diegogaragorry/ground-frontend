@@ -751,7 +751,7 @@ export default function InvestmentsPage() {
 
       {/* SUMMARY */}
       <div className="card">
-        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap" }}>
+        <div className="row investments-summary-head" style={{ justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap" }}>
           <div>
             <div style={{ fontWeight: 900 }}>
               {t("investments.summaryPrefix")} (
@@ -763,7 +763,7 @@ export default function InvestmentsPage() {
           <button className="btn" type="button" onClick={load}>{t("common.refresh")}</button>
         </div>
 
-        <div style={{ overflowX: "auto", maxWidth: "100%", marginTop: 10 }} role="region" aria-label="Net worth and returns by month">
+        <div className="investments-table-wrap" style={{ overflowX: "auto", maxWidth: "100%", marginTop: 10 }} role="region" aria-label="Net worth and returns by month">
           <table className="table" aria-label={`Summary by month (${currencyLabel})`}>
             <thead>
               <tr>
@@ -855,7 +855,7 @@ export default function InvestmentsPage() {
         <div style={{ fontWeight: 900 }}>{t("investments.accounts")}</div>
         <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{t("investments.accountsDesc")}</div>
 
-        <div style={{ overflowX: "auto", maxWidth: "100%", marginTop: 10 }}>
+        <div className="investments-table-wrap" style={{ overflowX: "auto", maxWidth: "100%", marginTop: 10 }}>
           <table className="table">
             <thead>
               <tr>
@@ -1550,6 +1550,16 @@ export default function InvestmentsPage() {
         .investments-page .input,
         .investments-page .select { border-radius: var(--radius-md); }
         .investments-page .row { flex-wrap: wrap; min-width: 0; }
+        @media (max-width: 900px) {
+          .investments-summary-head {
+            display: grid !important;
+            gap: 10px;
+          }
+          .investments-table-wrap {
+            margin-left: -6px;
+            margin-right: -6px;
+          }
+        }
       `}</style>
     </div>
   );

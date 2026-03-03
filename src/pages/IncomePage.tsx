@@ -48,7 +48,7 @@ function computeTotalFromParts(nominal: number, extraordinary: number, taxes: nu
 export default function IncomePage() {
   const { t } = useTranslation();
   const { encryptPayload, decryptPayload } = useEncryption();
-  const { setHeader, serverFxRate } = useAppShell();
+  const { setHeader, serverFxRate, isMobile } = useAppShell();
   const { preferredDisplayCurrencyId } = useDisplayCurrency();
   const { year } = useAppYearMonth();
 
@@ -192,12 +192,13 @@ export default function IncomePage() {
     field: "nominalUsd" | "extraordinaryUsd" | "taxesUsd",
     valueUsd: number,
     allowNegative: boolean,
-    decryptFailed?: boolean
+    decryptFailed?: boolean,
+    mobile?: boolean
   ) {
     const isClosed = closedSet.has(month);
     if (decryptFailed) {
       return (
-        <span key={`${month}-${field}`} className="muted" title={t("common.unavailable")} style={{ display: "inline-block", minWidth: 96, textAlign: "right" }}>
+        <span key={`${month}-${field}`} className="muted" title={t("common.unavailable")} style={{ display: "inline-block", minWidth: mobile ? 0 : 96, textAlign: "right" }}>
           —
         </span>
       );
@@ -205,7 +206,7 @@ export default function IncomePage() {
     const displayVal = toDisplay(valueUsd);
     if (isClosed) {
       return (
-        <span key={`${month}-${field}`} className="muted" title={t("common.closed")} style={{ display: "inline-block", minWidth: 96, textAlign: "right", whiteSpace: "nowrap" }}>
+        <span key={`${month}-${field}`} className="muted" title={t("common.closed")} style={{ display: "inline-block", minWidth: mobile ? 0 : 96, textAlign: "right", whiteSpace: "nowrap" }}>
           {formatAmountUsdWith(valueUsd, incomeCurrency, incomeRateOrNull)}
         </span>
       );
@@ -219,7 +220,7 @@ export default function IncomePage() {
         className="input compact"
         type="text"
         value={raw}
-        style={{ minWidth: 96, width: 96, textAlign: "right" }}
+        style={{ minWidth: mobile ? 0 : 96, width: mobile ? "100%" : 96, textAlign: "right" }}
         onChange={(e) => setDraft(month, { [draftKey]: e.target.value })}
         onBlur={async () => {
           const n = sanitizeNumber(raw);
@@ -287,6 +288,64 @@ export default function IncomePage() {
 
         {error && <div style={{ marginTop: 12, color: "var(--danger)" }}>{error}</div>}
 
+        {isMobile ? (
+          <div className="income-mobile-stack" style={{ marginTop: 16 }}>
+            <div className="income-mobile-summary">
+              <div className="income-mobile-summary-item">
+                <span className="muted">{t("income.nominal")}</span>
+                <strong>{formatAmountUsdWith(totals.nominal, incomeCurrency, incomeRateOrNull)}</strong>
+              </div>
+              <div className="income-mobile-summary-item">
+                <span className="muted">{t("income.extraordinary")}</span>
+                <strong>{formatAmountUsdWith(totals.extraordinary, incomeCurrency, incomeRateOrNull)}</strong>
+              </div>
+              <div className="income-mobile-summary-item">
+                <span className="muted">{t("income.taxes")}</span>
+                <strong>{formatAmountUsdWith(totals.taxes, incomeCurrency, incomeRateOrNull)}</strong>
+              </div>
+              <div className="income-mobile-summary-item income-mobile-summary-item--total">
+                <span className="muted">{t("income.total")}</span>
+                <strong>{formatAmountUsdWith(totals.total, incomeCurrency, incomeRateOrNull)}</strong>
+              </div>
+            </div>
+
+            {months12.map((m) => {
+              const row = byMonth.get(m)!;
+              const closed = closedSet.has(m);
+              return (
+                <div key={m} className="income-mobile-card">
+                  <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontWeight: 900 }}>{String(m).padStart(2, "0")}</div>
+                    <span className="badge" style={closed ? { background: "rgba(15,23,42,0.04)", borderColor: "var(--border)", color: "var(--muted)" } : undefined}>
+                      {closed ? t("common.closed") : t("common.open")}
+                    </span>
+                  </div>
+
+                  <div className="income-mobile-fields">
+                    <div className="income-mobile-field">
+                      <span className="muted">{t("income.nominal")}</span>
+                      {renderCell(m, "nominalUsd", row.nominalUsd, false, row._decryptFailed, true)}
+                    </div>
+                    <div className="income-mobile-field">
+                      <span className="muted">{t("income.extraordinary")}</span>
+                      {renderCell(m, "extraordinaryUsd", row.extraordinaryUsd, true, row._decryptFailed, true)}
+                    </div>
+                    <div className="income-mobile-field">
+                      <span className="muted">{t("income.taxes")}</span>
+                      {renderCell(m, "taxesUsd", row.taxesUsd, true, row._decryptFailed, true)}
+                    </div>
+                    <div className="income-mobile-total">
+                      <span className="muted">{t("income.total")}</span>
+                      <strong>
+                        {row._decryptFailed ? "—" : formatAmountUsdWith(row.totalUsd, incomeCurrency, incomeRateOrNull)}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
         <div style={{ overflowX: "auto", marginTop: 16 }}>
           <table className="table compact" aria-label="Ingresos por mes">
             <thead>
@@ -348,7 +407,51 @@ export default function IncomePage() {
             </tbody>
           </table>
         </div>
+        )}
         <div className="muted" style={{ fontSize: 12, marginTop: 12 }}>{t("income.budgetNote")}</div>
+
+        <style>{`
+          .income-mobile-stack {
+            display: grid;
+            gap: 12px;
+          }
+          .income-mobile-summary {
+            display: grid;
+            gap: 8px;
+          }
+          .income-mobile-summary-item,
+          .income-mobile-card {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px;
+            background: rgba(248, 250, 252, 0.78);
+          }
+          .income-mobile-summary-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          .income-mobile-summary-item--total {
+            border-color: var(--brand-green-border);
+            background: var(--brand-green-light);
+          }
+          .income-mobile-fields {
+            display: grid;
+            gap: 10px;
+            margin-top: 12px;
+          }
+          .income-mobile-field {
+            display: grid;
+            gap: 6px;
+          }
+          .income-mobile-total {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 8px;
+            border-top: 1px solid rgba(15,23,42,0.08);
+          }
+        `}</style>
       </div>
     </div>
   );

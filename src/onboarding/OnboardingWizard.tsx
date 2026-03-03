@@ -518,8 +518,69 @@ export function OnboardingWizard(props: {
   }
 
   return (
-    <div className="card" style={{ padding: 20, maxWidth: 760, width: "100%" }}>
-      <style>{`.onboarding-amount-input::placeholder { font-size: 11px; } .onboarding-amount-input { min-width: 165px; }`}</style>
+    <div className="card onboarding-wizard" style={{ padding: 20, maxWidth: 760, width: "100%" }}>
+      <style>{`
+        .onboarding-wizard .onboarding-amount-input::placeholder { font-size: 11px; }
+        .onboarding-wizard .onboarding-amount-input { min-width: 165px; }
+        .onboarding-wizard .onboarding-option {
+          align-items: center;
+          gap: 8px;
+          cursor: pointer;
+        }
+        .onboarding-wizard .onboarding-footer {
+          margin-top: 24px;
+          gap: 10px;
+          flex-wrap: wrap;
+          justify-content: flex-start;
+        }
+        @media (max-width: 900px) {
+          .onboarding-wizard {
+            padding: 16px !important;
+            max-width: 100% !important;
+            border-radius: 18px !important;
+          }
+          .onboarding-wizard .onboarding-option {
+            display: grid !important;
+            grid-template-columns: 22px minmax(0, 1fr);
+            align-items: start !important;
+            gap: 10px !important;
+          }
+          .onboarding-wizard .onboarding-option > input[type="checkbox"] {
+            margin-top: 2px;
+          }
+          .onboarding-wizard .onboarding-option > span,
+          .onboarding-wizard .onboarding-option > .muted,
+          .onboarding-wizard .onboarding-option > .row,
+          .onboarding-wizard .onboarding-option > .input,
+          .onboarding-wizard .onboarding-option > .select {
+            grid-column: 2;
+            min-width: 0;
+          }
+          .onboarding-wizard .onboarding-option > .row {
+            display: grid !important;
+            gap: 8px;
+          }
+          .onboarding-wizard .onboarding-option .input,
+          .onboarding-wizard .onboarding-option .select,
+          .onboarding-wizard .onboarding-amount-input {
+            width: 100% !important;
+            min-width: 0 !important;
+          }
+          .onboarding-wizard .onboarding-option .row span.muted {
+            white-space: normal !important;
+          }
+          .onboarding-wizard .wizard-investment-row {
+            grid-template-columns: 1fr !important;
+          }
+          .onboarding-wizard .onboarding-footer {
+            display: grid !important;
+          }
+          .onboarding-wizard .onboarding-footer .btn {
+            width: 100%;
+            margin-left: 0 !important;
+          }
+        }
+      `}</style>
       {error && <div style={{ color: "var(--danger)", marginBottom: 12 }}>{error}</div>}
 
       {step < 7 && (
@@ -586,7 +647,7 @@ export function OnboardingWizard(props: {
               { key: "housing.fees", checked: housingFees, set: setHousingFees, usd: housingFeesUsd, setUsd: setHousingFeesUsd, label: "wizardHousingFees" },
               { key: "housing.taxes", checked: housingTaxes, set: setHousingTaxes, usd: housingTaxesUsd, setUsd: setHousingTaxesUsd, label: "wizardHousingTaxes" },
             ].map(({ key, checked, set, usd, setUsd, label }) => (
-              <label key={key} className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "nowrap" }}>
+              <label key={key} className="row onboarding-option" style={{ flexWrap: "nowrap" }}>
                 <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} />
                 <span style={{ flexShrink: 0 }}>{t(`onboarding.${label}`)}</span>
                 {checked && (
@@ -618,7 +679,7 @@ export function OnboardingWizard(props: {
           <div style={{ display: "grid", gap: 10 }}>
             {/* Auto/Moto con nota debajo */}
             <div>
-              <label className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
+              <label className="row onboarding-option" style={{ flexWrap: "wrap" }}>
                 <input type="checkbox" checked={transportVehicle} onChange={(e) => setTransportVehicle(e.target.checked)} />
                 <span>{t("onboarding.wizardTransportVehicle")}</span>
                 {transportVehicle && (
@@ -643,7 +704,7 @@ export function OnboardingWizard(props: {
               { key: "transport.public", checked: transportPublic, set: setTransportPublic, usd: transportPublicUsd, setUsd: setTransportPublicUsd, labelKey: "wizardTransportPublic" },
               { key: "transport.taxi", checked: transportTaxi, set: setTransportTaxi, usd: transportTaxiUsd, setUsd: setTransportTaxiUsd, labelKey: "wizardTransportTaxi" },
             ].map(({ key, checked, set, usd, setUsd, labelKey }) => (
-              <label key={key} className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
+              <label key={key} className="row onboarding-option" style={{ flexWrap: "wrap" }}>
                 <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} />
                 <span>{t(`onboarding.${labelKey}`)}</span>
                 {checked && (
@@ -685,7 +746,7 @@ export function OnboardingWizard(props: {
             ].map(({ id, c, setC, label }) => {
               const key = `svc.${id}`;
               return (
-                <label key={id} className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
+                <label key={id} className="row onboarding-option" style={{ flexWrap: "wrap" }}>
                   <input type="checkbox" checked={c} onChange={(e) => setC(e.target.checked)} />
                   <span>{t(`onboarding.${label}`)}</span>
                   {c && (
@@ -725,7 +786,7 @@ export function OnboardingWizard(props: {
             ].map(({ id, c, setC, label }) => {
               const key = `health.${id}`;
               return (
-                <label key={id} className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
+                <label key={id} className="row onboarding-option" style={{ flexWrap: "wrap" }}>
                   <input type="checkbox" checked={c} onChange={(e) => setC(e.target.checked)} />
                   <span>{t(`onboarding.${label}`)}</span>
                   {c && (
@@ -768,7 +829,7 @@ export function OnboardingWizard(props: {
             ].map(({ id, c, set, key }) => {
               const itemKey = `rec.${id}`;
               return (
-                <label key={key} className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
+                <label key={key} className="row onboarding-option" style={{ flexWrap: "wrap" }}>
                   <input type="checkbox" checked={c} onChange={(e) => set(e.target.checked)} />
                   <span>{t(`onboarding.${key}`)}</span>
                   {c && (
@@ -799,7 +860,7 @@ export function OnboardingWizard(props: {
           <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 6 }}>{t("onboarding.wizardIncomeTitle")}</div>
           <div className="muted" style={{ fontSize: 13, marginBottom: 16 }}>{t("onboarding.wizardIncomeSub")}</div>
           <div style={{ display: "grid", gap: 14 }}>
-            <label className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
+            <label className="row onboarding-option" style={{ flexWrap: "wrap" }}>
               <input type="checkbox" checked={incomeWork} onChange={(e) => setIncomeWork(e.target.checked)} />
               <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400 }}>{t("onboarding.wizardIncomeWork")}</span>
               {incomeWork && (
@@ -835,7 +896,7 @@ export function OnboardingWizard(props: {
                 </>
               )}
             </label>
-            <label className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
+            <label className="row onboarding-option" style={{ flexWrap: "wrap" }}>
               <input type="checkbox" checked={incomeSavings} onChange={(e) => setIncomeSavings(e.target.checked)} />
               <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400 }}>{t("onboarding.wizardIncomeSavings")}</span>
               {incomeSavings && (
@@ -861,7 +922,7 @@ export function OnboardingWizard(props: {
                 </>
               )}
             </label>
-            <label className="row" style={{ alignItems: "center", gap: 8, cursor: "pointer", flexWrap: "wrap" }}>
+            <label className="row onboarding-option" style={{ flexWrap: "wrap" }}>
               <input type="checkbox" checked={incomeInvestments} onChange={(e) => setIncomeInvestments(e.target.checked)} />
               <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400 }}>{t("onboarding.wizardIncomeInvestments")}</span>
             </label>
@@ -956,7 +1017,7 @@ export function OnboardingWizard(props: {
       )}
 
       {/* Footer */}
-      <div className="row" style={{ marginTop: 24, gap: 10, flexWrap: "wrap", justifyContent: "flex-start" }}>
+      <div className="row onboarding-footer">
         {step > 0 && step < 7 && (
           <button type="button" className="btn" onClick={back} disabled={loading}>
             {t("onboarding.wizardBack")}

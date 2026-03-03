@@ -34,7 +34,7 @@ export function OnboardingTour(props: {
       }}
     >
       <div
-        className="card"
+        className="card onboarding-tour-card"
         style={{
           padding: 24,
           maxWidth: 480,

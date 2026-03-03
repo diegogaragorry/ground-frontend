@@ -5,6 +5,7 @@ import { APP_BASE } from "../constants";
 import { useEncryption } from "../context/EncryptionContext";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
+import { MobileTabBar } from "./MobileTabBar";
 import { api } from "../api";
 import { getMigrationStatus, runMigration } from "../utils/migrateToE2EE";
 import { setFxDefault } from "../utils/fx";
@@ -456,36 +457,6 @@ export function AppShell(props: { children: React.ReactNode }) {
             }
           />
           {isMobile && <div className="topbar-spacer" aria-hidden />}
-          {isMobile && !drawerOpen && ctx.meLoaded && ctx.me && !ctx.me.mobileWarningDismissed && (
-            <div className="mobile-warning" role="alert">
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 900, marginBottom: 6, color: "var(--danger)" }}>
-                  {t("common.mobileWarningTitle")}
-                </div>
-                <div style={{ fontSize: 13, lineHeight: 1.4, color: "rgba(220, 38, 38, 0.9)" }}>
-                  {t("common.mobileWarningMessage")}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => ctx.dismissMobileWarning()}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--danger)",
-                  cursor: "pointer",
-                  padding: "4px 8px",
-                  fontSize: 20,
-                  lineHeight: 1,
-                  fontWeight: 700,
-                  flexShrink: 0,
-                }}
-                aria-label={t("common.close")}
-              >
-                ×
-              </button>
-            </div>
-          )}
 
           {/* ✅ Onboarding wizard en overlay full-screen para no distraer con el dashboard */}
           {showWelcomePanel && (
@@ -557,6 +528,7 @@ export function AppShell(props: { children: React.ReactNode }) {
           {props.children}
         </div>
       </main>
+      {isMobile && <MobileTabBar />}
       <a
         href="https://www.exchangerate-api.com"
         target="_blank"
