@@ -704,8 +704,24 @@ export default function InvestmentsPage() {
   const thStyle: React.CSSProperties = { padding: "4px 6px", fontSize: 10, letterSpacing: 0.2, whiteSpace: "nowrap" };
   const inputStyle: React.CSSProperties = { width: 62, textAlign: "right", padding: "4px 6px", fontSize: 11, height: 28 };
 
-  const stickyHead: React.CSSProperties = { position: "sticky", left: 0, background: "var(--card)", zIndex: 2 };
-  const stickyCell: React.CSSProperties = { position: "sticky", left: 0, background: "var(--card)", zIndex: 1 };
+  const stickyHead: React.CSSProperties = {
+    position: "sticky",
+    left: 0,
+    background: "var(--card)",
+    backgroundClip: "padding-box",
+    zIndex: 5,
+    borderRight: "1px solid var(--border)",
+    boxShadow: "10px 0 14px -12px rgba(15, 23, 42, 0.42)",
+  };
+  const stickyCell: React.CSSProperties = {
+    position: "sticky",
+    left: 0,
+    background: "var(--card)",
+    backgroundClip: "padding-box",
+    zIndex: 4,
+    borderRight: "1px solid var(--border)",
+    boxShadow: "10px 0 14px -12px rgba(15, 23, 42, 0.32)",
+  };
 
   return (
     <div className="grid investments-page">
@@ -856,10 +872,10 @@ export default function InvestmentsPage() {
         <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>{t("investments.accountsDesc")}</div>
 
         <div className="investments-table-wrap" style={{ overflowX: "auto", maxWidth: "100%", marginTop: 10 }}>
-          <table className="table">
+          <table className="table investments-data-table">
             <thead>
               <tr>
-                <th style={{ ...thStyle, ...stickyHead }}>{t("investments.account")}</th>
+                <th className="investments-sticky-col" style={{ ...thStyle, ...stickyHead }}>{t("investments.account")}</th>
                 <th style={thStyle}>{t("investments.cur")}</th>
                 {months.map((m) => (
                   <th key={`a-h-${m}`} className="right" style={thStyle} title={t("investments.valueAtStartOfMonth")}>{monthLabel(m)}</th>
@@ -880,7 +896,7 @@ export default function InvestmentsPage() {
 
                 return (
                   <tr key={inv.id}>
-                    <td style={{ ...tdStyle, ...stickyCell, fontWeight: 700 }}>
+                    <td className="investments-sticky-col" style={{ ...tdStyle, ...stickyCell, fontWeight: 700 }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0 }}>
                         {isEditingName ? (
                           <input
@@ -1090,10 +1106,10 @@ export default function InvestmentsPage() {
         </div>
 
         <div style={{ overflowX: "auto", maxWidth: "100%", marginTop: 10 }}>
-          <table className="table">
+          <table className="table investments-data-table">
             <thead>
               <tr>
-                <th style={{ ...thStyle, ...stickyHead, textAlign: "center" }}>{t("investments.fund")}</th>
+                <th className="investments-sticky-col" style={{ ...thStyle, ...stickyHead, textAlign: "center" }}>{t("investments.fund")}</th>
                 <th style={{ ...thStyle, textAlign: "center" }}>{t("investments.cur")}</th>
                 <th style={{ ...thStyle, textAlign: "center" }} title={t("investments.annualReturnTitle")}>{t("investments.targetReturn")}</th>
                 <th style={{ ...thStyle, textAlign: "center" }}>{t("investments.yieldFrom")}</th>
@@ -1115,7 +1131,7 @@ export default function InvestmentsPage() {
                 const hasClosedWithAmount = investmentHasClosedMonthsWithAmount(inv);
                 return (
                   <tr key={inv.id}>
-                    <td style={{ ...tdStyle, ...stickyCell, fontWeight: 700, verticalAlign: "middle" }}>
+                    <td className="investments-sticky-col" style={{ ...tdStyle, ...stickyCell, fontWeight: 700, verticalAlign: "middle" }}>
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, minWidth: 0 }}>
                         {isEditingName ? (
                           <input
@@ -1544,6 +1560,14 @@ export default function InvestmentsPage() {
       <style>{`
         .investments-page { max-width: 100%; overflow-x: hidden; }
         .investments-page .card { max-width: 100%; overflow: hidden; }
+        .investments-data-table {
+          border-collapse: separate;
+          border-spacing: 0;
+        }
+        .investments-sticky-col {
+          min-width: 168px;
+          max-width: 168px;
+        }
         .investments-page .table th, 
         .investments-page .table td { padding: 6px 6px; }
         .investments-page .table th { font-size: 10px; letter-spacing: 0.4px; }
@@ -1558,6 +1582,10 @@ export default function InvestmentsPage() {
           .investments-table-wrap {
             margin-left: -6px;
             margin-right: -6px;
+          }
+          .investments-sticky-col {
+            min-width: 148px;
+            max-width: 148px;
           }
         }
       `}</style>

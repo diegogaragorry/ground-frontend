@@ -33,8 +33,10 @@ type Investment = {
 
 type SnapshotMonth = {
   month: number;
+  closingCapital: number | null;
   closingCapitalUsd: number | null;
   encryptedPayload?: string;
+  _decryptFailed?: boolean;
 };
 
 type AnnualBudgetResp = {
@@ -73,16 +75,36 @@ function monthlyFactor(inv: Investment) {
   return 1 + (inv.targetAnnualReturn ?? 0) / 12;
 }
 
-function capitalUsd(inv: Investment, snaps: SnapshotMonth[], m: number) {
+function yieldStartMonthForYear(inv: Investment, year: number) {
+  if (inv.yieldStartYear != null && inv.yieldStartYear > year) return 13;
+  if (inv.yieldStartYear != null && inv.yieldStartYear === year) return inv.yieldStartMonth ?? 1;
+  return 1;
+}
+
+function snapshotUsdValue(inv: Investment, snap: SnapshotMonth | undefined, fxRate: number | null) {
+  if (!snap) return null;
+  if (snap.closingCapitalUsd != null) return snap.closingCapitalUsd;
+  if (snap.closingCapital == null) return null;
+
+  const currencyId = (inv.currencyId ?? "USD").toUpperCase();
+  if (currencyId === "USD") return snap.closingCapital;
+  if (currencyId === "UYU" && fxRate && fxRate > 0) return snap.closingCapital / fxRate;
+  return snap.closingCapital;
+}
+
+function capitalUsd(inv: Investment, snaps: SnapshotMonth[], m: number, year: number, fxRate: number | null) {
   const byM = snapsByMonth(snaps);
   const s = byM[m];
-  if (s?.closingCapitalUsd != null) return s.closingCapitalUsd;
+  const direct = snapshotUsdValue(inv, s, fxRate);
+  if (direct != null) return direct;
 
   for (let i = m - 1; i >= 1; i--) {
     const prev = byM[i];
-    if (prev?.closingCapitalUsd != null) {
-      const diff = m - Math.max(inv.yieldStartMonth ?? 1, i);
-      return diff <= 0 ? prev.closingCapitalUsd : prev.closingCapitalUsd * Math.pow(monthlyFactor(inv), diff);
+    const prevUsd = snapshotUsdValue(inv, prev, fxRate);
+    if (prevUsd != null) {
+      if (inv.type !== "PORTFOLIO") return prevUsd;
+      const diff = m - Math.max(yieldStartMonthForYear(inv, year), i);
+      return diff <= 0 ? prevUsd : prevUsd * Math.pow(monthlyFactor(inv), diff);
     }
   }
   return 0;
@@ -498,6 +520,9 @@ export default function DashboardPage() {
       const incomeResp = payload.income;
       const plannedResp = payload.planned;
       const invs = payload.investments ?? [];
+      const investmentById = new Map(invs.map((inv) => [inv.id, inv]));
+      const usdUyuRate = serverFxRate ?? getFxDefault();
+      const fx = Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : null;
 
       const decryptedExpenses = await Promise.all(
         (list ?? []).map(async (e) => {
@@ -585,12 +610,22 @@ export default function DashboardPage() {
       const snaps: Record<string, SnapshotMonth[]> = {};
       const invsList = invs ?? [];
       for (const entry of payload.investmentSnapshotsYear ?? []) {
+        const inv = investmentById.get(entry.investmentId);
         const monthsSnap: SnapshotMonth[] = await Promise.all(
           (entry.months ?? []).map(async (s) => {
             if (s.encryptedPayload) {
               const pl = await decryptPayload<{ closingCapital?: number; closingCapitalUsd?: number }>(s.encryptedPayload);
-              if (pl != null) return { ...s, closingCapitalUsd: pl.closingCapitalUsd ?? s.closingCapitalUsd ?? 0 };
-              return { ...s, closingCapitalUsd: 0, _decryptFailed: true };
+              if (pl != null) {
+                const closingCapital = typeof pl.closingCapital === "number" ? pl.closingCapital : s.closingCapital;
+                const closingCapitalUsd =
+                  typeof pl.closingCapitalUsd === "number"
+                    ? pl.closingCapitalUsd
+                    : inv
+                      ? snapshotUsdValue(inv, { ...s, closingCapital, closingCapitalUsd: s.closingCapitalUsd ?? null }, fx)
+                      : (s.closingCapitalUsd ?? null);
+                return { ...s, closingCapital, closingCapitalUsd };
+              }
+              return { ...s, closingCapital: s.closingCapital ?? null, closingCapitalUsd: s.closingCapitalUsd ?? null, _decryptFailed: true };
             }
             return s;
           })
@@ -601,8 +636,6 @@ export default function DashboardPage() {
 
       // Movimientos y ganancias de inversiones (misma fórmula que Presupuestos/Patrimonio)
       const portfolios = invsList.filter((i) => (i as Investment).type === "PORTFOLIO");
-      const usdUyuRate = serverFxRate ?? getFxDefault();
-      const fx = Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : null;
       const movResp = payload.movements ?? { rows: [] };
       const movementRows = movResp?.rows ?? [];
       const movementsDecrypted = await Promise.all(
@@ -618,10 +651,10 @@ export default function DashboardPage() {
       );
       const portfolioNW = months.map((_, i) => {
         const monthNum = i + 1;
-        return portfolios.reduce((acc, inv) => acc + capitalUsd(inv, snaps[inv.id] ?? [], monthNum), 0);
+        return portfolios.reduce((acc, inv) => acc + capitalUsd(inv, snaps[inv.id] ?? [], monthNum, year, fx), 0);
       });
       const projectedNextJan = portfolios.reduce((acc, inv) => {
-        const decCap = capitalUsd(inv, snaps[inv.id] ?? [], 12);
+        const decCap = capitalUsd(inv, snaps[inv.id] ?? [], 12, year, fx);
         return acc + decCap * monthlyFactor(inv);
       }, 0);
       const flows = months.map(() => 0);
@@ -790,9 +823,9 @@ export default function DashboardPage() {
   const netWorthByMonth = useMemo(
     () =>
       months.map((m) =>
-        investments.reduce((acc, inv) => acc + capitalUsd(inv, snapshots[inv.id] ?? [], m), 0)
+        investments.reduce((acc, inv) => acc + capitalUsd(inv, snapshots[inv.id] ?? [], m, year, Number.isFinite(serverFxRate ?? getFxDefault()) ? (serverFxRate ?? getFxDefault()) : null), 0)
       ),
-    [investments, snapshots]
+    [investments, snapshots, year, serverFxRate]
   );
 
   const netWorthStartMonth = useMemo(() => {

@@ -60,6 +60,75 @@ type MonthRow = {
   source: string;
 };
 
+type Investment = {
+  id: string;
+  type?: string;
+  currencyId?: string | null;
+  targetAnnualReturn: number;
+  yieldStartMonth: number;
+  yieldStartYear?: number | null;
+};
+
+type SnapshotMonth = {
+  month: number;
+  closingCapital: number | null;
+  closingCapitalUsd: number | null;
+  encryptedPayload?: string | null;
+};
+
+type MovementRow = {
+  month?: number;
+  date?: string;
+  investmentId: string;
+  type: string;
+  amount?: number;
+  currencyId?: string;
+  encryptedPayload?: string | null;
+};
+
+function snapsByMonth(snaps: SnapshotMonth[]) {
+  const map: Record<number, SnapshotMonth | undefined> = {};
+  for (const s of snaps) map[s.month] = s;
+  return map;
+}
+
+function monthlyFactor(inv: Investment) {
+  return 1 + (inv.targetAnnualReturn ?? 0) / 12;
+}
+
+function yieldStartMonthForYear(inv: Investment, year: number) {
+  if (inv.yieldStartYear != null && inv.yieldStartYear > year) return 13;
+  if (inv.yieldStartYear != null && inv.yieldStartYear === year) return inv.yieldStartMonth ?? 1;
+  return 1;
+}
+
+function snapshotUsdValue(inv: Investment, snap: SnapshotMonth | undefined, fxRate: number | null) {
+  if (!snap) return null;
+  if (snap.closingCapitalUsd != null) return snap.closingCapitalUsd;
+  if (snap.closingCapital == null) return null;
+
+  const currencyId = (inv.currencyId ?? "USD").toUpperCase();
+  if (currencyId === "USD") return snap.closingCapital;
+  if (currencyId === "UYU" && fxRate && fxRate > 0) return snap.closingCapital / fxRate;
+  return snap.closingCapital;
+}
+
+function capitalUsd(inv: Investment, snaps: SnapshotMonth[], m: number, year: number, fxRate: number | null) {
+  const byM = snapsByMonth(snaps);
+  const direct = snapshotUsdValue(inv, byM[m], fxRate);
+  if (direct != null) return direct;
+
+  for (let i = m - 1; i >= 1; i--) {
+    const prevUsd = snapshotUsdValue(inv, byM[i], fxRate);
+    if (prevUsd != null) {
+      if (inv.type !== "PORTFOLIO") return prevUsd;
+      const diff = m - Math.max(yieldStartMonthForYear(inv, year), i);
+      return diff <= 0 ? prevUsd : prevUsd * Math.pow(monthlyFactor(inv), diff);
+    }
+  }
+  return 0;
+}
+
 function sanitizeNumber(raw: string) {
   const cleaned = raw.trim().replace(/[^\d.,-]/g, "").replace(/,/g, "");
   const n = Number(cleaned);
@@ -452,6 +521,9 @@ export default function BudgetsPage() {
         income: { year: number; rows: Array<{ month: number; totalUsd: number; encryptedPayload?: string }> };
         planned: { year: number; rows: Array<{ month: number; amountUsd?: number | null; encryptedPayload?: string | null }> };
         expensesByMonth: { byMonth: Array<{ amountUsd?: number; encryptedPayload?: string | null }[]> };
+        investments?: Investment[];
+        investmentSnapshotsYear?: Array<{ investmentId: string; months: SnapshotMonth[] }>;
+        movements?: { year: number; rows: MovementRow[] };
       };
 
       const ensureYearPromise = api(`/plannedExpenses/ensure-year`, {
@@ -466,6 +538,9 @@ export default function BudgetsPage() {
       const incomeResp = payload.income;
       const plannedResp = payload.planned;
       const expenseResp = payload.expensesByMonth ?? { byMonth: Array.from({ length: 12 }, () => []) };
+      const investments = payload.investments ?? [];
+      const investmentById = new Map(investments.map((inv) => [inv.id, inv]));
+      const fx = Number.isFinite(serverFxRate ?? getFxDefault()) && (serverFxRate ?? getFxDefault()) > 0 ? (serverFxRate ?? getFxDefault()) : null;
       // convert aggregated expense response into simple totals per month
       const expenseTotals: Record<number, number> = {};
       (expenseResp.byMonth || []).forEach((arr, idx) => {
@@ -547,6 +622,65 @@ export default function BudgetsPage() {
         if (mo >= 1 && mo <= 12) plannedByMonth[mo] = (plannedByMonth[mo] ?? 0) + amountUsd;
       }
 
+      const snapshotsByInvestment: Record<string, SnapshotMonth[]> = {};
+      for (const entry of payload.investmentSnapshotsYear ?? []) {
+        const inv = investmentById.get(entry.investmentId);
+        snapshotsByInvestment[entry.investmentId] = await Promise.all(
+          (entry.months ?? []).map(async (s) => {
+            if (s.encryptedPayload) {
+              const pl = await decryptPayload<{ closingCapital?: number; closingCapitalUsd?: number }>(s.encryptedPayload);
+              if (pl != null) {
+                const closingCapital = typeof pl.closingCapital === "number" ? pl.closingCapital : s.closingCapital;
+                const closingCapitalUsd =
+                  typeof pl.closingCapitalUsd === "number"
+                    ? pl.closingCapitalUsd
+                    : inv
+                      ? snapshotUsdValue(inv, { ...s, closingCapital, closingCapitalUsd: s.closingCapitalUsd ?? null }, fx)
+                      : (s.closingCapitalUsd ?? null);
+                return { ...s, closingCapital, closingCapitalUsd };
+              }
+            }
+            return s;
+          })
+        );
+      }
+
+      const movementRows = await Promise.all(
+        (payload.movements?.rows ?? []).map(async (mv) => {
+          let amount = mv.amount ?? 0;
+          if (mv.encryptedPayload) {
+            const pl = await decryptPayload<{ amount?: number }>(mv.encryptedPayload);
+            if (pl != null && typeof pl.amount === "number") amount = pl.amount;
+          }
+          const movMonth = mv.month ?? (mv.date ? new Date(mv.date).getUTCMonth() + 1 : 0);
+          return { ...mv, amount, month: movMonth };
+        })
+      );
+
+      const portfolios = investments.filter((inv) => inv.type === "PORTFOLIO");
+      const portfolioNW = months12.map((m) =>
+        portfolios.reduce((acc, inv) => acc + capitalUsd(inv, snapshotsByInvestment[inv.id] ?? [], m, year, fx), 0)
+      );
+      const projectedNextJan = portfolios.reduce((acc, inv) => {
+        const decCap = capitalUsd(inv, snapshotsByInvestment[inv.id] ?? [], 12, year, fx);
+        return acc + decCap * monthlyFactor(inv);
+      }, 0);
+      const flows = months12.map(() => 0);
+      const portfolioById = new Map(portfolios.map((inv) => [inv.id, inv]));
+      for (const mv of movementRows) {
+        const m = mv.month ?? 0;
+        if (m < 1 || m > 12) continue;
+        const inv = portfolioById.get(mv.investmentId);
+        if (!inv) continue;
+        const sign = mv.type === "deposit" ? 1 : mv.type === "withdrawal" ? -1 : 0;
+        const cur = (mv.currencyId ?? "USD").toUpperCase();
+        if (cur === "USD") flows[m - 1] += sign * (mv.amount ?? 0);
+        else if (cur === "UYU" && fx) flows[m - 1] += sign * ((mv.amount ?? 0) / fx);
+      }
+      const variation = months12.map((_, idx) =>
+        idx < 11 ? (portfolioNW[idx + 1] ?? 0) - (portfolioNW[idx] ?? 0) : projectedNextJan - (portfolioNW[11] ?? 0)
+      );
+
       const otherByMonth: Record<number, number> = {};
       const resolvedMonthsMapped = resolvedMonths.map(({ m, otherExpensesUsd, resolved }) => {
         otherByMonth[m.month] = otherExpensesUsd;
@@ -555,8 +689,8 @@ export default function BudgetsPage() {
 
       const expensesByMonth: Record<number, number> = { ...expenseTotals };
       const earningsByMonth: Record<number, number> = {};
-      for (const m of resolvedMonthsMapped) {
-        earningsByMonth[m.month] = m.investmentEarningsUsd ?? 0;
+      for (let idx = 0; idx < 12; idx++) {
+        earningsByMonth[idx + 1] = (variation[idx] ?? 0) - (flows[idx] ?? 0);
       }
 
       const budgetList = await api<BudgetRow[]>(
