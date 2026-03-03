@@ -460,7 +460,7 @@ export default function BudgetsPage() {
       }).catch(() => null);
 
       const payload = await api<PageDataPayload>(`/budgets/page-data?year=${year}`);
-      await ensureYearPromise;
+      void ensureYearPromise;
 
       const r = payload.annual;
       const incomeResp = payload.income;
