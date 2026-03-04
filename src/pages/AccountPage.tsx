@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAppShell } from "../layout/AppShell";
@@ -8,6 +8,7 @@ import { APP_BASE } from "../constants";
 import { runKeyRotation } from "../utils/keyRotation";
 import { exportKeyToBase64 } from "../utils/crypto";
 import { getMigrationStatus, runMigration, type MigrationStatus as MigrationStatusType, type MigrationResult } from "../utils/migrateToE2EE";
+import { buildCountryOptions, isValidCountryCode } from "../utils/countries";
 
 function ChangePasswordCard({
   showTitle = true,
@@ -116,7 +117,7 @@ type Me = {
 };
 
 export default function AccountPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { setHeader } = useAppShell();
   const { encryptionKey, encryptPayload, decryptPayload, setEncryptionKey } = useEncryption();
   const [me, setMe] = useState<Me | null>(null);
@@ -141,6 +142,7 @@ export default function AccountPage() {
   const [profileMessage, setProfileMessage] = useState("");
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [rotationPhase, setRotationPhase] = useState<string | null>(null);
+  const countryOptions = useMemo(() => buildCountryOptions(i18n.language || "es"), [i18n.language]);
 
   useEffect(() => {
     setHeader({ title: t("account.title"), subtitle: t("account.subtitle") });
@@ -157,7 +159,8 @@ export default function AccountPage() {
     setPhone(me?.phone ?? "");
     setFirstName(me?.firstName ?? "");
     setLastName(me?.lastName ?? "");
-    setCountry(me?.country ?? "");
+    const nextCountry = String(me?.country ?? "").toUpperCase();
+    setCountry(isValidCountryCode(nextCountry) ? nextCountry : "");
   }, [me?.phone, me?.firstName, me?.lastName, me?.country]);
 
   async function onProfileSave(e: React.FormEvent) {
@@ -166,10 +169,10 @@ export default function AccountPage() {
     setProfileMessage("");
     const nextFirstName = firstName.trim();
     const nextLastName = lastName.trim();
-    const nextCountry = country.trim();
+    const nextCountry = country.trim().toUpperCase();
     if (!nextFirstName) return setProfileError(t("account.firstNameRequired"));
     if (!nextLastName) return setProfileError(t("account.lastNameRequired"));
-    if (!nextCountry) return setProfileError(t("account.countryRequired"));
+    if (!nextCountry || !isValidCountryCode(nextCountry)) return setProfileError(t("account.countryRequired"));
     setProfileLoading(true);
     try {
       await api("/auth/me", {
@@ -375,7 +378,14 @@ export default function AccountPage() {
           </div>
           <div>
             <label className="label">{t("account.country")}</label>
-            <input className="input" value={country} onChange={(e) => setCountry(e.target.value)} autoComplete="country-name" />
+            <select className="select" value={country} onChange={(e) => setCountry(e.target.value)}>
+              <option value="">{t("account.selectCountry")}</option>
+              {countryOptions.map((opt) => (
+                <option key={opt.code} value={opt.code}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
           {profileError && <div className="error" style={{ marginTop: 8 }}>{profileError}</div>}
           {profileMessage && <div className="muted" style={{ marginTop: 8 }}>{profileMessage}</div>}

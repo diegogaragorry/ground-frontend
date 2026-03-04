@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useEncryption } from "../context/EncryptionContext";
 import { generateEncryptionSalt, deriveEncryptionKey } from "../utils/crypto";
+import { buildCountryOptions, isValidCountryCode } from "../utils/countries";
 import { APP_BASE, CONTACT_WHATSAPP_URL } from "../constants";
 import "./../styles/landing.css";
 import "./../styles/auth.css";
@@ -272,6 +273,7 @@ export default function LandingPage() {
   const [registerShowPassword, setRegisterShowPassword] = useState(false);
 
   const t = COPY[lang];
+  const countryOptions = useMemo(() => buildCountryOptions(i18n.language || "es"), [i18n.language]);
 
   useEffect(() => {
     i18n.changeLanguage(lang);
@@ -518,7 +520,7 @@ export default function LandingPage() {
     const firstName = registerFirstName.trim();
     const lastName = registerLastName.trim();
     const phone = normalizePhone(registerPhone);
-    const country = registerCountry.trim();
+    const country = registerCountry.trim().toUpperCase();
     if (!em) {
       setRegisterError(tLogin("login.emailRequired"));
       return;
@@ -526,7 +528,7 @@ export default function LandingPage() {
     if (!firstName) return setRegisterError(tLogin("register.firstNameRequired"));
     if (!lastName) return setRegisterError(tLogin("register.lastNameRequired"));
     if (!phone || phone.length < 10) return setRegisterError(tLogin("register.phoneRequired"));
-    if (!country) return setRegisterError(tLogin("register.countryRequired"));
+    if (!country || !isValidCountryCode(country)) return setRegisterError(tLogin("register.countryRequired"));
     setRegisterLoading(true);
     try {
       const res = await api<{ ok: boolean; alreadySent?: boolean }>("/auth/register/request-code", {
@@ -554,13 +556,13 @@ export default function LandingPage() {
     const firstName = registerFirstName.trim();
     const lastName = registerLastName.trim();
     const phone = normalizePhone(registerPhone);
-    const country = registerCountry.trim();
+    const country = registerCountry.trim().toUpperCase();
 
     if (!em) return setRegisterError(tLogin("login.emailRequired"));
     if (!firstName) return setRegisterError(tLogin("register.firstNameRequired"));
     if (!lastName) return setRegisterError(tLogin("register.lastNameRequired"));
     if (!phone || phone.length < 10) return setRegisterError(tLogin("register.phoneRequired"));
-    if (!country) return setRegisterError(tLogin("register.countryRequired"));
+    if (!country || !isValidCountryCode(country)) return setRegisterError(tLogin("register.countryRequired"));
     if (!c) return setRegisterError(tLogin("login.codeRequired") ?? "Code is required");
     if (!pw) return setRegisterError(tLogin("login.passwordRequired") ?? "Password is required");
     if (pw.length < 8) return setRegisterError(tLogin("login.passwordMinLength") ?? "Password must be at least 8 characters");
@@ -588,12 +590,12 @@ export default function LandingPage() {
     const firstName = registerFirstName.trim();
     const lastName = registerLastName.trim();
     const phone = normalizePhone(registerPhone);
-    const country = registerCountry.trim();
+    const country = registerCountry.trim().toUpperCase();
     if (!em) return setRegisterError(tLogin("login.emailRequired"));
     if (!firstName) return setRegisterError(tLogin("register.firstNameRequired"));
     if (!lastName) return setRegisterError(tLogin("register.lastNameRequired"));
     if (!phone || phone.length < 10) return setRegisterError(tLogin("register.phoneRequired"));
-    if (!country) return setRegisterError(tLogin("register.countryRequired"));
+    if (!country || !isValidCountryCode(country)) return setRegisterError(tLogin("register.countryRequired"));
 
     setRegisterLoading(true);
     try {
@@ -782,14 +784,19 @@ export default function LandingPage() {
                           </div>
                           <div>
                             <label className="label">{tLogin("register.country")}</label>
-                            <input
-                              className="input"
+                            <select
+                              className="select"
                               value={registerCountry}
                               onChange={(e) => setRegisterCountry(e.target.value)}
                               required
-                              autoComplete="country-name"
-                              placeholder={tLogin("register.placeholderCountry")}
-                            />
+                            >
+                              <option value="">{tLogin("register.selectCountry")}</option>
+                              {countryOptions.map((opt) => (
+                                <option key={opt.code} value={opt.code}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
                           </div>
                           {registerError && <div className="error">{registerError}</div>}
                           {registerInfo && <div className="muted" style={{ fontSize: "0.875rem" }}>{registerInfo}</div>}
@@ -803,7 +810,7 @@ export default function LandingPage() {
                             {tLogin("register.codeSentTo")} <strong>{normalizeEmail(registerEmail)}</strong>
                           </p>
                           <div className="muted" style={{ fontSize: "0.875rem", marginTop: -4 }}>
-                            {registerFirstName.trim()} {registerLastName.trim()} · {registerCountry.trim()} · {registerPhone.trim()}
+                            {registerFirstName.trim()} {registerLastName.trim()} · {(countryOptions.find((c) => c.code === registerCountry)?.label ?? registerCountry.trim())} · {registerPhone.trim()}
                           </div>
                           <div>
                             <label className="label">{tLogin("register.verificationCode")}</label>
