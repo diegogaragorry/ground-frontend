@@ -105,6 +105,9 @@ function DisplayCurrencyCard({ showTitle = true }: { showTitle?: boolean }) {
 type Me = {
   id: string;
   email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  country?: string | null;
   role: string;
   phone?: string | null;
   phoneVerifiedAt?: string | null;
@@ -127,9 +130,15 @@ export default function AccountPage() {
   const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null);
 
   const [phone, setPhone] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [country, setCountry] = useState("");
   const [phoneCode, setPhoneCode] = useState("");
   const [phoneStep, setPhoneStep] = useState<"idle" | "sent" | "verified">("idle");
   const [phoneLoading, setPhoneLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const [profileMessage, setProfileMessage] = useState("");
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [rotationPhase, setRotationPhase] = useState<string | null>(null);
 
@@ -143,6 +152,43 @@ export default function AccountPage() {
       .catch((err) => setError(err?.message ?? "Error loading account"))
       .finally(() => setLoading(false));
   }, [phoneStep]);
+
+  useEffect(() => {
+    setPhone(me?.phone ?? "");
+    setFirstName(me?.firstName ?? "");
+    setLastName(me?.lastName ?? "");
+    setCountry(me?.country ?? "");
+  }, [me?.phone, me?.firstName, me?.lastName, me?.country]);
+
+  async function onProfileSave(e: React.FormEvent) {
+    e.preventDefault();
+    setProfileError("");
+    setProfileMessage("");
+    const nextFirstName = firstName.trim();
+    const nextLastName = lastName.trim();
+    const nextCountry = country.trim();
+    if (!nextFirstName) return setProfileError(t("account.firstNameRequired"));
+    if (!nextLastName) return setProfileError(t("account.lastNameRequired"));
+    if (!nextCountry) return setProfileError(t("account.countryRequired"));
+    setProfileLoading(true);
+    try {
+      await api("/auth/me", {
+        method: "PATCH",
+        body: JSON.stringify({
+          firstName: nextFirstName,
+          lastName: nextLastName,
+          country: nextCountry,
+        }),
+      });
+      const updated = await api<Me>("/auth/me");
+      setMe(updated);
+      setProfileMessage(t("account.profileSaved"));
+    } catch (err: unknown) {
+      setProfileError(err instanceof Error ? err.message : t("account.profileSaveFailed"));
+    } finally {
+      setProfileLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!encryptionKey || !me?.encryptionSalt) {
@@ -312,9 +358,31 @@ export default function AccountPage() {
     <div className="account-page" style={{ maxWidth: 480 }}>
       <div className="card" style={{ marginBottom: 24 }}>
         <h3 className="account-section-title">{t("account.profile")}</h3>
-        <p className="muted" style={{ marginBottom: 8 }}>
-          {t("account.email")}: <strong>{me.email}</strong>
-        </p>
+        <form onSubmit={onProfileSave} className="account-form">
+          <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 180, flex: "1 1 180px" }}>
+              <label className="label">{t("account.firstName")}</label>
+              <input className="input" value={firstName} onChange={(e) => setFirstName(e.target.value)} autoComplete="given-name" />
+            </div>
+            <div style={{ minWidth: 180, flex: "1 1 180px" }}>
+              <label className="label">{t("account.lastName")}</label>
+              <input className="input" value={lastName} onChange={(e) => setLastName(e.target.value)} autoComplete="family-name" />
+            </div>
+          </div>
+          <div>
+            <label className="label">{t("account.email")}</label>
+            <input className="input" value={me.email} disabled />
+          </div>
+          <div>
+            <label className="label">{t("account.country")}</label>
+            <input className="input" value={country} onChange={(e) => setCountry(e.target.value)} autoComplete="country-name" />
+          </div>
+          {profileError && <div className="error" style={{ marginTop: 8 }}>{profileError}</div>}
+          {profileMessage && <div className="muted" style={{ marginTop: 8 }}>{profileMessage}</div>}
+          <button type="submit" className="btn primary" disabled={profileLoading} style={{ marginTop: 4 }}>
+            {profileLoading ? t("account.savingProfile") : t("account.saveProfile")}
+          </button>
+        </form>
       </div>
 
       {encryptionKey && (

@@ -218,6 +218,10 @@ function pickToken(r: LoginResp | any): string | null {
 type ForgotStep = null | "email" | "code";
 type RegisterStep = "request" | "verify";
 
+function normalizePhone(v: string) {
+  return String(v || "").replace(/\D/g, "");
+}
+
 function normalizeEmail(v: string) {
   return String(v || "").trim().toLowerCase();
 }
@@ -255,7 +259,11 @@ export default function LandingPage() {
 
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [registerStep, setRegisterStep] = useState<RegisterStep>("request");
+  const [registerFirstName, setRegisterFirstName] = useState("");
+  const [registerLastName, setRegisterLastName] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
+  const [registerPhone, setRegisterPhone] = useState("");
+  const [registerCountry, setRegisterCountry] = useState("");
   const [registerCode, setRegisterCode] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerError, setRegisterError] = useState("");
@@ -344,7 +352,11 @@ export default function LandingPage() {
     setForgotStep(null);
     if (mode === "register") {
       setRegisterStep("request");
+      setRegisterFirstName("");
+      setRegisterLastName("");
       setRegisterEmail("");
+      setRegisterPhone("");
+      setRegisterCountry("");
       setRegisterCode("");
       setRegisterPassword("");
       setRegisterError("");
@@ -503,15 +515,23 @@ export default function LandingPage() {
     setRegisterError("");
     setRegisterInfo("");
     const em = normalizeEmail(registerEmail);
+    const firstName = registerFirstName.trim();
+    const lastName = registerLastName.trim();
+    const phone = normalizePhone(registerPhone);
+    const country = registerCountry.trim();
     if (!em) {
       setRegisterError(tLogin("login.emailRequired"));
       return;
     }
+    if (!firstName) return setRegisterError(tLogin("register.firstNameRequired"));
+    if (!lastName) return setRegisterError(tLogin("register.lastNameRequired"));
+    if (!phone || phone.length < 10) return setRegisterError(tLogin("register.phoneRequired"));
+    if (!country) return setRegisterError(tLogin("register.countryRequired"));
     setRegisterLoading(true);
     try {
       const res = await api<{ ok: boolean; alreadySent?: boolean }>("/auth/register/request-code", {
         method: "POST",
-        body: JSON.stringify({ email: em }),
+        body: JSON.stringify({ email: em, firstName, lastName, phone, country }),
       });
       setRegisterStep("verify");
       setRegisterInfo(res.alreadySent
@@ -531,8 +551,16 @@ export default function LandingPage() {
     const em = normalizeEmail(registerEmail);
     const c = String(registerCode || "").trim();
     const pw = String(registerPassword || "");
+    const firstName = registerFirstName.trim();
+    const lastName = registerLastName.trim();
+    const phone = normalizePhone(registerPhone);
+    const country = registerCountry.trim();
 
     if (!em) return setRegisterError(tLogin("login.emailRequired"));
+    if (!firstName) return setRegisterError(tLogin("register.firstNameRequired"));
+    if (!lastName) return setRegisterError(tLogin("register.lastNameRequired"));
+    if (!phone || phone.length < 10) return setRegisterError(tLogin("register.phoneRequired"));
+    if (!country) return setRegisterError(tLogin("register.countryRequired"));
     if (!c) return setRegisterError(tLogin("login.codeRequired") ?? "Code is required");
     if (!pw) return setRegisterError(tLogin("login.passwordRequired") ?? "Password is required");
     if (pw.length < 8) return setRegisterError(tLogin("login.passwordMinLength") ?? "Password must be at least 8 characters");
@@ -542,7 +570,7 @@ export default function LandingPage() {
       const encryptionSalt = generateEncryptionSalt();
       const r = await api<{ token: string }>("/auth/register/verify", {
         method: "POST",
-        body: JSON.stringify({ email: em, code: c, password: pw, encryptionSalt }),
+        body: JSON.stringify({ email: em, code: c, password: pw, encryptionSalt, firstName, lastName, phone, country }),
       });
       localStorage.setItem("token", r.token);
       nav(APP_BASE, { replace: true });
@@ -557,13 +585,21 @@ export default function LandingPage() {
     setRegisterError("");
     setRegisterInfo("");
     const em = normalizeEmail(registerEmail);
+    const firstName = registerFirstName.trim();
+    const lastName = registerLastName.trim();
+    const phone = normalizePhone(registerPhone);
+    const country = registerCountry.trim();
     if (!em) return setRegisterError(tLogin("login.emailRequired"));
+    if (!firstName) return setRegisterError(tLogin("register.firstNameRequired"));
+    if (!lastName) return setRegisterError(tLogin("register.lastNameRequired"));
+    if (!phone || phone.length < 10) return setRegisterError(tLogin("register.phoneRequired"));
+    if (!country) return setRegisterError(tLogin("register.countryRequired"));
 
     setRegisterLoading(true);
     try {
       const res = await api<{ ok: boolean; alreadySent?: boolean }>("/auth/register/request-code", {
         method: "POST",
-        body: JSON.stringify({ email: em }),
+        body: JSON.stringify({ email: em, firstName, lastName, phone, country }),
       });
       setRegisterInfo(res.alreadySent
         ? (i18n.language === "es" ? "Ya te enviamos un código. Revisá tu bandeja (y spam)." : "A code was already sent. Check your inbox (and spam).")
@@ -696,6 +732,30 @@ export default function LandingPage() {
 
                       {registerStep === "request" ? (
                         <form onSubmit={onRegisterRequestCode} className="login-form">
+                          <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+                            <div style={{ flex: "1 1 180px" }}>
+                              <label className="label">{tLogin("register.firstName")}</label>
+                              <input
+                                className="input"
+                                value={registerFirstName}
+                                onChange={(e) => setRegisterFirstName(e.target.value)}
+                                required
+                                autoComplete="given-name"
+                                placeholder={tLogin("register.placeholderFirstName")}
+                              />
+                            </div>
+                            <div style={{ flex: "1 1 180px" }}>
+                              <label className="label">{tLogin("register.lastName")}</label>
+                              <input
+                                className="input"
+                                value={registerLastName}
+                                onChange={(e) => setRegisterLastName(e.target.value)}
+                                required
+                                autoComplete="family-name"
+                                placeholder={tLogin("register.placeholderLastName")}
+                              />
+                            </div>
+                          </div>
                           <div>
                             <label className="label">{tLogin("register.email")}</label>
                             <input
@@ -706,6 +766,29 @@ export default function LandingPage() {
                               required
                               autoComplete="email"
                               placeholder={tLogin("login.placeholderEmail")}
+                            />
+                          </div>
+                          <div>
+                            <label className="label">{tLogin("register.phone")}</label>
+                            <input
+                              className="input"
+                              type="tel"
+                              value={registerPhone}
+                              onChange={(e) => setRegisterPhone(e.target.value)}
+                              required
+                              autoComplete="tel"
+                              placeholder={tLogin("register.placeholderPhone")}
+                            />
+                          </div>
+                          <div>
+                            <label className="label">{tLogin("register.country")}</label>
+                            <input
+                              className="input"
+                              value={registerCountry}
+                              onChange={(e) => setRegisterCountry(e.target.value)}
+                              required
+                              autoComplete="country-name"
+                              placeholder={tLogin("register.placeholderCountry")}
                             />
                           </div>
                           {registerError && <div className="error">{registerError}</div>}
@@ -719,6 +802,9 @@ export default function LandingPage() {
                           <p className="muted" style={{ marginBottom: 8 }}>
                             {tLogin("register.codeSentTo")} <strong>{normalizeEmail(registerEmail)}</strong>
                           </p>
+                          <div className="muted" style={{ fontSize: "0.875rem", marginTop: -4 }}>
+                            {registerFirstName.trim()} {registerLastName.trim()} · {registerCountry.trim()} · {registerPhone.trim()}
+                          </div>
                           <div>
                             <label className="label">{tLogin("register.verificationCode")}</label>
                             <input

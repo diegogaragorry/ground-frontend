@@ -24,6 +24,10 @@ type ShellHeader = { title: string; subtitle?: string | React.ReactNode };
 type Me = {
   id: string;
   email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  country?: string | null;
+  phone?: string | null;
   role: "USER" | "SUPER_ADMIN";
   forceOnboardingNextLogin?: boolean;
   onboardingStep?: string;
