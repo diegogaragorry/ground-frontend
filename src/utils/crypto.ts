@@ -1,5 +1,6 @@
 /**
  * E2EE: key derivation (password + salt) and AES-GCM encrypt/decrypt.
+ * Key must be extractable to allow account-recovery setup (/auth/recovery/setup).
  * Salt and keys are base64 (raw bytes).
  */
 
@@ -46,7 +47,7 @@ export async function deriveEncryptionKey(
     },
     passwordKey,
     { name: "AES-GCM", length: AES_KEY_LEN },
-    false,
+    true,
     ["encrypt", "decrypt"]
   );
 
@@ -113,7 +114,7 @@ export async function importKeyFromBase64(keyBase64: string): Promise<CryptoKey>
     "raw",
     raw as BufferSource,
     { name: "AES-GCM" },
-    false,
+    true,
     ["encrypt", "decrypt"]
   );
 }
