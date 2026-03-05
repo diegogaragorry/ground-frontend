@@ -61,6 +61,7 @@ type ExpenseTemplateRow = {
 const usd0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
 const months = Array.from({ length: 12 }, (_, i) => i + 1);
 const m2 = (m: number) => String(m).padStart(2, "0");
+const CLOSE_BALANCE_TOLERANCE_USD = 0.01;
 
 /* ---------------------------------------------------------
    Shared helpers
@@ -1202,6 +1203,7 @@ export default function AdminPage() {
   /** Construye en cliente ingresos, gastos, ganancias, balance y patrimonio (inicio/fin mes) para el preview y el cierre con E2EE. */
   async function buildClosePreviewClient(): Promise<{
     incomeUsd: number;
+    baseExpensesUsd: number;
     expensesUsd: number;
     investmentEarningsUsd: number;
     balanceUsd: number;
@@ -1209,6 +1211,9 @@ export default function AdminPage() {
     netWorthEndUsd: number;
     realBalanceUsd: number;
     budgetBalanceUsd: number;
+    otherExpensesCurrent: number;
+    otherExpensesProposed: number;
+    message: string;
   }> {
     type InvLite = { id: string; type?: string; currencyId?: string | null; targetAnnualReturn?: number | null; yieldStartYear?: number | null; yieldStartMonth?: number | null };
     type SnapRow = { month: number; closingCapital?: number | null; closingCapitalUsd?: number | null; encryptedPayload?: string | null; _decryptedZero?: boolean };
@@ -1348,15 +1353,28 @@ export default function AdminPage() {
     const balanceUsd = incomeUsd - expensesUsd + investmentEarningsUsd;
     const netWorthStartUsd = totalNW[m - 1] ?? 0;
     const netWorthEndUsd = m < 12 ? (totalNW[m] ?? 0) : netWorthStartUsd + balanceUsd;
+    const realBalanceUsd = netWorthEndUsd - netWorthStartUsd;
+    const budgetBalanceUsd = balanceUsd;
+    const otherExpensesCurrent = otherExpensesUsd;
+    const otherExpensesProposed = incomeUsd + investmentEarningsUsd - realBalanceUsd - baseExpensesUsd;
+    const diff = Math.abs(realBalanceUsd - budgetBalanceUsd);
+    const message =
+      diff < CLOSE_BALANCE_TOLERANCE_USD
+        ? "El balance real y el calculado coinciden. No se ajustará Otros gastos."
+        : `Balance real: ${realBalanceUsd.toFixed(2)} USD. Balance calculado (presupuesto): ${budgetBalanceUsd.toFixed(2)} USD. Se ajustará "Otros gastos" de ${otherExpensesCurrent.toFixed(2)} a ${otherExpensesProposed.toFixed(2)} USD para que cierre. ¿Confirmar cierre?`;
     return {
       incomeUsd,
+      baseExpensesUsd,
       expensesUsd,
       investmentEarningsUsd,
       balanceUsd,
       netWorthStartUsd,
       netWorthEndUsd,
-      realBalanceUsd: balanceUsd,
-      budgetBalanceUsd: balanceUsd,
+      realBalanceUsd,
+      budgetBalanceUsd,
+      otherExpensesCurrent,
+      otherExpensesProposed,
+      message,
     };
   }
 
@@ -1412,14 +1430,32 @@ export default function AdminPage() {
     showSuccess(t("admin.monthClosedSuccess"));
   }
 
+  async function persistOtherExpenses(otherExpensesUsd: number) {
+    let payload: Record<string, unknown> = { otherExpensesUsd };
+    if (hasEncryptionSupport) {
+      const enc = await encryptPayload({ otherExpensesUsd });
+      if (enc) payload = { encryptedPayload: enc };
+    }
+    await api(`/budgets/other-expenses/${mcYear}/${mcMonth}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  }
+
   /** Construye snapshot cifrado (ingresos, gastos, patrimonio, ganancias) y cierra el mes. Usado con E2EE. Valores siempre desde cliente. */
   async function buildEncryptedSnapshotAndClose() {
     const client = await buildClosePreviewClient();
+    const shouldAdjustOtherExpenses = Math.abs(client.realBalanceUsd - client.budgetBalanceUsd) >= CLOSE_BALANCE_TOLERANCE_USD;
+    const resolvedOtherExpenses = shouldAdjustOtherExpenses ? client.otherExpensesProposed : client.otherExpensesCurrent;
+    const resolvedExpensesUsd = client.baseExpensesUsd + resolvedOtherExpenses;
+    if (shouldAdjustOtherExpenses) {
+      await persistOtherExpenses(resolvedOtherExpenses);
+    }
     const snapshot = {
       incomeUsd: client.incomeUsd,
-      expensesUsd: client.expensesUsd,
+      expensesUsd: resolvedExpensesUsd,
       investmentEarningsUsd: client.investmentEarningsUsd,
-      balanceUsd: client.balanceUsd,
+      balanceUsd: shouldAdjustOtherExpenses ? client.realBalanceUsd : client.budgetBalanceUsd,
       netWorthStartUsd: client.netWorthStartUsd,
       netWorthEndUsd: client.netWorthEndUsd,
     };
@@ -1893,7 +1929,7 @@ export default function AdminPage() {
                 components={{ 1: <strong /> }}
               />
               <br /><br />
-              {Math.abs((closePreviewData.realBalanceUsd ?? 0) - (closePreviewData.budgetBalanceUsd ?? 0)) < 0.50
+              {Math.abs((closePreviewData.realBalanceUsd ?? 0) - (closePreviewData.budgetBalanceUsd ?? 0)) < CLOSE_BALANCE_TOLERANCE_USD
                 ? t("admin.closeMonthPreviewP3NoAdjust")
                 : t("admin.closeMonthPreviewP3")}
             </div>
