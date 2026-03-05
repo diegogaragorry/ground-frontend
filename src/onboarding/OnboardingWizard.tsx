@@ -144,6 +144,7 @@ export function OnboardingWizard(props: {
     amountUsd: number | null,
     defaultCurrencyId: "UYU" | "USD"
   ): Promise<{ id: string } | undefined> {
+    const startMonth = new Date().getMonth() + 1;
     try {
       const template = await api<{ id: string }>("/admin/expenseTemplates", {
         method: "POST",
@@ -152,6 +153,7 @@ export function OnboardingWizard(props: {
           description,
           defaultAmountUsd: amountUsd,
           defaultCurrencyId,
+          startMonth,
         }),
       });
       if (template?.id) selectedTemplateIdsRef.current.push(template.id);
@@ -415,7 +417,9 @@ export function OnboardingWizard(props: {
   async function saveIncomeAndFinish() {
     setError("");
     setLoading(true);
-    const year = new Date().getFullYear();
+    const now = new Date();
+    const year = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
     try {
       if (incomeWork) {
         const workCur = getItemCurrency("income.work");
@@ -424,11 +428,11 @@ export function OnboardingWizard(props: {
         if (nominalUsd !== null && nominalUsd >= 0) {
           if (incomeWorkType === "nominal") {
             const taxesUsd = toUsdAmount(incomeWorkTaxes, workCur, workRate) ?? 0;
-            for (let m = 1; m <= 12; m++) {
+            for (let m = currentMonth; m <= 12; m++) {
               await api("/income", { method: "POST", body: JSON.stringify({ year, month: m, nominalUsd, taxesUsd }) });
             }
           } else {
-            for (let m = 1; m <= 12; m++) {
+            for (let m = currentMonth; m <= 12; m++) {
               await api("/income", { method: "POST", body: JSON.stringify({ year, month: m, amountUsd: nominalUsd }) });
             }
           }
@@ -457,7 +461,7 @@ export function OnboardingWizard(props: {
               currencyId: savingsCur,
               targetAnnualReturn: 0,
               yieldStartYear: year,
-              yieldStartMonth: 1,
+              yieldStartMonth: currentMonth,
             }),
           });
           bankAccountId = created.id;
@@ -465,10 +469,9 @@ export function OnboardingWizard(props: {
         // Snapshot: value in the account currency (so Investments shows UYU when user chose UYU)
         const capitalInCurrency = savingsCur === "UYU" ? Number(incomeSavingsUsd) || 0 : (savingsUsd ?? 0);
         if (bankAccountId && Number.isFinite(capitalInCurrency) && capitalInCurrency >= 0) {
-          const month = new Date().getMonth() + 1;
           const body: { closingCapital: number; usdUyuRate?: number } = { closingCapital: capitalInCurrency };
           if (savingsCur === "UYU" && Number.isFinite(savingsRate) && savingsRate > 0) body.usdUyuRate = savingsRate;
-          await api(`/investments/${bankAccountId}/snapshots/${year}/${month}`, {
+          await api(`/investments/${bankAccountId}/snapshots/${year}/${currentMonth}`, {
             method: "PUT",
             body: JSON.stringify(body),
           });
@@ -484,15 +487,14 @@ export function OnboardingWizard(props: {
             currencyId: inv.currencyId,
             targetAnnualReturn: (Number(inv.returnPct) || 0) / 100,
             yieldStartYear: year,
-            yieldStartMonth: 1,
+            yieldStartMonth: currentMonth,
           }),
         });
         const amount = Number(inv.amountUsd);
         if (Number.isFinite(amount) && amount >= 0) {
-          const month = new Date().getMonth() + 1;
           const snapshotBody: { closingCapital: number; usdUyuRate?: number } = { closingCapital: amount };
           if (inv.currencyId === "UYU") snapshotBody.usdUyuRate = getItemRate("income.savings");
-          await api(`/investments/${created.id}/snapshots/${year}/${month}`, {
+          await api(`/investments/${created.id}/snapshots/${year}/${currentMonth}`, {
             method: "PUT",
             body: JSON.stringify(snapshotBody),
           });
@@ -522,6 +524,8 @@ export function OnboardingWizard(props: {
       <style>{`
         .onboarding-wizard .onboarding-amount-input::placeholder { font-size: 11px; }
         .onboarding-wizard .onboarding-amount-input { min-width: 165px; }
+        .onboarding-wizard .onboarding-investment-text-input::placeholder { font-size: 11px; }
+        .onboarding-wizard .onboarding-investment-text-input { font-size: 12px; }
         .onboarding-wizard .onboarding-option {
           align-items: center;
           gap: 8px;
@@ -932,7 +936,7 @@ export function OnboardingWizard(props: {
                   <div key={idx} style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr auto 120px auto", alignItems: "center" }} className="wizard-investment-row">
                     <input
                       type="text"
-                      className="input"
+                      className="input onboarding-investment-text-input"
                       placeholder={t("onboarding.wizardIncomeInvestWhere")}
                       value={inv.name}
                       onChange={(e) =>
@@ -963,7 +967,7 @@ export function OnboardingWizard(props: {
                     <input
                       type="number"
                       className="input onboarding-amount-input"
-                      placeholder={t("onboarding.wizardOptionalUsd")}
+                      placeholder={t("onboarding.wizardIncomeInvestCapital")}
                       value={inv.amountUsd}
                       onChange={(e) =>
                         setInvestmentsList((prev) => {
@@ -979,7 +983,7 @@ export function OnboardingWizard(props: {
                       <input
                         type="number"
                         className="input onboarding-amount-input"
-                        placeholder={t("onboarding.wizardIncomeInvestReturn")}
+                        placeholder={t("onboarding.wizardIncomeInvestExpectedReturn")}
                         value={inv.returnPct}
                         onChange={(e) =>
                           setInvestmentsList((prev) => {

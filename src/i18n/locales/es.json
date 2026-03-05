@@ -750,6 +750,8 @@
     "wizardIncomeInvestWhere": "¿Dónde? (ej. broker, fondo)",
     "wizardIncomeInvestAmount": "Monto (USD)",
     "wizardIncomeInvestAmountUyu": "Monto (UYU)",
+    "wizardIncomeInvestCapital": "Capital invertido",
+    "wizardIncomeInvestExpectedReturn": "Rentabilidad esperada",
     "wizardIncomeInvestReturn": "Retorno anual esperado %",
     "wizardDoneTitle": "Listo",
     "wizardDoneSub": "Armamos tu plantilla. Ahora te mostramos dónde cargar gastos, ver tus cuentas y tu presupuesto.",

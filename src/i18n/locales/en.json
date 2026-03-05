@@ -750,6 +750,8 @@
     "wizardIncomeInvestWhere": "Where? (e.g. broker, fund)",
     "wizardIncomeInvestAmount": "Amount (USD)",
     "wizardIncomeInvestAmountUyu": "Amount (UYU)",
+    "wizardIncomeInvestCapital": "Invested capital",
+    "wizardIncomeInvestExpectedReturn": "Expected return",
     "wizardIncomeInvestReturn": "Expected annual return %",
     "wizardDoneTitle": "You're all set",
     "wizardDoneSub": "We've created your template. Next we'll show you where to add expenses, see your accounts, and your budget.",
