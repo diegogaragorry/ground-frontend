@@ -420,6 +420,8 @@ export function OnboardingWizard(props: {
     const now = new Date();
     const year = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
+    const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
+    const previousMonthYear = currentMonth === 1 ? year - 1 : year;
     try {
       if (incomeWork) {
         const workCur = getItemCurrency("income.work");
@@ -498,6 +500,19 @@ export function OnboardingWizard(props: {
             method: "PUT",
             body: JSON.stringify(snapshotBody),
           });
+          if (amount > 0) {
+            const movementDate = new Date(Date.UTC(previousMonthYear, previousMonth - 1, 1, 0, 0, 0)).toISOString();
+            await api("/investments/movements", {
+              method: "POST",
+              body: JSON.stringify({
+                investmentId: created.id,
+                date: movementDate,
+                type: "deposit",
+                currencyId: inv.currencyId,
+                amount,
+              }),
+            });
+          }
         }
       }
       setStep(7);
@@ -912,7 +927,7 @@ export function OnboardingWizard(props: {
                   <input
                     type="number"
                     className="input onboarding-amount-input"
-                    placeholder={t("onboarding.wizardOptionalUsd")}
+                    placeholder={t("onboarding.wizardIncomeSavingsCapital")}
                     value={incomeSavingsUsd}
                     onChange={(e) => setIncomeSavingsUsd(e.target.value)}
                     style={{ width: 165, minWidth: 165 }}

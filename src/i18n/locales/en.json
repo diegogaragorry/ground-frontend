@@ -746,6 +746,7 @@
     "wizardIncomeWorkTaxes": "Taxes/Deductibles",
     "wizardIncomeSavings": "Savings in bank accounts",
     "wizardIncomeSavingsPlaceholder": "Est. total in {{currency}}",
+    "wizardIncomeSavingsCapital": "Capital",
     "wizardIncomeInvestments": "I have investments",
     "wizardIncomeInvestWhere": "Where? (e.g. broker, fund)",
     "wizardIncomeInvestAmount": "Amount (USD)",
