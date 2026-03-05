@@ -45,11 +45,11 @@
     "failedToSendCode": "Failed to send code",
     "passwordMinLength": "Password must be at least 8 characters",
     "failedToResetPassword": "Failed to reset password",
-    "recoverySendCodes": "Send codes (email + SMS)",
+    "recoverySendCodes": "Send codes (email + SMS if enabled)",
     "recoverySendEmailOnly": "Email-only code",
     "phoneCode": "SMS code",
     "recoverySubtitle": "If you set up recovery, we'll send a code by email and one by SMS.",
-    "emailOnlySubtitle": "We sent you a code by email. Check your inbox (and spam folder).",
+    "emailOnlySubtitle": "We sent an email-only code (no SMS). Using this path does not restore the encryption key, so previous encrypted data may be unavailable.",
     "recoveryNoSms": "I don't have recovery / email only"
   },
   "register": {

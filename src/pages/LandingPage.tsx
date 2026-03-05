@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useEncryption } from "../context/EncryptionContext";
-import { generateEncryptionSalt, deriveEncryptionKey } from "../utils/crypto";
+import { generateEncryptionSalt, deriveEncryptionKey, importKeyFromBase64 } from "../utils/crypto";
 import { buildCountryOptions, isValidCountryCode } from "../utils/countries";
 import { APP_BASE, CONTACT_WHATSAPP_URL } from "../constants";
 import "./../styles/landing.css";
@@ -412,7 +412,23 @@ export default function LandingPage() {
         return;
       }
       const user = resp?.user as LoginUser | undefined;
-      if (user?.encryptionSalt) {
+      if (user?.encryptionKey) {
+        try {
+          const k = await importKeyFromBase64(user.encryptionKey);
+          setEncryptionKey(k);
+        } catch {
+          if (user?.encryptionSalt) {
+            try {
+              const k = await deriveEncryptionKey(topBarPassword, user.encryptionSalt);
+              setEncryptionKey(k);
+            } catch {
+              setEncryptionKey(null);
+            }
+          } else {
+            setEncryptionKey(null);
+          }
+        }
+      } else if (user?.encryptionSalt) {
         try {
           const k = await deriveEncryptionKey(topBarPassword, user.encryptionSalt);
           setEncryptionKey(k);
@@ -495,7 +511,23 @@ export default function LandingPage() {
         return;
       }
       const user = resp?.user as LoginUser | undefined;
-      if (user?.encryptionSalt) {
+      if (user?.encryptionKey) {
+        try {
+          const k = await importKeyFromBase64(user.encryptionKey);
+          setEncryptionKey(k);
+        } catch {
+          if (user?.encryptionSalt) {
+            try {
+              const k = await deriveEncryptionKey(authPassword, user.encryptionSalt);
+              setEncryptionKey(k);
+            } catch {
+              setEncryptionKey(null);
+            }
+          } else {
+            setEncryptionKey(null);
+          }
+        }
+      } else if (user?.encryptionSalt) {
         try {
           const k = await deriveEncryptionKey(authPassword, user.encryptionSalt);
           setEncryptionKey(k);

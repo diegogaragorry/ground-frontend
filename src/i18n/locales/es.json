@@ -45,11 +45,11 @@
     "failedToSendCode": "Error al enviar el código",
     "passwordMinLength": "La contraseña debe tener al menos 8 caracteres",
     "failedToResetPassword": "Error al restablecer la contraseña",
-    "recoverySendCodes": "Enviar códigos (email + SMS)",
+    "recoverySendCodes": "Enviar códigos (email + SMS si está activado)",
     "recoverySendEmailOnly": "Solo código por email",
     "phoneCode": "Código por SMS",
     "recoverySubtitle": "Si activaste recuperación, te enviamos un código por email y otro por SMS.",
-    "emailOnlySubtitle": "Te enviamos un código por email. Revisá tu bandeja (y carpeta de spam).",
+    "emailOnlySubtitle": "Te enviamos un código solo por email (sin SMS). Si usás este método no se restaura la clave de cifrado y podés no ver tus datos previos.",
     "recoveryNoSms": "No tengo recuperación / solo email"
   },
   "register": {

@@ -5,6 +5,7 @@
 
 const PBKDF2_ITERATIONS = 120_000;
 const AES_KEY_LEN = 256;
+const AES_KEY_RAW_BYTES = 32;
 const IV_LEN = 12;
 const TAG_LEN = 16;
 
@@ -97,6 +98,24 @@ export async function decryptWithKey(
 export async function exportKeyToBase64(cryptoKey: CryptoKey): Promise<string> {
   const raw = await crypto.subtle.exportKey("raw", cryptoKey);
   return bufToBase64(raw);
+}
+
+/**
+ * Import a raw AES-256 key (base64) as CryptoKey.
+ * Used when backend returns recovery key after login/recovery.
+ */
+export async function importKeyFromBase64(keyBase64: string): Promise<CryptoKey> {
+  const raw = base64ToBuf(keyBase64);
+  if (raw.length !== AES_KEY_RAW_BYTES) {
+    throw new Error("Invalid encryption key length");
+  }
+  return crypto.subtle.importKey(
+    "raw",
+    raw as BufferSource,
+    { name: "AES-GCM" },
+    false,
+    ["encrypt", "decrypt"]
+  );
 }
 
 /**
