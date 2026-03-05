@@ -1808,7 +1808,7 @@ export default function AdminPage() {
         {mcError && <div style={{ marginTop: 12, color: "var(--danger)" }}>{mcError}</div>}
         {mcInfo && <div style={{ marginTop: 12, color: "rgba(15,23,42,0.75)" }}>{mcInfo}</div>}
 
-        {selectedClose && (
+        {isSelectedClosed && selectedClose && (
           isMobile ? (
             <div className="admin-mobile-card-list" style={{ marginTop: 12 }}>
               {[
