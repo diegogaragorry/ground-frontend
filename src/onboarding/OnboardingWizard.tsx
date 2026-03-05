@@ -104,7 +104,7 @@ export function OnboardingWizard(props: {
   const [incomeSavings, setIncomeSavings] = useState(false);
   const [incomeSavingsUsd, setIncomeSavingsUsd] = useState("");
   const [incomeInvestments, setIncomeInvestments] = useState(false);
-  const [investmentsList, setInvestmentsList] = useState<Array<{ name: string; returnPct: string; amountUsd: string; currencyId: "UYU" | "USD" }>>([{ name: "", returnPct: "0", amountUsd: "", currencyId: "USD" }]);
+  const [investmentsList, setInvestmentsList] = useState<Array<{ name: string; returnPct: string; amountUsd: string; currencyId: "UYU" | "USD" }>>([{ name: "", returnPct: "", amountUsd: "", currencyId: "USD" }]);
 
   useEffect(() => {
     api<Category[]>("/categories")
@@ -933,7 +933,7 @@ export function OnboardingWizard(props: {
             {incomeInvestments && (
               <div style={{ paddingLeft: 28, display: "grid", gap: 10 }}>
                 {investmentsList.map((inv, idx) => (
-                  <div key={idx} style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr auto 120px auto", alignItems: "center" }} className="wizard-investment-row">
+                  <div key={idx} style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr auto 165px auto", alignItems: "center" }} className="wizard-investment-row">
                     <input
                       type="text"
                       className="input onboarding-investment-text-input"
@@ -992,7 +992,7 @@ export function OnboardingWizard(props: {
                             return next;
                           })
                         }
-                        style={{ width: 200, fontSize: 12 }}
+                        style={{ width: 150, fontSize: 12 }}
                         title={t("onboarding.wizardIncomeInvestReturn")}
                       />
                       <span className="muted" style={{ fontSize: 12 }}>%</span>
@@ -1002,7 +1002,7 @@ export function OnboardingWizard(props: {
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => setInvestmentsList((prev) => [...prev, { name: "", returnPct: "0", amountUsd: "", currencyId: "USD" }])}
+                  onClick={() => setInvestmentsList((prev) => [...prev, { name: "", returnPct: "", amountUsd: "", currencyId: "USD" }])}
                 >
                   {t("onboarding.wizardAddInvestment")}
                 </button>
