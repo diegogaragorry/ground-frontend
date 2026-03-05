@@ -32,6 +32,37 @@ const COPY = {
     benefit4: "Cierre de mes: gastos y patrimonio siempre alineados",
     benefit5: "Exportá todo a CSV o Excel",
     benefit6: "Multi-moneda con tipo de cambio actualizado",
+    benefit7: "Cifrado E2EE: solo vos podés ver tus datos sensibles",
+    benefitsLead: "Resultado antes que planilla: cada bloque apunta a una mejora concreta en tu mes.",
+    benefitHeroEyebrow: "Resultado principal",
+    benefitHeroTitle: "Ahorrá 3-5 horas por mes de control financiero",
+    benefitHeroDesc: "Centralizá gastos, ingresos, presupuesto y patrimonio en un solo flujo, sin armar ni mantener planillas.",
+    benefitHeroProof: "Prueba: onboarding guiado + plantillas + cierre mensual en el mismo lugar.",
+    benefitHeroCta: "Crear cuenta gratis",
+    benefitCard1Title: "Detectá fugas de gasto en minutos",
+    benefitCard1Desc: "Visualizá top categorías y gastos repetidos para corregir desvíos rápido.",
+    benefitCard1Proof: "Prueba: ranking de categorías y panel mensual.",
+    benefitCard1Cta: "Ver ejemplo",
+    benefitCard2Title: "Decidí con contexto real del mes",
+    benefitCard2Desc: "Combiná ejecución vs presupuesto para anticiparte antes del cierre.",
+    benefitCard2Proof: "Prueba: presupuesto mensual + anual en un mismo flujo.",
+    benefitCard2Cta: "Probar flujo guiado",
+    benefitCard3Title: "Tu patrimonio deja de ser una caja negra",
+    benefitCard3Desc: "Alineá cuentas e inversiones con tus ingresos y gastos en una vista coherente.",
+    benefitCard3Proof: "Prueba: cierre de mes que fija cifras y evita inconsistencias.",
+    benefitCard3Cta: "Empezar ahora",
+    benefitCard4Title: "Exportá y auditá cuando quieras",
+    benefitCard4Desc: "Llevate los datos a CSV/Excel para análisis, respaldo o contador.",
+    benefitCard4Proof: "Prueba: exportación disponible por módulo.",
+    benefitCard4Cta: "Ver cómo funciona",
+    benefitCard5Title: "Operá en multi-moneda sin fricción",
+    benefitCard5Desc: "Registrá y compará valores en distintas monedas con tipo de cambio actualizado.",
+    benefitCard5Proof: "Prueba: FX integrado en gastos, ingresos e inversiones.",
+    benefitCard5Cta: "Crear cuenta",
+    benefitCard6Title: "Mantené privacidad real en tus datos sensibles",
+    benefitCard6Desc: "Tus montos y descripciones sensibles se cifran antes de salir de tu dispositivo.",
+    benefitCard6Proof: "Prueba: E2EE, el servidor no puede leerlos.",
+    benefitCard6Cta: "Probar ground",
     trust: "Hecho para finanzas reales",
     trust1: "Privado por diseño",
     trust2: "Guía simple de configuración",
@@ -76,6 +107,8 @@ const COPY = {
     faq7A: "ground. está pensado principalmente para desktop (pantalla grande). En mobile podés ver el panel y crear gastos; el uso completo está optimizado para escritorio.",
     faq8Q: "¿Cómo me ayuda con el control mensual?",
     faq8A: "Las plantillas de gastos y el flujo guiado acortan mucho el tiempo necesario para llevar el control. Además, te ayuda a recordar qué cosas tenés que pagar todos los meses y mantener el seguimiento sin esfuerzo.",
+    faq9Q: "¿Qué significa que los datos estén cifrados con E2EE?",
+    faq9A: "Significa que los montos y descripciones sensibles se cifran en tu dispositivo antes de enviarse. El servidor guarda datos cifrados y no puede leerlos; solo vos, con tu clave, podés descifrarlos.",
     finalHeadline: "Empezá a gastar con propósito hoy.",
     finalCta: "Crear cuenta / Iniciar sesión",
     footerLogin: "Iniciar sesión",
@@ -101,6 +134,21 @@ const COPY = {
     topBarEmail: "Email",
     topBarPassword: "Contraseña",
     topBarSignIn: "Entrar",
+    proofPill1: "Cifrado E2EE real",
+    proofPill2: "Setup guiado en minutos",
+    proofPill3: "Cierre de mes confiable",
+    heroStat1Label: "Flujo",
+    heroStat1Value: "Captura → Entiende → Planifica",
+    heroStat2Label: "Privacidad",
+    heroStat2Value: "Solo vos descifrás tus datos",
+    storyTitle: "Control financiero, sin fricción",
+    storyLead: "Ground combina registro diario, presupuesto y patrimonio en un flujo único para que tomes decisiones con contexto real.",
+    storyBullet1: "Gastos, ingresos y patrimonio alineados en un mismo timeline.",
+    storyBullet2: "Cierre mensual para evitar desvíos y comparar meses en serio.",
+    storyBullet3: "Datos exportables siempre, sin lock-in.",
+    storyCta: "Crear cuenta gratis",
+    testimonial2: "Pasé de planillas dispersas a una visión clara del mes y del patrimonio.",
+    testimonial2Author: "Usuario Pro Early",
   },
   en: {
     headline: "Ground your finances. Make smarter decisions.",
@@ -124,6 +172,37 @@ const COPY = {
     benefit4: "Month-end close: expenses and net worth always aligned",
     benefit5: "Export everything to CSV or Excel",
     benefit6: "Multi-currency with updated exchange rates",
+    benefit7: "E2EE encryption: only you can read sensitive data",
+    benefitsLead: "Outcome over spreadsheets: each block targets a concrete monthly improvement.",
+    benefitHeroEyebrow: "Primary outcome",
+    benefitHeroTitle: "Save 3-5 hours per month on financial control",
+    benefitHeroDesc: "Centralize expenses, income, budget, and net worth in one flow, without building or maintaining spreadsheets.",
+    benefitHeroProof: "Proof: guided onboarding + templates + month-end close in one place.",
+    benefitHeroCta: "Create free account",
+    benefitCard1Title: "Spot spending leaks in minutes",
+    benefitCard1Desc: "See top categories and recurring expenses so you can correct drift quickly.",
+    benefitCard1Proof: "Proof: category ranking and monthly dashboard.",
+    benefitCard1Cta: "See example",
+    benefitCard2Title: "Decide with real month context",
+    benefitCard2Desc: "Combine actuals vs budget so you can act before month close.",
+    benefitCard2Proof: "Proof: monthly + annual planning in one flow.",
+    benefitCard2Cta: "Try guided flow",
+    benefitCard3Title: "Make net worth no longer a black box",
+    benefitCard3Desc: "Align accounts and investments with income and expenses in one coherent view.",
+    benefitCard3Proof: "Proof: month-end close locks figures and prevents inconsistencies.",
+    benefitCard3Cta: "Get started",
+    benefitCard4Title: "Export and audit anytime",
+    benefitCard4Desc: "Take your data to CSV/Excel for analysis, backup, or accountant workflows.",
+    benefitCard4Proof: "Proof: exports available per module.",
+    benefitCard4Cta: "See how it works",
+    benefitCard5Title: "Handle multi-currency without friction",
+    benefitCard5Desc: "Track and compare values in different currencies with updated FX rates.",
+    benefitCard5Proof: "Proof: FX integrated across expenses, income, and investments.",
+    benefitCard5Cta: "Create account",
+    benefitCard6Title: "Keep real privacy for sensitive data",
+    benefitCard6Desc: "Sensitive amounts and descriptions are encrypted before leaving your device.",
+    benefitCard6Proof: "Proof: E2EE, server cannot read them.",
+    benefitCard6Cta: "Try ground",
     trust: "Built for real life finances",
     trust1: "Private by design",
     trust2: "Simple setup guide",
@@ -168,6 +247,8 @@ const COPY = {
     faq7A: "ground. is designed primarily for desktop (large screen). On mobile you can view the dashboard and create expenses; full use is optimized for desktop.",
     faq8Q: "How does it help with monthly control?",
     faq8A: "Expense templates and the guided flow greatly shorten the time needed for financial control. It also helps you remember what you need to pay every month and keep track without extra effort.",
+    faq9Q: "What does E2EE encryption mean for my data?",
+    faq9A: "It means sensitive amounts and descriptions are encrypted on your device before upload. The server stores encrypted data and cannot read it; only you, with your key, can decrypt it.",
     finalHeadline: "Start spending with purpose today.",
     finalCta: "Create account / Sign in",
     footerLogin: "Sign in",
@@ -193,6 +274,21 @@ const COPY = {
     topBarEmail: "Email",
     topBarPassword: "Password",
     topBarSignIn: "Sign in",
+    proofPill1: "Real E2EE encryption",
+    proofPill2: "Guided setup in minutes",
+    proofPill3: "Reliable month-end close",
+    heroStat1Label: "Flow",
+    heroStat1Value: "Capture → Understand → Plan",
+    heroStat2Label: "Privacy",
+    heroStat2Value: "Only you can decrypt your data",
+    storyTitle: "Financial control, without friction",
+    storyLead: "Ground combines daily tracking, budget and net worth in one flow so you can decide with real context.",
+    storyBullet1: "Expenses, income, and net worth aligned in the same timeline.",
+    storyBullet2: "Monthly close to prevent drift and compare months seriously.",
+    storyBullet3: "Always exportable data, no lock-in.",
+    storyCta: "Create free account",
+    testimonial2: "I moved from scattered spreadsheets to a clear view of my month and net worth.",
+    testimonial2Author: "Pro Early user",
   },
 } as const;
 
@@ -207,6 +303,16 @@ const FAQ_ITEMS = [
   { q: "faq6Q", a: "faq6A" },
   { q: "faq7Q", a: "faq7A" },
   { q: "faq8Q", a: "faq8A" },
+  { q: "faq9Q", a: "faq9A" },
+] as const;
+
+const BENEFIT_ITEMS = [
+  { title: "benefitCard1Title", desc: "benefitCard1Desc", proof: "benefitCard1Proof", cta: "benefitCard1Cta", action: "how" },
+  { title: "benefitCard2Title", desc: "benefitCard2Desc", proof: "benefitCard2Proof", cta: "benefitCard2Cta", action: "how" },
+  { title: "benefitCard3Title", desc: "benefitCard3Desc", proof: "benefitCard3Proof", cta: "benefitCard3Cta", action: "auth" },
+  { title: "benefitCard4Title", desc: "benefitCard4Desc", proof: "benefitCard4Proof", cta: "benefitCard4Cta", action: "how" },
+  { title: "benefitCard5Title", desc: "benefitCard5Desc", proof: "benefitCard5Proof", cta: "benefitCard5Cta", action: "auth" },
+  { title: "benefitCard6Title", desc: "benefitCard6Desc", proof: "benefitCard6Proof", cta: "benefitCard6Cta", action: "auth" },
 ] as const;
 
 type LoginUser = { id: string; email: string; role: string; encryptionSalt?: string; recoveryEnabled?: boolean; encryptionKey?: string };
@@ -274,6 +380,7 @@ export default function LandingPage() {
 
   const t = COPY[lang];
   const countryOptions = useMemo(() => buildCountryOptions(i18n.language || "es"), [i18n.language]);
+  const proofPills = [t.proofPill1, t.proofPill2, t.proofPill3];
 
   useEffect(() => {
     i18n.changeLanguage(lang);
@@ -691,6 +798,11 @@ export default function LandingPage() {
               {t.ctaSecondary}
             </button>
           </div>
+          <div className="landing-hero-proof">
+            {proofPills.map((pill) => (
+              <span key={pill} className="landing-hero-proof-pill">{pill}</span>
+            ))}
+          </div>
           <div className="landing-lang">
             <button
               type="button"
@@ -1094,11 +1206,21 @@ export default function LandingPage() {
             </div>
           ) : (
             <div className="landing-preview landing-preview-laptop">
-              <img
-                src="/ground-laptop.png"
-                alt={t.previewTitle}
-                className="landing-preview-img"
-              />
+              <div className="landing-preview-stage">
+                <img
+                  src="/ground-laptop.png"
+                  alt={t.previewTitle}
+                  className="landing-preview-img"
+                />
+                <div className="landing-preview-floating landing-preview-floating-left">
+                  <span className="landing-preview-floating-label">{t.heroStat1Label}</span>
+                  <strong className="landing-preview-floating-value">{t.heroStat1Value}</strong>
+                </div>
+                <div className="landing-preview-floating landing-preview-floating-right">
+                  <span className="landing-preview-floating-label">{t.heroStat2Label}</span>
+                  <strong className="landing-preview-floating-value">{t.heroStat2Value}</strong>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -1139,13 +1261,74 @@ export default function LandingPage() {
       >
         <h2 className="landing-section-title">{t.benefits}</h2>
         <p className="landing-section-subtitle">{t.benefitsSub}</p>
-        <div className="landing-benefits-grid">
-          <div className="landing-benefit">{t.benefit1}</div>
-          <div className="landing-benefit">{t.benefit2}</div>
-          <div className="landing-benefit">{t.benefit3}</div>
-          <div className="landing-benefit">{t.benefit4}</div>
-          <div className="landing-benefit">{t.benefit5}</div>
-          <div className="landing-benefit">{t.benefit6}</div>
+        <p className="landing-benefits-lead">{t.benefitsLead}</p>
+        <div className="landing-benefits-layout">
+          <article className="landing-benefit-hero">
+            <p className="landing-benefit-hero-eyebrow">{t.benefitHeroEyebrow}</p>
+            <h3 className="landing-benefit-hero-title">{t.benefitHeroTitle}</h3>
+            <p className="landing-benefit-hero-desc">{t.benefitHeroDesc}</p>
+            <p className="landing-benefit-proof">{t.benefitHeroProof}</p>
+            <button type="button" className="landing-benefit-cta" onClick={() => showAuth("register")}>
+              {t.benefitHeroCta}
+            </button>
+          </article>
+          <div className="landing-benefits-grid">
+            {BENEFIT_ITEMS.map((item) => (
+              <article key={item.title} className="landing-benefit-card">
+                <h3 className="landing-benefit-card-title">{t[item.title]}</h3>
+                <p className="landing-benefit-card-desc">{t[item.desc]}</p>
+                <p className="landing-benefit-proof">{t[item.proof]}</p>
+                <button
+                  type="button"
+                  className="landing-benefit-cta landing-benefit-cta-inline"
+                  onClick={item.action === "how" ? scrollToHow : () => showAuth("register")}
+                >
+                  {t[item.cta]}
+                </button>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section
+        data-landing-section="story"
+        className={`landing-section landing-section-story ${visibleSections.has("story") ? "landing-reveal" : ""}`}
+      >
+        <div className="landing-story-card">
+          <div className="landing-story-copy">
+            <h2 className="landing-story-title">{t.storyTitle}</h2>
+            <p className="landing-story-lead">{t.storyLead}</p>
+            <ul className="landing-story-list">
+              <li>{t.storyBullet1}</li>
+              <li>{t.storyBullet2}</li>
+              <li>{t.storyBullet3}</li>
+            </ul>
+            <button type="button" className="landing-story-cta" onClick={() => showAuth("register")}>
+              {t.storyCta}
+            </button>
+          </div>
+          <div className="landing-story-panel">
+            <h3>{t.previewTitle}</h3>
+            <div className="landing-story-kpis">
+              <div>
+                <span>{t.kpiIncome}</span>
+                <strong>USD 4,560</strong>
+              </div>
+              <div>
+                <span>{t.kpiExpenses}</span>
+                <strong>USD 2,910</strong>
+              </div>
+              <div>
+                <span>{t.kpiBalance}</span>
+                <strong>USD 1,650</strong>
+              </div>
+              <div>
+                <span>{t.kpiNetWorth}</span>
+                <strong>USD 38,440</strong>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -1249,12 +1432,22 @@ export default function LandingPage() {
       {/* Testimonial */}
       <section
         data-landing-section="testimonial"
-        className={`landing-section landing-section-testimonial landing-testimonial ${visibleSections.has("testimonial") ? "landing-reveal" : ""}`}
+        className={`landing-section landing-section-testimonial ${visibleSections.has("testimonial") ? "landing-reveal" : ""}`}
       >
-        <blockquote className="landing-testimonial-quote">
-          &ldquo;{t.testimonial}&rdquo;
-        </blockquote>
-        <cite className="landing-testimonial-author">— {t.testimonialAuthor}</cite>
+        <div className="landing-testimonials-grid">
+          <article className="landing-testimonial">
+            <blockquote className="landing-testimonial-quote">
+              &ldquo;{t.testimonial}&rdquo;
+            </blockquote>
+            <cite className="landing-testimonial-author">— {t.testimonialAuthor}</cite>
+          </article>
+          <article className="landing-testimonial">
+            <blockquote className="landing-testimonial-quote">
+              &ldquo;{t.testimonial2}&rdquo;
+            </blockquote>
+            <cite className="landing-testimonial-author">— {t.testimonial2Author}</cite>
+          </article>
+        </div>
       </section>
 
       {/* Final CTA */}
