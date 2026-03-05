@@ -275,8 +275,8 @@ const AnnualTable = React.memo(function AnnualTable({
                       value={drafts[m.month]?.other ?? String(displayValue)}
                       style={{ width: 72, minWidth: 72, textAlign: "right" }}
                       onChange={(e) => setDraft(m.month, { other: e.target.value })}
-                      onBlur={async () => {
-                        const raw = (drafts[m.month]?.other ?? "").trim();
+                      onBlur={async (e) => {
+                        const raw = (e.currentTarget.value ?? "").trim();
                         if (raw === "") return;
                         const n = sanitizeNumber(raw);
                         if (n == null) return;
