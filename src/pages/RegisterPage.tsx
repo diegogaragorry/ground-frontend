@@ -5,7 +5,8 @@ import { APP_BASE } from "../constants";
 import "../styles/auth.css";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
-import { generateEncryptionSalt } from "../utils/crypto";
+import { useEncryption } from "../context/EncryptionContext";
+import { generateEncryptionSalt, deriveEncryptionKey } from "../utils/crypto";
 
 type Step = "request" | "verify";
 
@@ -16,6 +17,7 @@ function normalizeEmail(v: string) {
 export default function RegisterPage() {
   const nav = useNavigate();
   const { t, i18n } = useTranslation();
+  const { setEncryptionKey } = useEncryption();
 
   const [step, setStep] = useState<Step>("request");
   const [showPassword, setShowPassword] = useState(false);
@@ -78,6 +80,12 @@ export default function RegisterPage() {
         body: JSON.stringify({ email: em, code: c, password: pw, encryptionSalt }),
       });
 
+      try {
+        const k = await deriveEncryptionKey(pw, encryptionSalt);
+        setEncryptionKey(k);
+      } catch {
+        setEncryptionKey(null);
+      }
       localStorage.setItem("token", r.token);
       nav(APP_BASE);
     } catch (err: any) {

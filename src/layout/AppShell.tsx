@@ -10,6 +10,7 @@ import { api } from "../api";
 import { getMigrationStatus, runMigration } from "../utils/migrateToE2EE";
 import { setFxDefault } from "../utils/fx";
 import { formatAmountUsdWith } from "../utils/formatCurrency";
+import { exportKeyToBase64 } from "../utils/crypto";
 import { OnboardingWizard } from "../onboarding/OnboardingWizard";
 import { OnboardingTour } from "../onboarding/OnboardingTour";
 
@@ -28,6 +29,8 @@ type Me = {
   lastName?: string | null;
   country?: string | null;
   phone?: string | null;
+  phoneVerifiedAt?: string | null;
+  recoveryEnabled?: boolean;
   role: "USER" | "SUPER_ADMIN";
   forceOnboardingNextLogin?: boolean;
   onboardingStep?: string;
@@ -316,9 +319,10 @@ export function AppShell(props: { children: React.ReactNode }) {
   const isMobile = ctx.isMobile;
 
   const { t, i18n } = useTranslation();
-  const { hasEncryptionSupport, encryptPayload } = useEncryption();
+  const { hasEncryptionSupport, encryptPayload, encryptionKey } = useEncryption();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const migrationAutoRunDoneRef = useRef(false);
+  const recoveryAutoSetupAttemptedForUserRef = useRef<string | null>(null);
 
   const locale = i18n.language?.startsWith("es") ? "es" : "en";
   const monthNames = React.useMemo(() => {
@@ -358,6 +362,25 @@ export function AppShell(props: { children: React.ReactNode }) {
       })
       .catch(() => {});
   }, [ctx.meLoaded, ctx.me, hasEncryptionSupport, encryptPayload, ctx.showSuccess, t]);
+
+  // Auto-enable account recovery when phone is already verified and we have the E2EE key in memory.
+  React.useEffect(() => {
+    if (!ctx.meLoaded || !ctx.me) return;
+    if (!ctx.me.phoneVerifiedAt || ctx.me.recoveryEnabled) return;
+    if (!hasEncryptionSupport || !encryptionKey) return;
+    if (recoveryAutoSetupAttemptedForUserRef.current === ctx.me.id) return;
+    recoveryAutoSetupAttemptedForUserRef.current = ctx.me.id;
+
+    exportKeyToBase64(encryptionKey)
+      .then((recoveryPackage) =>
+        api("/auth/recovery/setup", {
+          method: "POST",
+          body: JSON.stringify({ recoveryPackage }),
+        })
+      )
+      .then(() => {})
+      .catch(() => {});
+  }, [ctx.meLoaded, ctx.me, hasEncryptionSupport, encryptionKey]);
 
   // Force onboarding: ?resetOnboarding=1 o ?forceOnboarding=1 (p. ej. para testing o si el backend no devolvió el flag)
   React.useEffect(() => {

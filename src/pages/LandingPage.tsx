@@ -713,6 +713,12 @@ export default function LandingPage() {
         method: "POST",
         body: JSON.stringify({ email: em, code: c, password: pw, encryptionSalt, firstName, lastName, phone, country }),
       });
+      try {
+        const k = await deriveEncryptionKey(pw, encryptionSalt);
+        setEncryptionKey(k);
+      } catch {
+        setEncryptionKey(null);
+      }
       localStorage.setItem("token", r.token);
       nav(APP_BASE, { replace: true });
     } catch (err: any) {
