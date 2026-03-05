@@ -450,6 +450,9 @@ export default function BudgetsPage() {
 
   const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, serverFxRate } = useAppShell();
   const { year, month: currentMonth } = useAppYearMonth();
+  const now = new Date();
+  const realCurrentYear = now.getUTCFullYear();
+  const realCurrentMonth = now.getUTCMonth() + 1;
   const { formatAmountUsd, currencyLabel, preferredDisplayCurrencyId } = useDisplayCurrency();
   const { encryptionKey, decryptPayload, encryptPayload, hasEncryptionSupport } = useEncryption();
 
@@ -771,9 +774,11 @@ export default function BudgetsPage() {
       const clientBase = budgetState.clientExpensesUsdByMonth[m];
       const serverBase = base.baseExpensesUsd ?? 0;
       const plannedBase = budgetState.plannedBaseByMonth[m] ?? 0;
+      const isPastMonth = year < realCurrentYear || (year === realCurrentYear && m < realCurrentMonth);
+      const plannedFallback = isPastMonth ? 0 : plannedBase;
       const baseExpensesUsd = base.isClosed
         ? serverBase
-        : (clientBase ?? (plannedBase > 0 ? plannedBase : serverBase));
+        : (clientBase ?? (plannedFallback > 0 ? plannedFallback : serverBase));
       const otherExpensesUsd = budgetState.decryptedOtherByMonth[m] ?? base.otherExpensesUsd ?? 0;
       const expensesUsd = base.isClosed ? (base.expensesUsd ?? 0) : baseExpensesUsd + otherExpensesUsd;
       const investmentEarningsUsd = base.isClosed
@@ -790,7 +795,7 @@ export default function BudgetsPage() {
         balanceUsd,
       };
     });
-  }, [budgetState.data, budgetState.decryptedIncomeByMonth, budgetState.decryptedOtherByMonth, budgetState.clientExpensesUsdByMonth, budgetState.plannedBaseByMonth, budgetState.investmentEarningsByMonth]);
+  }, [budgetState.data, budgetState.decryptedIncomeByMonth, budgetState.decryptedOtherByMonth, budgetState.clientExpensesUsdByMonth, budgetState.plannedBaseByMonth, budgetState.investmentEarningsByMonth, year, realCurrentYear, realCurrentMonth]);
 
   const netWorthStartSeries = useMemo(() => {
     if (months.length === 0) return [];

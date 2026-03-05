@@ -454,6 +454,9 @@ function IncomeVsExpensesChart({
 export default function DashboardPage() {
   const { setHeader, reopenOnboarding, onboardingStep, setOnboardingStep, meLoaded, me, serverFxRate } = useAppShell();
   const { year, month } = useAppYearMonth();
+  const now = new Date();
+  const realCurrentYear = now.getUTCFullYear();
+  const realCurrentMonth = now.getUTCMonth() + 1;
   const { formatAmountUsd, displayValue, currencyLabel } = useDisplayCurrency();
 
   const onboardingActive = meLoaded && !!me && onboardingStep === "dashboard";
@@ -724,8 +727,10 @@ export default function DashboardPage() {
           const incomeUsd = byMonth[m.month] ?? m.incomeUsd ?? 0;
           if (m.source === "computed") {
             const serverBase = m.baseExpensesUsd ?? 0;
-            // Misma lógica que Presupuestos: preferir gastos reales del cliente, luego planned, luego server
-            const baseExpensesUsd = (clientExpensesUsdByMonth[m.month] ?? (plannedAmountByMonthLocal[m.month] > 0 ? plannedAmountByMonthLocal[m.month] : serverBase));
+            const isPastMonth = year < realCurrentYear || (year === realCurrentYear && m.month < realCurrentMonth);
+            const plannedFallback = isPastMonth ? 0 : (plannedAmountByMonthLocal[m.month] ?? 0);
+            // Misma lógica que Presupuestos: gastos reales del cliente; si no, drafts solo mes actual/futuros; luego server.
+            const baseExpensesUsd = (clientExpensesUsdByMonth[m.month] ?? (plannedFallback > 0 ? plannedFallback : serverBase));
             const expensesUsd = baseExpensesUsd + otherUsd;
             const investmentEarningsUsd = earningsByMonth[m.month] ?? m.investmentEarningsUsd ?? 0;
             const balanceUsd = incomeUsd - expensesUsd + investmentEarningsUsd;
@@ -860,9 +865,11 @@ export default function DashboardPage() {
       const clientBase = clientExpensesUsdByMonth[monthNum];
       const serverBase = base.baseExpensesUsd ?? 0;
       const plannedBase = plannedAmountByMonth[monthNum] ?? 0;
+      const isPastMonth = year < realCurrentYear || (year === realCurrentYear && monthNum < realCurrentMonth);
+      const plannedFallback = isPastMonth ? 0 : plannedBase;
       const baseExpensesUsd = base.isClosed
         ? serverBase
-        : (clientBase ?? (plannedBase > 0 ? plannedBase : serverBase));
+        : (clientBase ?? (plannedFallback > 0 ? plannedFallback : serverBase));
       const otherExpensesUsd = decryptedOtherByMonth[monthNum] ?? base.otherExpensesUsd ?? 0;
       const expensesUsd = base.isClosed ? (base.expensesUsd ?? 0) : baseExpensesUsd + otherExpensesUsd;
       const investmentEarningsUsd = base.isClosed
@@ -879,7 +886,7 @@ export default function DashboardPage() {
         balanceUsd,
       };
     });
-  }, [annual, decryptedIncomeByMonth, decryptedOtherByMonth, clientExpensesUsdByMonth, plannedAmountByMonth, investmentEarningsByMonth]);
+  }, [annual, decryptedIncomeByMonth, decryptedOtherByMonth, clientExpensesUsdByMonth, plannedAmountByMonth, investmentEarningsByMonth, year, realCurrentYear, realCurrentMonth]);
 
   const annualTotals = useMemo(() => {
     const ms = annualMonthsResolved;
