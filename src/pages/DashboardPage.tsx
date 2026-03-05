@@ -909,7 +909,8 @@ export default function DashboardPage() {
       for (let i = 1; i < 12; i++) {
         const curr = ms[i];
         const prev = ms[i - 1];
-        if (curr?.isClosed) netWorthStartSeries[i] = curr.netWorthUsd ?? netWorthStartSeries[i - 1];
+        if (typeof curr?.netWorthUsd === "number") netWorthStartSeries[i] = curr.netWorthUsd;
+        else if (curr?.isClosed) netWorthStartSeries[i] = curr.netWorthUsd ?? netWorthStartSeries[i - 1];
         else netWorthStartSeries[i] = (netWorthStartSeries[i - 1] ?? 0) + (prev?.balanceUsd ?? 0);
       }
     }

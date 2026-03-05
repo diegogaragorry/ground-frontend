@@ -807,7 +807,8 @@ export default function BudgetsPage() {
       const curr = months[i];
       const prev = months[i - 1];
 
-      if (curr?.isClosed) out[i] = curr.netWorthUsd ?? out[i - 1];
+      if (typeof curr?.netWorthUsd === "number") out[i] = curr.netWorthUsd;
+      else if (curr?.isClosed) out[i] = curr.netWorthUsd ?? out[i - 1];
       else out[i] = (out[i - 1] ?? 0) + (prev?.balanceUsd ?? 0);
     }
 
