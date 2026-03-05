@@ -529,32 +529,46 @@ export default function BudgetsPage() {
         income: { year: number; rows: Array<{ month: number; totalUsd: number; encryptedPayload?: string }> };
         planned: { year: number; rows: Array<{ month: number; amountUsd?: number | null; encryptedPayload?: string | null }> };
         expensesByMonth: { byMonth: Array<{ amountUsd?: number; encryptedPayload?: string | null }[]> };
+        yearExpensesByMonth?: { byMonth: Array<{ amountUsd?: number; encryptedPayload?: string | null }[]> };
         investments?: Investment[];
         investmentSnapshotsYear?: Array<{ investmentId: string; months: SnapshotMonth[] }>;
         movements?: { year: number; rows: MovementRow[] };
       };
 
-      const ensureYearPromise = api(`/plannedExpenses/ensure-year`, {
+      await api(`/plannedExpenses/ensure-year`, {
         method: "POST",
         body: JSON.stringify({ year }),
       }).catch(() => null);
 
       const payload = await api<PageDataPayload>(`/budgets/page-data?year=${year}`);
-      void ensureYearPromise;
 
       const r = payload.annual;
       const incomeResp = payload.income;
       const plannedResp = payload.planned;
       const expenseResp = payload.expensesByMonth ?? { byMonth: Array.from({ length: 12 }, () => []) };
+      const yearExpenseResp = payload.yearExpensesByMonth ?? expenseResp;
       const investments = payload.investments ?? [];
       const investmentById = new Map(investments.map((inv) => [inv.id, inv]));
       const fx = Number.isFinite(serverFxRate ?? getFxDefault()) && (serverFxRate ?? getFxDefault()) > 0 ? (serverFxRate ?? getFxDefault()) : null;
-      // convert aggregated expense response into simple totals per month
+      // Same approach as Dashboard: base totals from yearly expense rows (decrypting when needed).
+      // Months without actuals remain undefined here, so UI can fallback to planned drafts.
       const expenseTotals: Record<number, number> = {};
-      (expenseResp.byMonth || []).forEach((arr, idx) => {
-        const amt = arr && arr[0] ? arr[0].amountUsd ?? 0 : 0;
-        if (amt !== 0) expenseTotals[idx + 1] = amt;
-      });
+      for (let idx = 0; idx < 12; idx++) {
+        const list = yearExpenseResp.byMonth?.[idx] ?? expenseResp.byMonth?.[idx] ?? [];
+        let sum = 0;
+        for (const e of list) {
+          if (e.encryptedPayload) {
+            const pl = await decryptPayload<{ amountUsd?: number | string; defaultAmountUsd?: number | string }>(e.encryptedPayload);
+            const v = Number(pl?.amountUsd ?? pl?.defaultAmountUsd);
+            if (Number.isFinite(v)) {
+              sum += v;
+            }
+          } else {
+            sum += e.amountUsd ?? 0;
+          }
+        }
+        if (list.length > 0) expenseTotals[idx + 1] = sum;
+      }
 
       const incomeRows = incomeResp.rows ?? [];
       const plannedRows = plannedResp?.rows ?? [];
@@ -577,10 +591,10 @@ export default function BudgetsPage() {
           plannedRows.map(async (row) => {
             let amountUsd = row.amountUsd ?? 0;
             if (row.encryptedPayload) {
-              const pl = await decryptPayload<{ amountUsd?: number; defaultAmountUsd?: number }>(row.encryptedPayload);
+              const pl = await decryptPayload<{ amountUsd?: number | string; defaultAmountUsd?: number | string }>(row.encryptedPayload);
               if (pl != null) {
-                const v = pl.amountUsd ?? pl.defaultAmountUsd;
-                if (typeof v === "number") amountUsd = v;
+                const v = Number(pl.amountUsd ?? pl.defaultAmountUsd);
+                if (Number.isFinite(v)) amountUsd = v;
               }
             }
             return { month: row.month ?? 0, amountUsd };
