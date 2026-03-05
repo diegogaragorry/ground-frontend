@@ -73,6 +73,7 @@ type SnapshotMonth = {
   month: number;
   closingCapital: number | null;
   closingCapitalUsd: number | null;
+  isClosed?: boolean;
   encryptedPayload?: string | null;
 };
 
@@ -426,6 +427,8 @@ type BudgetState = {
   decryptedIncomeByMonth: Record<number, number>;
   plannedBaseByMonth: Record<number, number>;
   decryptedOtherByMonth: Record<number, number>;
+  netWorthBaselineByMonth: Record<number, number>;
+  explicitNetWorthSnapshotMonth: Record<number, boolean>;
   data: AnnualResp | null;
   clientExpensesUsdByMonth: Record<number, number>;
   investmentEarningsByMonth: Record<number, number>;
@@ -437,6 +440,8 @@ const initialBudgetState: BudgetState = {
   decryptedIncomeByMonth: {},
   plannedBaseByMonth: {},
   decryptedOtherByMonth: {},
+  netWorthBaselineByMonth: {},
+  explicitNetWorthSnapshotMonth: {},
   data: null,
   clientExpensesUsdByMonth: {},
   investmentEarningsByMonth: {},
@@ -664,6 +669,26 @@ export default function BudgetsPage() {
       const portfolioNW = months12.map((m) =>
         portfolios.reduce((acc, inv) => acc + capitalUsd(inv, snapshotsByInvestment[inv.id] ?? [], m, year, fx), 0)
       );
+      const allInvestmentsNWByMonth: Record<number, number> = {};
+      for (const m of months12) {
+        allInvestmentsNWByMonth[m] = investments.reduce(
+          (acc, inv) => acc + capitalUsd(inv, snapshotsByInvestment[inv.id] ?? [], m, year, fx),
+          0
+        );
+      }
+      const explicitSnapshotMonthMap: Record<number, boolean> = {};
+      for (const m of months12) explicitSnapshotMonthMap[m] = false;
+      for (const inv of investments) {
+        const invSnaps = snapshotsByInvestment[inv.id] ?? [];
+        for (const s of invSnaps) {
+          const mo = s.month;
+          if (mo < 1 || mo > 12) continue;
+          const cap = s.closingCapital ?? 0;
+          const capUsd = s.closingCapitalUsd ?? 0;
+          const hasMeaningfulValue = cap !== 0 || capUsd !== 0;
+          if (hasMeaningfulValue || s.isClosed) explicitSnapshotMonthMap[mo] = true;
+        }
+      }
       const projectedNextJan = portfolios.reduce((acc, inv) => {
         const decCap = capitalUsd(inv, snapshotsByInvestment[inv.id] ?? [], 12, year, fx);
         return acc + decCap * monthlyFactor(inv);
@@ -714,6 +739,8 @@ export default function BudgetsPage() {
         decryptedIncomeByMonth: byMonth,
         plannedBaseByMonth: plannedByMonth,
         decryptedOtherByMonth: otherByMonth,
+        netWorthBaselineByMonth: allInvestmentsNWByMonth,
+        explicitNetWorthSnapshotMonth: explicitSnapshotMonthMap,
         data: { ...r, months: resolvedMonthsMapped },
         clientExpensesUsdByMonth: expensesByMonth,
         investmentEarningsByMonth: earningsByMonth,
@@ -801,19 +828,29 @@ export default function BudgetsPage() {
     if (months.length === 0) return [];
 
     const out = months12.map(() => 0);
-    out[0] = months[0]?.netWorthUsd ?? 0;
+    const janBaseline = budgetState.netWorthBaselineByMonth[1] ?? 0;
+    const janHasExplicitSnapshot = !!budgetState.explicitNetWorthSnapshotMonth[1];
+    out[0] = janHasExplicitSnapshot ? janBaseline : (months[0]?.netWorthUsd ?? janBaseline);
 
     for (let i = 1; i < 12; i++) {
       const curr = months[i];
       const prev = months[i - 1];
+      const month = i + 1;
+      const chained = (out[i - 1] ?? 0) + (prev?.balanceUsd ?? 0);
+      const hasExplicitSnapshot = !!budgetState.explicitNetWorthSnapshotMonth[month];
+      const baseline = budgetState.netWorthBaselineByMonth[month];
 
-      if (typeof curr?.netWorthUsd === "number") out[i] = curr.netWorthUsd;
-      else if (curr?.isClosed) out[i] = curr.netWorthUsd ?? out[i - 1];
-      else out[i] = (out[i - 1] ?? 0) + (prev?.balanceUsd ?? 0);
+      if (hasExplicitSnapshot && typeof baseline === "number") {
+        out[i] = baseline;
+      } else if (curr?.isClosed) {
+        out[i] = curr.netWorthUsd ?? chained;
+      } else {
+        out[i] = chained;
+      }
     }
 
     return out;
-  }, [months]);
+  }, [months, budgetState.netWorthBaselineByMonth, budgetState.explicitNetWorthSnapshotMonth]);
 
   const totals = useMemo(() => {
     const t = { income: 0, base: 0, other: 0, expenses: 0, earnings: 0, balance: 0 };
