@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { api } from "../api";
 import { useEncryption } from "../context/EncryptionContext";
-import { generateEncryptionSalt, deriveEncryptionKey, importKeyFromBase64 } from "../utils/crypto";
+import { generateEncryptionSalt, deriveEncryptionKey, exportKeyToBase64, importKeyFromBase64 } from "../utils/crypto";
 import { buildCountryOptions, isValidCountryCode } from "../utils/countries";
 import { APP_BASE, CONTACT_WHATSAPP_URL } from "../constants";
 import "./../styles/landing.css";
@@ -372,6 +372,7 @@ export default function LandingPage() {
   const [registerPhone, setRegisterPhone] = useState("");
   const [registerCountry, setRegisterCountry] = useState("");
   const [registerCode, setRegisterCode] = useState("");
+  const [registerPhoneCode, setRegisterPhoneCode] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerError, setRegisterError] = useState("");
   const [registerInfo, setRegisterInfo] = useState("");
@@ -483,6 +484,7 @@ export default function LandingPage() {
       setRegisterPhone("");
       setRegisterCountry("");
       setRegisterCode("");
+      setRegisterPhoneCode("");
       setRegisterPassword("");
       setRegisterError("");
       setRegisterInfo("");
@@ -675,9 +677,12 @@ export default function LandingPage() {
         body: JSON.stringify({ email: em, firstName, lastName, phone, country }),
       });
       setRegisterStep("verify");
+      setRegisterCode("");
+      setRegisterPhoneCode("");
+      setRegisterPassword("");
       setRegisterInfo(res.alreadySent
-        ? (i18n.language === "es" ? "Ya te enviamos un código. Revisá tu bandeja (y spam)." : "A code was already sent. Check your inbox (and spam).")
-        : (i18n.language === "es" ? "Te enviamos un código de 6 dígitos. Puede tardar unos minutos. Revisá tu bandeja (y spam)." : "We sent you a 6-digit code. It may take a few minutes to arrive. Check your inbox (and spam)."));
+        ? (i18n.language === "es" ? "Ya te enviamos los códigos por email y SMS. Revisá tu bandeja (y spam)." : "Codes were already sent by email and SMS. Check your inbox (and spam).")
+        : (i18n.language === "es" ? "Te enviamos un código de 6 dígitos por email y otro por SMS. El email puede tardar unos minutos." : "We sent one 6-digit code by email and another by SMS. The email may take a few minutes to arrive."));
     } catch (err: any) {
       setRegisterError(err?.message ?? (lang === "es" ? "Error al enviar código" : "Error sending code"));
     } finally {
@@ -691,6 +696,7 @@ export default function LandingPage() {
     setRegisterInfo("");
     const em = normalizeEmail(registerEmail);
     const c = String(registerCode || "").trim();
+    const phoneCode = String(registerPhoneCode || "").trim();
     const pw = String(registerPassword || "");
     const firstName = registerFirstName.trim();
     const lastName = registerLastName.trim();
@@ -703,22 +709,31 @@ export default function LandingPage() {
     if (!phone || phone.length < 10) return setRegisterError(tLogin("register.phoneRequired"));
     if (!country || !isValidCountryCode(country)) return setRegisterError(tLogin("register.countryRequired"));
     if (!c) return setRegisterError(tLogin("login.codeRequired") ?? "Code is required");
+    if (!phoneCode) return setRegisterError(tLogin("account.codeRequired") ?? "Phone code is required");
     if (!pw) return setRegisterError(tLogin("login.passwordRequired") ?? "Password is required");
     if (pw.length < 8) return setRegisterError(tLogin("login.passwordMinLength") ?? "Password must be at least 8 characters");
 
     setRegisterLoading(true);
     try {
       const encryptionSalt = generateEncryptionSalt();
+      const k = await deriveEncryptionKey(pw, encryptionSalt);
+      const recoveryPackage = await exportKeyToBase64(k);
       const r = await api<{ token: string }>("/auth/register/verify", {
         method: "POST",
-        body: JSON.stringify({ email: em, code: c, password: pw, encryptionSalt, firstName, lastName, phone, country }),
+        body: JSON.stringify({
+          email: em,
+          emailCode: c,
+          phoneCode,
+          password: pw,
+          encryptionSalt,
+          recoveryPackage,
+          firstName,
+          lastName,
+          phone,
+          country,
+        }),
       });
-      try {
-        const k = await deriveEncryptionKey(pw, encryptionSalt);
-        setEncryptionKey(k);
-      } catch {
-        setEncryptionKey(null);
-      }
+      setEncryptionKey(k);
       localStorage.setItem("token", r.token);
       nav(APP_BASE, { replace: true });
     } catch (err: any) {
@@ -749,8 +764,8 @@ export default function LandingPage() {
         body: JSON.stringify({ email: em, firstName, lastName, phone, country }),
       });
       setRegisterInfo(res.alreadySent
-        ? (i18n.language === "es" ? "Ya te enviamos un código. Revisá tu bandeja (y spam)." : "A code was already sent. Check your inbox (and spam).")
-        : (i18n.language === "es" ? "Código reenviado. Puede tardar unos minutos." : "New code sent. It may take a few minutes to arrive."));
+        ? (i18n.language === "es" ? "Ya te enviamos los códigos por email y SMS. Revisá tu bandeja (y spam)." : "Codes were already sent by email and SMS. Check your inbox (and spam).")
+        : (i18n.language === "es" ? "Reenviamos los códigos por email y SMS." : "Codes sent again by email and SMS."));
     } catch (err: any) {
       setRegisterError(err?.message ?? (lang === "es" ? "Error al reenviar código" : "Error resending code"));
     } finally {
@@ -975,6 +990,18 @@ export default function LandingPage() {
                             />
                           </div>
                           <div>
+                            <label className="label">{tLogin("register.phoneVerificationCode")}</label>
+                            <input
+                              className="input"
+                              value={registerPhoneCode}
+                              onChange={(e) => setRegisterPhoneCode(e.target.value)}
+                              placeholder={tLogin("register.placeholderCode")}
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              required
+                            />
+                          </div>
+                          <div>
                             <label className="label">{tLogin("register.password")}</label>
                             <div className="auth-input-wrap">
                               <input
@@ -1018,6 +1045,7 @@ export default function LandingPage() {
                               onClick={() => {
                                 setRegisterStep("request");
                                 setRegisterCode("");
+                                setRegisterPhoneCode("");
                                 setRegisterPassword("");
                                 setRegisterError("");
                                 setRegisterInfo("");

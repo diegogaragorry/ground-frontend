@@ -6,12 +6,17 @@ import "../styles/auth.css";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
 import { useEncryption } from "../context/EncryptionContext";
-import { generateEncryptionSalt, deriveEncryptionKey } from "../utils/crypto";
+import { buildCountryOptions, isValidCountryCode } from "../utils/countries";
+import { generateEncryptionSalt, deriveEncryptionKey, exportKeyToBase64 } from "../utils/crypto";
 
 type Step = "request" | "verify";
 
 function normalizeEmail(v: string) {
   return String(v || "").trim().toLowerCase();
+}
+
+function normalizePhone(v: string) {
+  return String(v || "").replace(/\D/g, "");
 }
 
 export default function RegisterPage() {
@@ -23,12 +28,18 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [country, setCountry] = useState("");
   const [code, setCode] = useState("");
+  const [phoneCode, setPhoneCode] = useState("");
   const [password, setPassword] = useState("");
 
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
+  const countryOptions = buildCountryOptions(i18n.language || "es");
 
   async function requestCode(e: React.FormEvent) {
     e.preventDefault();
@@ -36,21 +47,36 @@ export default function RegisterPage() {
     setInfo("");
 
     const em = normalizeEmail(email);
+    const normalizedPhone = normalizePhone(phone);
+    const normalizedCountry = country.trim().toUpperCase();
     if (!em) {
       setError("Email is required");
       return;
     }
+    if (!firstName.trim()) return setError(t("register.firstNameRequired"));
+    if (!lastName.trim()) return setError(t("register.lastNameRequired"));
+    if (!normalizedPhone || normalizedPhone.length < 10) return setError(t("register.phoneRequired"));
+    if (!normalizedCountry || !isValidCountryCode(normalizedCountry)) return setError(t("register.countryRequired"));
 
     setLoading(true);
     try {
       const res = await api<{ ok: boolean; alreadySent?: boolean }>("/auth/register/request-code", {
         method: "POST",
-        body: JSON.stringify({ email: em }),
+        body: JSON.stringify({
+          email: em,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          phone: normalizedPhone,
+          country: normalizedCountry,
+        }),
       });
       setStep("verify");
+      setCode("");
+      setPhoneCode("");
+      setPassword("");
       setInfo(res.alreadySent
-        ? "A code was already sent. Check your inbox (and spam)."
-        : "We sent you a 6-digit code. It may take a few minutes to arrive. Check your inbox (and spam).");
+        ? "Codes were already sent by email and SMS. Check your inbox (and spam)."
+        : "We sent one 6-digit code by email and another by SMS. The email may take a few minutes to arrive.");
     } catch (err: any) {
       setError(err?.message ?? "Error sending code");
     } finally {
@@ -65,27 +91,43 @@ export default function RegisterPage() {
 
     const em = normalizeEmail(email);
     const c = String(code || "").trim();
+    const smsCode = String(phoneCode || "").trim();
     const pw = String(password || "");
+    const normalizedPhone = normalizePhone(phone);
+    const normalizedCountry = country.trim().toUpperCase();
 
     if (!em) return setError("Email is required");
+    if (!firstName.trim()) return setError(t("register.firstNameRequired"));
+    if (!lastName.trim()) return setError(t("register.lastNameRequired"));
+    if (!normalizedPhone || normalizedPhone.length < 10) return setError(t("register.phoneRequired"));
+    if (!normalizedCountry || !isValidCountryCode(normalizedCountry)) return setError(t("register.countryRequired"));
     if (!c) return setError("Code is required");
+    if (!smsCode) return setError(t("account.codeRequired"));
     if (!pw) return setError("Password is required");
     if (pw.length < 8) return setError("Password must be at least 8 characters");
 
     setLoading(true);
     try {
       const encryptionSalt = generateEncryptionSalt();
+      const k = await deriveEncryptionKey(pw, encryptionSalt);
+      const recoveryPackage = await exportKeyToBase64(k);
       const r = await api<{ token: string }>("/auth/register/verify", {
         method: "POST",
-        body: JSON.stringify({ email: em, code: c, password: pw, encryptionSalt }),
+        body: JSON.stringify({
+          email: em,
+          emailCode: c,
+          phoneCode: smsCode,
+          password: pw,
+          encryptionSalt,
+          recoveryPackage,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          phone: normalizedPhone,
+          country: normalizedCountry,
+        }),
       });
 
-      try {
-        const k = await deriveEncryptionKey(pw, encryptionSalt);
-        setEncryptionKey(k);
-      } catch {
-        setEncryptionKey(null);
-      }
+      setEncryptionKey(k);
       localStorage.setItem("token", r.token);
       nav(APP_BASE);
     } catch (err: any) {
@@ -100,17 +142,29 @@ export default function RegisterPage() {
     setInfo("");
 
     const em = normalizeEmail(email);
+    const normalizedPhone = normalizePhone(phone);
+    const normalizedCountry = country.trim().toUpperCase();
     if (!em) return setError("Email is required");
+    if (!firstName.trim()) return setError(t("register.firstNameRequired"));
+    if (!lastName.trim()) return setError(t("register.lastNameRequired"));
+    if (!normalizedPhone || normalizedPhone.length < 10) return setError(t("register.phoneRequired"));
+    if (!normalizedCountry || !isValidCountryCode(normalizedCountry)) return setError(t("register.countryRequired"));
 
     setLoading(true);
     try {
       const res = await api<{ ok: boolean; alreadySent?: boolean }>("/auth/register/request-code", {
         method: "POST",
-        body: JSON.stringify({ email: em }),
+        body: JSON.stringify({
+          email: em,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          phone: normalizedPhone,
+          country: normalizedCountry,
+        }),
       });
       setInfo(res.alreadySent
-        ? "A code was already sent. Check your inbox (and spam)."
-        : "New code sent. It may take a few minutes to arrive.");
+        ? "Codes were already sent by email and SMS. Check your inbox (and spam)."
+        : "Codes sent again by email and SMS.");
     } catch (err: any) {
       setError(err?.message ?? "Error resending code");
     } finally {
@@ -156,6 +210,28 @@ export default function RegisterPage() {
             {step === "request" ? (
               <form onSubmit={requestCode} className="register-form">
                 <div>
+                  <label className="label">{t("register.firstName")}</label>
+                  <input
+                    className="input"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    required
+                    autoComplete="given-name"
+                    placeholder={t("register.placeholderFirstName")}
+                  />
+                </div>
+                <div>
+                  <label className="label">{t("register.lastName")}</label>
+                  <input
+                    className="input"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                    autoComplete="family-name"
+                    placeholder={t("register.placeholderLastName")}
+                  />
+                </div>
+                <div>
                   <label className="label">{t("register.email")}</label>
                   <input
                     className="input"
@@ -166,6 +242,34 @@ export default function RegisterPage() {
                     autoComplete="email"
                     placeholder={t("login.placeholderEmail")}
                   />
+                </div>
+                <div>
+                  <label className="label">{t("register.phone")}</label>
+                  <input
+                    className="input"
+                    type="tel"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    required
+                    autoComplete="tel"
+                    placeholder={t("register.placeholderPhone")}
+                  />
+                </div>
+                <div>
+                  <label className="label">{t("register.country")}</label>
+                  <select
+                    className="select"
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    required
+                  >
+                    <option value="">{t("register.selectCountry")}</option>
+                    {countryOptions.map((opt) => (
+                      <option key={opt.code} value={opt.code}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 {error && <div className="error">{error}</div>}
                 {info && <div className="muted" style={{ fontSize: "0.875rem" }}>{info}</div>}
@@ -178,12 +282,27 @@ export default function RegisterPage() {
                 <p className="muted" style={{ marginBottom: 8 }}>
                   {t("register.codeSentTo")} <strong>{normalizeEmail(email)}</strong>
                 </p>
+                <div className="muted" style={{ fontSize: "0.875rem", marginTop: -4 }}>
+                  {firstName.trim()} {lastName.trim()} · {(countryOptions.find((c) => c.code === country)?.label ?? country.trim())} · {phone.trim()}
+                </div>
                 <div>
                   <label className="label">{t("register.verificationCode")}</label>
                   <input
                     className="input"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
+                    placeholder={t("register.placeholderCode")}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="label">{t("register.phoneVerificationCode")}</label>
+                  <input
+                    className="input"
+                    value={phoneCode}
+                    onChange={(e) => setPhoneCode(e.target.value)}
                     placeholder={t("register.placeholderCode")}
                     inputMode="numeric"
                     autoComplete="one-time-code"
@@ -234,6 +353,7 @@ export default function RegisterPage() {
                     onClick={() => {
                       setStep("request");
                       setCode("");
+                      setPhoneCode("");
                       setPassword("");
                       setError("");
                       setInfo("");
