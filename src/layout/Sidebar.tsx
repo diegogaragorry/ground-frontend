@@ -15,7 +15,7 @@ type SidebarProps = {
 export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
   const nav = useNavigate();
   const { t, i18n } = useTranslation();
-  const { onboardingTourStep, preferredDisplayCurrencyId, updatePreferredDisplayCurrency } = useAppShell();
+  const { onboardingTourStep, preferredDisplayCurrencyId, updatePreferredDisplayCurrency, updatePreferredLanguage } = useAppShell();
   const tourHighlightPath = onboardingTourStep != null ? TOUR_STEP_PATH[onboardingTourStep] ?? null : null;
 
   function logout() {
@@ -33,7 +33,7 @@ export function Sidebar({ isMobile = false, onNavigateClick }: SidebarProps) {
             <select
               className="select sidebar-drop"
               value={i18n.language?.startsWith("es") ? "es" : "en"}
-              onChange={(e) => i18n.changeLanguage(e.target.value)}
+              onChange={(e) => { void updatePreferredLanguage(e.target.value as "es" | "en"); }}
               aria-label={t("sidebar.language")}
             >
               <option value="en">EN</option>

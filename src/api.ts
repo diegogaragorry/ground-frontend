@@ -1,4 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
+const LANGUAGE_STORAGE_KEY = "ground:lang";
 
 const isProduction = () => {
   try {
@@ -26,6 +27,24 @@ function isJsonResponse(res: Response) {
   return ct.includes("application/json");
 }
 
+function getRequestLanguage(): "es" | "en" {
+  try {
+    const htmlLang = document?.documentElement?.lang;
+    if (htmlLang?.startsWith("es")) return "es";
+    if (htmlLang?.startsWith("en")) return "en";
+  } catch {
+    // ignore
+  }
+  try {
+    const stored = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (stored === "es" || stored === "en") return stored;
+  } catch {
+    // ignore
+  }
+  if (typeof navigator !== "undefined" && navigator.language?.startsWith("es")) return "es";
+  return "en";
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem("token");
 
@@ -33,6 +52,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 
   const headers: Record<string, string> = {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    "X-App-Language": getRequestLanguage(),
   };
 
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;

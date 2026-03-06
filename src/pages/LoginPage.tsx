@@ -8,7 +8,7 @@ import { useEncryption } from "../context/EncryptionContext";
 import { deriveEncryptionKey, importKeyFromBase64 } from "../utils/crypto";
 import "../styles/auth.css";
 
-type LoginUser = { id: string; email: string; role: string; encryptionSalt?: string; recoveryEnabled?: boolean; encryptionKey?: string };
+type LoginUser = { id: string; email: string; role: string; encryptionSalt?: string; recoveryEnabled?: boolean; encryptionKey?: string; preferredLanguage?: string | null };
 type LoginResp = { token?: string; user?: LoginUser } & Record<string, unknown>;
 
 function pickToken(r: LoginResp): string | null {
@@ -60,6 +60,9 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const { token, user } = await tryLogin(email.trim().toLowerCase(), password);
+      if (user?.preferredLanguage === "es" || user?.preferredLanguage === "en") {
+        await i18n.changeLanguage(user.preferredLanguage);
+      }
       if (user?.encryptionKey) {
         try {
           const k = await importKeyFromBase64(user.encryptionKey);

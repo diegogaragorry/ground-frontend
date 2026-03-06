@@ -13,6 +13,7 @@ import { formatAmountUsdWith } from "../utils/formatCurrency";
 import { exportKeyToBase64 } from "../utils/crypto";
 import { OnboardingWizard } from "../onboarding/OnboardingWizard";
 import { OnboardingTour } from "../onboarding/OnboardingTour";
+import appI18n from "../i18n";
 
 /* =========================
    Types
@@ -28,6 +29,7 @@ type Me = {
   firstName?: string | null;
   lastName?: string | null;
   country?: string | null;
+  preferredLanguage?: string | null;
   phone?: string | null;
   phoneVerifiedAt?: string | null;
   recoveryEnabled?: boolean;
@@ -118,6 +120,8 @@ type AppShellCtx = {
   preferredDisplayCurrencyId: "USD" | "UYU";
   /** Actualiza la moneda de visualización y recarga me. */
   updatePreferredDisplayCurrency: (currencyId: "USD" | "UYU") => Promise<void>;
+  /** Actualiza el idioma persistido del usuario. */
+  updatePreferredLanguage: (language: "es" | "en") => Promise<void>;
 };
 
 const Ctx = createContext<AppShellCtx | null>(null);
@@ -175,6 +179,20 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
     api<Me>("/auth/me")
       .then((r) => {
         setMe(r);
+        const serverLanguage = r.preferredLanguage === "es" || r.preferredLanguage === "en" ? r.preferredLanguage : null;
+        const clientLanguage = appI18n.language?.startsWith("es") ? "es" : "en";
+        if (serverLanguage) {
+          if (serverLanguage !== clientLanguage) {
+            appI18n.changeLanguage(serverLanguage).catch(() => {});
+          }
+        } else {
+          api("/auth/me", {
+            method: "PATCH",
+            body: JSON.stringify({ preferredLanguage: clientLanguage }),
+          })
+            .then(() => setMe((prev) => (prev ? { ...prev, preferredLanguage: clientLanguage } : prev)))
+            .catch(() => {});
+        }
         const forceFromServer = r.forceOnboardingNextLogin === true || (r as Record<string, unknown>).forceOnboardingNextLogin === true;
         const allowed: OnboardingStep[] = ["welcome", "admin", "expenses", "investments", "budget", "dashboard", "done"];
         let step: OnboardingStep =
@@ -231,6 +249,23 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
     []
   );
 
+  const updatePreferredLanguage = React.useCallback(
+    (language: "es" | "en") => {
+      const nextLanguage = language === "es" ? "es" : "en";
+      setMe((prev) => (prev ? { ...prev, preferredLanguage: nextLanguage } : prev));
+      return Promise.resolve(appI18n.changeLanguage(nextLanguage))
+        .then(() =>
+          api("/auth/me", {
+            method: "PATCH",
+            body: JSON.stringify({ preferredLanguage: nextLanguage }),
+          })
+        )
+        .then(() => api<Me>("/auth/me"))
+        .then(setMe);
+    },
+    []
+  );
+
   const preferredDisplayCurrencyId: "USD" | "UYU" =
     me?.preferredDisplayCurrencyId === "UYU" ? "UYU" : "USD";
 
@@ -257,6 +292,7 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
     dismissMobileWarning,
     preferredDisplayCurrencyId,
     updatePreferredDisplayCurrency,
+    updatePreferredLanguage,
   };
 
   return <Ctx.Provider value={value}>{props.children}</Ctx.Provider>;
@@ -287,6 +323,7 @@ export function useAppShell() {
     dismissMobileWarning: ctx.dismissMobileWarning,
     preferredDisplayCurrencyId: ctx.preferredDisplayCurrencyId,
     updatePreferredDisplayCurrency: ctx.updatePreferredDisplayCurrency,
+    updatePreferredLanguage: ctx.updatePreferredLanguage,
   };
 }
 
