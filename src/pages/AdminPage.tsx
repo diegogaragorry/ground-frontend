@@ -243,7 +243,7 @@ function UsersAdminCard() {
         </div>
       )}
 
-      <div style={{ overflowX: "auto", marginTop: 12 }}>
+      <div className="users-admin-scroll" style={{ overflowX: "auto", overflowY: "auto", maxHeight: 286, marginTop: 12 }}>
         <table className="table compact">
           <thead>
             <tr>
@@ -294,6 +294,12 @@ function UsersAdminCard() {
 
       <style>{`
         .table.compact th, .table.compact td { padding: 6px 8px; }
+        .users-admin-scroll thead th {
+          position: sticky;
+          top: 0;
+          z-index: 1;
+          background: var(--panel);
+        }
       `}</style>
     </div>
   );
@@ -855,6 +861,32 @@ function RecentActivityCard() {
       {data && (
         <>
           <div style={{ marginTop: 16 }}>
+            <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>{t("admin.recentLogins")}</div>
+            <div className="admin-table-wrap">
+              <table className="table admin-table">
+                <thead>
+                  <tr>
+                    <th>{t("admin.email")}</th>
+                    <th style={{ width: 180 }}>{t("admin.loggedAt")}</th>
+                    <th style={{ width: 140 }}>{t("admin.ip")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(data.recentLogins ?? []).map((l) => (
+                    <tr key={l.id}>
+                      <td>{l.email}</td>
+                      <td className="muted" style={{ fontSize: 12 }}>{formatDate(l.loggedAt)}</td>
+                      <td className="muted" style={{ fontSize: 12 }}>{l.ip ?? "—"}</td>
+                    </tr>
+                  ))}
+                  {(data.recentLogins ?? []).length === 0 && (
+                    <tr><td colSpan={3} className="muted" style={{ padding: 16, textAlign: "center" }}>{t("admin.noLogins")}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div style={{ marginTop: 20 }}>
             <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>{t("admin.recentUsers")}</div>
             <div className="admin-table-wrap">
               <table className="table admin-table">
@@ -922,34 +954,6 @@ function RecentActivityCard() {
               </table>
             </div>
           </div>
-          {(data.recentLogins?.length ?? 0) >= 0 && (
-          <div style={{ marginTop: 20 }}>
-            <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 8 }}>{t("admin.recentLogins")}</div>
-            <div className="admin-table-wrap">
-              <table className="table admin-table">
-                <thead>
-                  <tr>
-                    <th>{t("admin.email")}</th>
-                    <th style={{ width: 180 }}>{t("admin.loggedAt")}</th>
-                    <th style={{ width: 140 }}>{t("admin.ip")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(data.recentLogins ?? []).map((l) => (
-                    <tr key={l.id}>
-                      <td>{l.email}</td>
-                      <td className="muted" style={{ fontSize: 12 }}>{formatDate(l.loggedAt)}</td>
-                      <td className="muted" style={{ fontSize: 12 }}>{l.ip ?? "—"}</td>
-                    </tr>
-                  ))}
-                  {(data.recentLogins ?? []).length === 0 && (
-                    <tr><td colSpan={3} className="muted" style={{ padding: 16, textAlign: "center" }}>{t("admin.noLogins")}</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          )}
         </>
       )}
     </div>
