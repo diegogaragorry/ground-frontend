@@ -386,6 +386,7 @@ export function AppShell(props: { children: React.ReactNode }) {
   // Auto-run E2EE migration when user has encryption and there are plain items (once per session).
   // Mark ref only after getMigrationStatus resolves so a failed first run can retry on next entry.
   React.useEffect(() => {
+    if (ctx.onboardingStep !== "done") return;
     if (!ctx.meLoaded || !ctx.me || !hasEncryptionSupport || !encryptPayload || migrationAutoRunDoneRef.current) return;
     getMigrationStatus(api)
       .then((status) => {
@@ -398,7 +399,7 @@ export function AppShell(props: { children: React.ReactNode }) {
         });
       })
       .catch(() => {});
-  }, [ctx.meLoaded, ctx.me, hasEncryptionSupport, encryptPayload, ctx.showSuccess, t]);
+  }, [ctx.meLoaded, ctx.me, ctx.onboardingStep, hasEncryptionSupport, encryptPayload, ctx.showSuccess, t]);
 
   // Auto-enable account recovery when phone is already verified and we have the E2EE key in memory.
   React.useEffect(() => {
