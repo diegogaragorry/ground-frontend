@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAppShell } from "../layout/AppShell";
 import { useEncryption } from "../context/EncryptionContext";
@@ -116,13 +116,65 @@ type Me = {
   encryptionSalt?: string | null;
 };
 
+type BillingSummary = {
+  provider: "DLOCAL";
+  billingEnabled: boolean;
+  integrationReady: boolean;
+  checkoutReady: boolean;
+  customerPortalReady: boolean;
+  planCode: "EARLY_STAGE" | "PRO_EARLY_ANNUAL" | "LEGACY_FREE" | "PRO_MONTHLY";
+  subscriptionStatus:
+    | "active"
+    | "past_due"
+    | "canceled"
+    | "expired"
+    | "paused"
+    | "incomplete"
+    | "payment_required";
+  accessLevel: "full" | "read_only";
+  nextAction: "none" | "start_checkout" | "manage_subscription" | "update_payment_method" | "contact_support";
+  isSuperAdminBypass: boolean;
+  planEndsAt: string | null;
+  graceEndsAt: string | null;
+  cancelAtPeriodEnd: boolean;
+  price: {
+    amountMinor: number;
+    currencyCode: "USD";
+  };
+  offers: Array<{
+    planCode: "PRO_EARLY_ANNUAL" | "PRO_MONTHLY";
+    amountMinor: number;
+    monthlyEquivalentMinor: number;
+    currencyCode: "USD";
+    durationMonths: number;
+    billingInterval: "monthly" | "annual";
+    enabled: boolean;
+    cancelAnytime: boolean;
+  }>;
+  commercialPolicy: {
+    earlyStageMonths: number;
+    graceDays: number;
+    proEarlyMonthlyUsdMinor: number;
+    proEarlyAnnualUsdMinor: number;
+    proStandardMonthlyUsdMinor: number;
+    proMonthlyUsdMinor: number;
+  };
+  notes: string[];
+};
+
 export default function AccountPage() {
   const { t, i18n } = useTranslation();
+  const location = useLocation();
   const { setHeader } = useAppShell();
   const { encryptionKey, encryptPayload, decryptPayload, setEncryptionKey } = useEncryption();
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [billing, setBilling] = useState<BillingSummary | null>(null);
+  const [billingLoading, setBillingLoading] = useState(true);
+  const [billingError, setBillingError] = useState("");
+  const [billingCheckoutLoading, setBillingCheckoutLoading] = useState<null | "PRO_EARLY_ANNUAL" | "PRO_MONTHLY">(null);
+  const [billingCheckoutError, setBillingCheckoutError] = useState("");
 
   const [migrationStatus, setMigrationStatus] = useState<MigrationStatusType | null>(null);
   const [migrationStatusLoading, setMigrationStatusLoading] = useState(false);
@@ -149,11 +201,84 @@ export default function AccountPage() {
   }, [setHeader, t]);
 
   useEffect(() => {
-    api<Me>("/auth/me")
-      .then(setMe)
+    setLoading(true);
+    setBillingLoading(true);
+    setBillingError("");
+    Promise.all([
+      api<Me>("/auth/me"),
+      api<BillingSummary>("/billing/summary").catch((err) => {
+        setBillingError(err?.message ?? t("account.billingLoadError"));
+        return null;
+      }),
+    ])
+      .then(([meResp, billingResp]) => {
+        setMe(meResp);
+        setBilling(billingResp);
+      })
       .catch((err) => setError(err?.message ?? "Error loading account"))
-      .finally(() => setLoading(false));
-  }, [phoneStep]);
+      .finally(() => {
+        setLoading(false);
+        setBillingLoading(false);
+      });
+  }, [phoneStep, location.search, t]);
+
+  const formatBillingDate = (value: string | null | undefined) => {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "—";
+    return date.toLocaleDateString(i18n.language || "es");
+  };
+
+  const formatBillingAmount = (amountMinor: number, currencyCode: "USD" = "USD") => {
+    const amount = amountMinor / 100;
+    return new Intl.NumberFormat(i18n.language?.startsWith("es") ? "es-UY" : "en-US", {
+      style: "currency",
+      currency: currencyCode,
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
+  const billingIsSuperAdminBypass = !!billing?.isSuperAdminBypass;
+  const billingPrice = useMemo(
+    () => formatBillingAmount(billing?.price.amountMinor ?? 0, billing?.price.currencyCode ?? "USD"),
+    [billing?.price.amountMinor, billing?.price.currencyCode, i18n.language]
+  );
+  const billingPlanLabel = billingIsSuperAdminBypass
+    ? t("account.billingPlanNotApplicable")
+    : billing
+      ? t(`account.billingPlan_${billing.planCode}`)
+      : "—";
+  const billingOffers = billing?.offers ?? [];
+  const billingMonthlyOffer = billingOffers.find((offer) => offer.planCode === "PRO_MONTHLY") ?? null;
+  const hasPaidPlan = billing?.planCode === "PRO_EARLY_ANNUAL" || billing?.planCode === "PRO_MONTHLY";
+  const billingResult = useMemo(() => new URLSearchParams(location.search).get("billingResult"), [location.search]);
+  const billingResultMessage = useMemo(() => {
+    if (!billingResult) return "";
+    const normalized = billingResult.toLowerCase();
+    if (normalized === "paid" || normalized === "authorized") return t("account.billingResult_paid");
+    if (normalized === "pending" || normalized === "verified") return t("account.billingResult_pending");
+    if (normalized === "invalid-signature") return t("account.billingResult_invalidSignature");
+    return t("account.billingResult_error", { status: billingResult });
+  }, [billingResult, t]);
+  const billingSummaryText = billingIsSuperAdminBypass
+    ? t("account.billingSummarySuperAdmin")
+    : billing?.planEndsAt
+      ? t("account.billingSummaryExplicit", { plan: billingPlanLabel, date: formatBillingDate(billing.planEndsAt) })
+      : t("account.billingSummaryExplicitNoEnd", { plan: billingPlanLabel });
+  const billingMonthlyPitch = !billingIsSuperAdminBypass && !hasPaidPlan && billing
+    ? t(billingMonthlyOffer?.enabled ? "account.billingMonthlyPitchLive" : "account.billingMonthlyPitchSoon", {
+        price: formatBillingAmount(
+          billingMonthlyOffer?.amountMinor ?? billing.commercialPolicy.proMonthlyUsdMinor,
+          billingMonthlyOffer?.currencyCode ?? "USD"
+        ),
+      })
+    : "";
+  const billingCurrentPlanNote = billingIsSuperAdminBypass || !billing
+    ? ""
+    : billing.planCode === "PRO_MONTHLY"
+      ? t("account.billingMonthlyCurrentNote", { price: billingPrice })
+      : billing.planCode === "PRO_EARLY_ANNUAL"
+        ? t("account.billingAnnualCurrentNote", { price: billingPrice })
+        : "";
 
   useEffect(() => {
     setPhone(me?.phone ?? "");
@@ -278,6 +403,23 @@ export default function AccountPage() {
       setError(err instanceof Error ? err.message : t("account.recoverySetupFailed"));
     } finally {
       setRecoveryLoading(false);
+    }
+  }
+
+  async function onStartCheckout(planCode: "PRO_EARLY_ANNUAL" | "PRO_MONTHLY") {
+    setBillingCheckoutError("");
+    setBillingCheckoutLoading(planCode);
+    try {
+      const resp = await api<{ ok: true; redirectUrl: string }>("/billing/checkout", {
+        method: "POST",
+        body: JSON.stringify({ planCode }),
+      });
+      if (!resp?.redirectUrl) throw new Error(t("account.billingCheckoutUnavailable"));
+      window.location.href = resp.redirectUrl;
+    } catch (err: unknown) {
+      setBillingCheckoutError(err instanceof Error ? err.message : t("account.billingCheckoutUnavailable"));
+    } finally {
+      setBillingCheckoutLoading(null);
     }
   }
 
@@ -441,6 +583,75 @@ export default function AccountPage() {
           )}
         </div>
       )}
+
+      <div className="card" style={{ marginBottom: 24 }}>
+        <h3 className="account-section-title">{t("account.billingTitle")}</h3>
+        {billingLoading ? (
+          <p className="muted" style={{ margin: 0 }}>{t("account.loading")}</p>
+        ) : billingError ? (
+          <p className="error" style={{ margin: 0 }}>{billingError}</p>
+        ) : billing ? (
+          <>
+            {billingResultMessage && (
+              <p
+                style={{
+                  marginTop: 0,
+                  marginBottom: 14,
+                  color:
+                    billingResult?.toLowerCase() === "paid" || billingResult?.toLowerCase() === "authorized"
+                      ? "rgba(15,23,42,0.75)"
+                      : "var(--warning, #b45309)",
+                }}
+              >
+                {billingResultMessage}
+              </p>
+            )}
+            <div
+              style={{
+                borderRadius: 20,
+                border: "1px solid rgba(15,23,42,0.08)",
+                background: "linear-gradient(180deg, rgba(248,250,252,0.98), rgba(241,245,249,0.98))",
+                padding: 18,
+                boxShadow: "0 16px 36px rgba(15,23,42,0.05)",
+              }}
+            >
+              <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.05 }}>{billingPlanLabel}</div>
+              <p style={{ marginTop: 10, marginBottom: 0, lineHeight: 1.55 }}>{billingSummaryText}</p>
+              {billingCurrentPlanNote && <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>{billingCurrentPlanNote}</p>}
+              {!billingIsSuperAdminBypass && !hasPaidPlan && billingMonthlyPitch && (
+                <p style={{ marginTop: 12, marginBottom: 0, lineHeight: 1.55 }}>{billingMonthlyPitch}</p>
+              )}
+              {!billingIsSuperAdminBypass && !hasPaidPlan && billingMonthlyOffer && (
+                <button
+                  type="button"
+                  className="btn primary"
+                  onClick={() => onStartCheckout("PRO_MONTHLY")}
+                  disabled={billingCheckoutLoading === "PRO_MONTHLY" || !billingMonthlyOffer.enabled}
+                  style={{
+                    marginTop: 14,
+                    width: "100%",
+                    background: billingMonthlyOffer.enabled ? undefined : "rgba(148,163,184,0.22)",
+                    borderColor: billingMonthlyOffer.enabled ? undefined : "rgba(148,163,184,0.34)",
+                    color: billingMonthlyOffer.enabled ? undefined : "rgba(51,65,85,0.9)",
+                    cursor: billingMonthlyOffer.enabled ? undefined : "not-allowed",
+                  }}
+                >
+                  {billingCheckoutLoading === "PRO_MONTHLY" ? t("account.billingOfferLoading") : t("account.billingMonthlyCta")}
+                </button>
+              )}
+              {billing.subscriptionStatus === "past_due" && billing.graceEndsAt && (
+                <p className="muted" style={{ marginTop: 10, marginBottom: 0 }}>{t("account.billingGraceNotice", { date: formatBillingDate(billing.graceEndsAt) })}</p>
+              )}
+            </div>
+            {billing.accessLevel === "read_only" && (
+              <p className="muted" style={{ marginTop: 14, marginBottom: 0 }}>{t("account.billingReadOnlyNote")}</p>
+            )}
+            {billingCheckoutError && <div className="error" style={{ marginTop: 10 }}>{billingCheckoutError}</div>}
+          </>
+        ) : (
+          <p className="muted" style={{ margin: 0 }}>{t("account.billingLoadError")}</p>
+        )}
+      </div>
 
       <div className="card" style={{ marginBottom: 24 }}>
         <h3 className="account-section-title">{t("account.displayCurrency")}</h3>
