@@ -510,6 +510,15 @@ export default function ExpensesPage() {
       setError(t("expenses.monthClosedEditDrafts"));
       return;
     }
+    const body = await buildPlannedPatchBody(plannedId, patch);
+    await api(`/plannedExpenses/${plannedId}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+    await loadPageData();
+  }
+
+  async function buildPlannedPatchBody(plannedId: string, patch: any) {
     let body = patch;
     if (hasEncryptionSupport && (patch.description !== undefined || patch.amountUsd !== undefined || patch.amount !== undefined)) {
       const p = planned.find((x) => x.id === plannedId);
@@ -529,11 +538,7 @@ export default function ExpensesPage() {
         }
       }
     }
-    await api(`/plannedExpenses/${plannedId}`, {
-      method: "PUT",
-      body: JSON.stringify(body),
-    });
-    await loadPageData();
+    return body;
   }
 
   /** Build patch from draft so backend has latest values before confirm (e.g. if user edited amount without blur). */
@@ -608,19 +613,31 @@ export default function ExpensesPage() {
 
     setLoading(true);
     try {
-      for (const p of planned) {
-        const d = getPlannedDraft(p.id);
-        const patch = buildPlannedDraftPatch(p, d);
-        if (patch && Object.keys(patch).length > 0) {
-          await patchPlanned(p.id, patch);
-          clearPlannedDraft(p.id);
-        }
+      const items = await Promise.all(
+        planned.map(async (p) => {
+          const d = getPlannedDraft(p.id);
+          const patch = buildPlannedDraftPatch(p, d);
+          const patchBody =
+            patch && Object.keys(patch).length > 0
+              ? await buildPlannedPatchBody(p.id, patch)
+              : undefined;
+          return {
+            id: p.id,
+            ...(patchBody ? { patch: patchBody } : {}),
+            ...(p.template?.defaultCurrencyId === "UYU" && Number.isFinite(usdUyuRate) && usdUyuRate > 0
+              ? { usdUyuRate }
+              : {}),
+          };
+        })
+      );
 
-        const body =
-          p.template?.defaultCurrencyId === "UYU" && Number.isFinite(usdUyuRate) && usdUyuRate > 0
-            ? JSON.stringify({ usdUyuRate: usdUyuRate })
-            : undefined;
-        await api(`/plannedExpenses/${p.id}/confirm`, { method: "POST", ...(body ? { body } : {}) });
+      await api("/plannedExpenses/confirm-batch", {
+        method: "POST",
+        body: JSON.stringify({ items }),
+      });
+
+      for (const item of items) {
+        if ((item as any).patch) clearPlannedDraft(item.id);
       }
       await loadPageData();
       setInfo(t("expenses.allDraftsConfirmed"));
