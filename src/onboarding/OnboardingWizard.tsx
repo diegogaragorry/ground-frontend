@@ -130,6 +130,10 @@ export function OnboardingWizard(props: {
     return created.id;
   }
 
+  async function getCategoryId(name: string, expenseType: ExpenseType): Promise<string> {
+    return findCategory(categories, name, expenseType)?.id ?? ensureCategory(name, expenseType);
+  }
+
   function toUsdAmount(amountStr: string, currencyId: "UYU" | "USD", usdUyuRate: number): number | null {
     const n = parseUsd(amountStr);
     if (n == null) return null;
@@ -138,42 +142,33 @@ export function OnboardingWizard(props: {
     return n / usdUyuRate;
   }
 
-  async function createTemplate(
-    categoryId: string,
-    description: string,
-    amountUsd: number | null,
-    defaultCurrencyId: "UYU" | "USD"
-  ): Promise<{ id: string } | undefined> {
+  async function upsertTemplatesBatch(
+    templates: Array<{
+      categoryId: string;
+      description: string;
+      amountUsd: number | null;
+      defaultCurrencyId: "UYU" | "USD";
+    }>
+  ): Promise<Array<{ id: string; categoryId: string; description: string; showInExpenses?: boolean }>> {
+    if (templates.length === 0) return [];
     const startMonth = new Date().getMonth() + 1;
-    try {
-      const template = await api<{ id: string }>("/admin/expenseTemplates", {
-        method: "POST",
-        body: JSON.stringify({
-          categoryId,
-          description,
-          defaultAmountUsd: amountUsd,
-          defaultCurrencyId,
-          startMonth,
-        }),
-      });
-      if (template?.id) selectedTemplateIdsRef.current.push(template.id);
-      return template;
-    } catch (e: any) {
-      if (e?.message?.includes("409") || String(e?.message).toLowerCase().includes("unique")) {
-        try {
-          const { rows } = await api<{ rows: Array<{ id: string; categoryId: string; description: string }> }>("/admin/expenseTemplates");
-          const existing = Array.isArray(rows) ? rows.find((r) => r.categoryId === categoryId && r.description === description) : null;
-          if (existing?.id) {
-            if (!selectedTemplateIdsRef.current.includes(existing.id)) selectedTemplateIdsRef.current.push(existing.id);
-            return { id: existing.id };
-          }
-        } catch {
-          // ignore
-        }
-        return undefined;
-      }
-      throw e;
+    const { rows } = await api<{ rows: Array<{ id: string; categoryId: string; description: string; showInExpenses?: boolean }> }>("/admin/expenseTemplates/batch", {
+      method: "POST",
+      body: JSON.stringify({
+        startMonth,
+        templates: templates.map((template) => ({
+          categoryId: template.categoryId,
+          description: template.description,
+          defaultAmountUsd: template.amountUsd,
+          defaultCurrencyId: template.defaultCurrencyId,
+          showInExpenses: true,
+        })),
+      }),
+    });
+    for (const row of rows ?? []) {
+      if (!selectedTemplateIdsRef.current.includes(row.id)) selectedTemplateIdsRef.current.push(row.id);
     }
+    return rows ?? [];
   }
 
   async function saveHousing() {
@@ -181,25 +176,25 @@ export function OnboardingWizard(props: {
     setLoading(true);
     selectedTemplateIdsRef.current = [];
     try {
-      const housingId = await ensureCategory("Housing", "FIXED");
-      const tasks: Array<Promise<unknown>> = [];
+      const housingId = await getCategoryId("Housing", "FIXED");
+      const templates: Array<{ categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
       if (housingRent) {
         const cur = getItemCurrency("housing.rent");
-        tasks.push(createTemplate(housingId, "Rent", toUsdAmount(housingRentUsd, cur, getItemRate("housing.rent")), cur));
+        templates.push({ categoryId: housingId, description: "Rent", amountUsd: toUsdAmount(housingRentUsd, cur, getItemRate("housing.rent")), defaultCurrencyId: cur });
       }
       if (housingMortgage) {
         const cur = getItemCurrency("housing.mortgage");
-        tasks.push(createTemplate(housingId, "Mortgage", toUsdAmount(housingMortgageUsd, cur, getItemRate("housing.mortgage")), cur));
+        templates.push({ categoryId: housingId, description: "Mortgage", amountUsd: toUsdAmount(housingMortgageUsd, cur, getItemRate("housing.mortgage")), defaultCurrencyId: cur });
       }
       if (housingFees) {
         const cur = getItemCurrency("housing.fees");
-        tasks.push(createTemplate(housingId, "Building Fees", toUsdAmount(housingFeesUsd, cur, getItemRate("housing.fees")), cur));
+        templates.push({ categoryId: housingId, description: "Building Fees", amountUsd: toUsdAmount(housingFeesUsd, cur, getItemRate("housing.fees")), defaultCurrencyId: cur });
       }
       if (housingTaxes) {
         const cur = getItemCurrency("housing.taxes");
-        tasks.push(createTemplate(housingId, "Property Taxes", toUsdAmount(housingTaxesUsd, cur, getItemRate("housing.taxes")), cur));
+        templates.push({ categoryId: housingId, description: "Property Taxes", amountUsd: toUsdAmount(housingTaxesUsd, cur, getItemRate("housing.taxes")), defaultCurrencyId: cur });
       }
-      await Promise.all(tasks);
+      await upsertTemplatesBatch(templates);
       setStep(2);
     } catch (e: any) {
       setError(e?.message ?? t("common.errorSaving"));
@@ -212,21 +207,21 @@ export function OnboardingWizard(props: {
     setError("");
     setLoading(true);
     try {
-      const transportId = await ensureCategory("Transport", "VARIABLE");
-      const tasks: Array<Promise<unknown>> = [];
+      const transportId = await getCategoryId("Transport", "VARIABLE");
+      const templates: Array<{ categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
       if (transportVehicle) {
         const cur = getItemCurrency("transport.vehicle");
-        tasks.push(createTemplate(transportId, "Fuel", toUsdAmount(transportVehicleUsd, cur, getItemRate("transport.vehicle")), cur));
+        templates.push({ categoryId: transportId, description: "Fuel", amountUsd: toUsdAmount(transportVehicleUsd, cur, getItemRate("transport.vehicle")), defaultCurrencyId: cur });
       }
       if (transportPublic) {
         const cur = getItemCurrency("transport.public");
-        tasks.push(createTemplate(transportId, "Public Transport", toUsdAmount(transportPublicUsd, cur, getItemRate("transport.public")), cur));
+        templates.push({ categoryId: transportId, description: "Public Transport", amountUsd: toUsdAmount(transportPublicUsd, cur, getItemRate("transport.public")), defaultCurrencyId: cur });
       }
       if (transportTaxi) {
         const cur = getItemCurrency("transport.taxi");
-        tasks.push(createTemplate(transportId, "Ride Sharing / Taxis", toUsdAmount(transportTaxiUsd, cur, getItemRate("transport.taxi")), cur));
+        templates.push({ categoryId: transportId, description: "Ride Sharing / Taxis", amountUsd: toUsdAmount(transportTaxiUsd, cur, getItemRate("transport.taxi")), defaultCurrencyId: cur });
       }
-      await Promise.all(tasks);
+      await upsertTemplatesBatch(templates);
       setStep(3);
     } catch (e: any) {
       setError(e?.message ?? t("common.errorSaving"));
@@ -241,44 +236,44 @@ export function OnboardingWizard(props: {
     try {
       const utilitiesCat = findCategory(categories, "Utilities", "FIXED");
       const connectivityCat = findCategory(categories, "Connectivity", "FIXED");
-      const tasks: Array<Promise<unknown>> = [];
+      const templates: Array<{ categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
       if (utilitiesCat) {
         if (svcElectricity) {
           const cur = getItemCurrency("svc.electricity");
-          tasks.push(createTemplate(utilitiesCat.id, "Electricity", toUsdAmount(svcUsd.electricity ?? "", cur, getItemRate("svc.electricity")), cur));
+          templates.push({ categoryId: utilitiesCat.id, description: "Electricity", amountUsd: toUsdAmount(svcUsd.electricity ?? "", cur, getItemRate("svc.electricity")), defaultCurrencyId: cur });
         }
         if (svcWater) {
           const cur = getItemCurrency("svc.water");
-          tasks.push(createTemplate(utilitiesCat.id, "Water", toUsdAmount(svcUsd.water ?? "", cur, getItemRate("svc.water")), cur));
+          templates.push({ categoryId: utilitiesCat.id, description: "Water", amountUsd: toUsdAmount(svcUsd.water ?? "", cur, getItemRate("svc.water")), defaultCurrencyId: cur });
         }
         if (svcGas) {
           const cur = getItemCurrency("svc.gas");
-          tasks.push(createTemplate(utilitiesCat.id, "Gas", toUsdAmount(svcUsd.gas ?? "", cur, getItemRate("svc.gas")), cur));
+          templates.push({ categoryId: utilitiesCat.id, description: "Gas", amountUsd: toUsdAmount(svcUsd.gas ?? "", cur, getItemRate("svc.gas")), defaultCurrencyId: cur });
         }
       }
       if (connectivityCat) {
         if (svcInternet) {
           const cur = getItemCurrency("svc.internet");
-          tasks.push(createTemplate(connectivityCat.id, "Internet / Fiber", toUsdAmount(svcUsd.internet ?? "", cur, getItemRate("svc.internet")), cur));
+          templates.push({ categoryId: connectivityCat.id, description: "Internet / Fiber", amountUsd: toUsdAmount(svcUsd.internet ?? "", cur, getItemRate("svc.internet")), defaultCurrencyId: cur });
         }
         if (svcMobile) {
           const cur = getItemCurrency("svc.mobile");
-          tasks.push(createTemplate(connectivityCat.id, "Mobile Phone", toUsdAmount(svcUsd.mobile ?? "", cur, getItemRate("svc.mobile")), cur));
+          templates.push({ categoryId: connectivityCat.id, description: "Mobile Phone", amountUsd: toUsdAmount(svcUsd.mobile ?? "", cur, getItemRate("svc.mobile")), defaultCurrencyId: cur });
         }
         if (svcTV) {
           const cur = getItemCurrency("svc.tv");
-          tasks.push(createTemplate(connectivityCat.id, "TV / Cable", toUsdAmount(svcUsd.tv ?? "", cur, getItemRate("svc.tv")), cur));
+          templates.push({ categoryId: connectivityCat.id, description: "TV / Cable", amountUsd: toUsdAmount(svcUsd.tv ?? "", cur, getItemRate("svc.tv")), defaultCurrencyId: cur });
         }
         if (svcStreaming) {
           const cur = getItemCurrency("svc.streaming");
-          tasks.push(createTemplate(connectivityCat.id, "Streaming Services", toUsdAmount(svcUsd.streaming ?? "", cur, getItemRate("svc.streaming")), cur));
+          templates.push({ categoryId: connectivityCat.id, description: "Streaming Services", amountUsd: toUsdAmount(svcUsd.streaming ?? "", cur, getItemRate("svc.streaming")), defaultCurrencyId: cur });
         }
         if (svcOtherOnline) {
           const cur = getItemCurrency("svc.otherOnline");
-          tasks.push(createTemplate(connectivityCat.id, "Other online (Spotify, etc.)", toUsdAmount(svcUsd.otherOnline ?? "", cur, getItemRate("svc.otherOnline")), cur));
+          templates.push({ categoryId: connectivityCat.id, description: "Other online (Spotify, etc.)", amountUsd: toUsdAmount(svcUsd.otherOnline ?? "", cur, getItemRate("svc.otherOnline")), defaultCurrencyId: cur });
         }
       }
-      await Promise.all(tasks);
+      await upsertTemplatesBatch(templates);
       setStep(4);
     } catch (e: any) {
       setError(e?.message ?? t("common.errorSaving"));
@@ -297,32 +292,32 @@ export function OnboardingWizard(props: {
     setError("");
     setLoading(true);
     try {
-      const tasks: Array<Promise<unknown>> = [];
+      const templates: Array<{ categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
       if (healthCat) {
         if (healthInsurance) {
           const cur = getItemCurrency("health.insurance");
-          tasks.push(createTemplate(healthCat.id, "Private Health Insurance", toUsdAmount(healthUsd.insurance ?? "", cur, getItemRate("health.insurance")), cur));
+          templates.push({ categoryId: healthCat.id, description: "Private Health Insurance", amountUsd: toUsdAmount(healthUsd.insurance ?? "", cur, getItemRate("health.insurance")), defaultCurrencyId: cur });
         }
         if (healthGym) {
           const cur = getItemCurrency("health.gym");
-          tasks.push(createTemplate(healthCat.id, "Gym Membership", toUsdAmount(healthUsd.gym ?? "", cur, getItemRate("health.gym")), cur));
+          templates.push({ categoryId: healthCat.id, description: "Gym Membership", amountUsd: toUsdAmount(healthUsd.gym ?? "", cur, getItemRate("health.gym")), defaultCurrencyId: cur });
         }
       }
       if (wellnessCat) {
         if (healthPharmacy) {
           const cur = getItemCurrency("health.pharmacy");
-          tasks.push(createTemplate(wellnessCat.id, "Pharmacy", toUsdAmount(healthUsd.pharmacy ?? "", cur, getItemRate("health.pharmacy")), cur));
+          templates.push({ categoryId: wellnessCat.id, description: "Pharmacy", amountUsd: toUsdAmount(healthUsd.pharmacy ?? "", cur, getItemRate("health.pharmacy")), defaultCurrencyId: cur });
         }
         if (healthPersonal) {
           const cur = getItemCurrency("health.personal");
-          tasks.push(createTemplate(wellnessCat.id, "Personal Care", toUsdAmount(healthUsd.personal ?? "", cur, getItemRate("health.personal")), cur));
+          templates.push({ categoryId: wellnessCat.id, description: "Personal Care", amountUsd: toUsdAmount(healthUsd.personal ?? "", cur, getItemRate("health.personal")), defaultCurrencyId: cur });
         }
         if (healthDental) {
           const cur = getItemCurrency("health.dental");
-          tasks.push(createTemplate(wellnessCat.id, "Psychologist", toUsdAmount(healthUsd.dental ?? "", cur, getItemRate("health.dental")), cur));
+          templates.push({ categoryId: wellnessCat.id, description: "Psychologist", amountUsd: toUsdAmount(healthUsd.dental ?? "", cur, getItemRate("health.dental")), defaultCurrencyId: cur });
         }
       }
-      await Promise.all(tasks);
+      await upsertTemplatesBatch(templates);
       setStep(5);
     } catch (e: any) {
       setError(e?.message ?? t("common.errorSaving"));
@@ -342,57 +337,44 @@ export function OnboardingWizard(props: {
     // Consider selected if checkbox is checked OR user entered an amount (so "completed" = visible)
     const has = (rec: boolean, key: string) => rec || String(recUsd[key] ?? "").trim() !== "";
     try {
-      const recurrentSelections: Array<{ categoryId: string; description: string; amountUsd: number | null; currencyId: "UYU" | "USD" }> = [];
+      const recurrentSelections: Array<{ categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
       if (has(recGroceries, "groceries") && foodCat) {
         const cur = getItemCurrency("rec.groceries");
-        recurrentSelections.push({ categoryId: foodCat.id, description: "Groceries", amountUsd: toUsdAmount(recUsd.groceries ?? "", cur, getItemRate("rec.groceries")), currencyId: cur });
+        recurrentSelections.push({ categoryId: foodCat.id, description: "Groceries", amountUsd: toUsdAmount(recUsd.groceries ?? "", cur, getItemRate("rec.groceries")), defaultCurrencyId: cur });
       }
       if (has(recGifts, "gifts") && giftsCat) {
         const cur = getItemCurrency("rec.gifts");
-        recurrentSelections.push({ categoryId: giftsCat.id, description: "Holiday Gifts", amountUsd: toUsdAmount(recUsd.gifts ?? "", cur, getItemRate("rec.gifts")), currencyId: cur });
+        recurrentSelections.push({ categoryId: giftsCat.id, description: "Holiday Gifts", amountUsd: toUsdAmount(recUsd.gifts ?? "", cur, getItemRate("rec.gifts")), defaultCurrencyId: cur });
       }
       if (has(recDonations, "donations") && giftsCat) {
         const cur = getItemCurrency("rec.donations");
-        recurrentSelections.push({ categoryId: giftsCat.id, description: "Donations / Raffles", amountUsd: toUsdAmount(recUsd.donations ?? "", cur, getItemRate("rec.donations")), currencyId: cur });
+        recurrentSelections.push({ categoryId: giftsCat.id, description: "Donations / Raffles", amountUsd: toUsdAmount(recUsd.donations ?? "", cur, getItemRate("rec.donations")), defaultCurrencyId: cur });
       }
       if (has(recSports, "sports") && sportsCat) {
         const cur = getItemCurrency("rec.sports");
-        recurrentSelections.push({ categoryId: sportsCat.id, description: "Tenis, Surf, Football / Others", amountUsd: toUsdAmount(recUsd.sports ?? "", cur, getItemRate("rec.sports")), currencyId: cur });
+        recurrentSelections.push({ categoryId: sportsCat.id, description: "Tenis, Surf, Football / Others", amountUsd: toUsdAmount(recUsd.sports ?? "", cur, getItemRate("rec.sports")), defaultCurrencyId: cur });
       }
       if (has(recRestaurants, "restaurants") && diningCat) {
         const cur = getItemCurrency("rec.restaurants");
-        recurrentSelections.push({ categoryId: diningCat.id, description: "Restaurants", amountUsd: toUsdAmount(recUsd.restaurants ?? "", cur, getItemRate("rec.restaurants")), currencyId: cur });
+        recurrentSelections.push({ categoryId: diningCat.id, description: "Restaurants", amountUsd: toUsdAmount(recUsd.restaurants ?? "", cur, getItemRate("rec.restaurants")), defaultCurrencyId: cur });
       }
       if (has(recCafes, "cafes") && diningCat) {
         const cur = getItemCurrency("rec.cafes");
-        recurrentSelections.push({ categoryId: diningCat.id, description: "Coffee & Snacks", amountUsd: toUsdAmount(recUsd.cafes ?? "", cur, getItemRate("rec.cafes")), currencyId: cur });
+        recurrentSelections.push({ categoryId: diningCat.id, description: "Coffee & Snacks", amountUsd: toUsdAmount(recUsd.cafes ?? "", cur, getItemRate("rec.cafes")), defaultCurrencyId: cur });
       }
       if (has(recDelivery, "delivery") && diningCat) {
         const cur = getItemCurrency("rec.delivery");
-        recurrentSelections.push({ categoryId: diningCat.id, description: "Delivery", amountUsd: toUsdAmount(recUsd.delivery ?? "", cur, getItemRate("rec.delivery")), currencyId: cur });
+        recurrentSelections.push({ categoryId: diningCat.id, description: "Delivery", amountUsd: toUsdAmount(recUsd.delivery ?? "", cur, getItemRate("rec.delivery")), defaultCurrencyId: cur });
       }
       if (has(recEvents, "events") && diningCat) {
         const cur = getItemCurrency("rec.events");
-        recurrentSelections.push({ categoryId: diningCat.id, description: "Events & Concerts", amountUsd: toUsdAmount(recUsd.events ?? "", cur, getItemRate("rec.events")), currencyId: cur });
+        recurrentSelections.push({ categoryId: diningCat.id, description: "Events & Concerts", amountUsd: toUsdAmount(recUsd.events ?? "", cur, getItemRate("rec.events")), defaultCurrencyId: cur });
       }
-      const recurrentResults = await Promise.all(
-        recurrentSelections.map((selection) =>
-          createTemplate(selection.categoryId, selection.description, selection.amountUsd, selection.currencyId)
-        )
-      );
+      const recurrentResults = await upsertTemplatesBatch(recurrentSelections);
       for (const template of recurrentResults) if (template?.id) recurrentVisibleIds.push(template.id);
       // Visibility: only templates selected in THIS step (recurrent). First time → only these; re-run → keep already visible + these
       const { rows } = await api<{ rows: Array<{ id: string; categoryId: string; description: string; showInExpenses?: boolean }> }>("/admin/expenseTemplates");
       const allRows = Array.isArray(rows) ? rows : [];
-      // Fallback: add any recurrent template we selected but didn't get an id for (e.g. 409 path returned undefined)
-      const idsSet = new Set(recurrentVisibleIds);
-      for (const { categoryId, description } of recurrentSelections) {
-        const row = allRows.find((r) => r.categoryId === categoryId && (r.description ?? "").trim() === description);
-        if (row?.id && !idsSet.has(row.id)) {
-          idsSet.add(row.id);
-          recurrentVisibleIds.push(row.id);
-        }
-      }
       // Use ALL templates the user selected in the entire wizard (housing, transport, services, recurrent)
       const allSelectedIds = [...new Set([...selectedTemplateIdsRef.current, ...recurrentVisibleIds])];
       const alreadyVisible = allRows.filter((r) => r.showInExpenses !== false).map((r) => r.id);
