@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAppShell } from "../layout/AppShell";
@@ -9,6 +9,55 @@ import { runKeyRotation } from "../utils/keyRotation";
 import { exportKeyToBase64 } from "../utils/crypto";
 import { getMigrationStatus, runMigration, type MigrationStatus as MigrationStatusType, type MigrationResult } from "../utils/migrateToE2EE";
 import { buildCountryOptions, isValidCountryCode } from "../utils/countries";
+
+type DLocalCardField = {
+  mount: (element: HTMLElement | string) => void;
+  destroy?: () => void;
+  unmount?: () => void;
+};
+
+type DLocalFieldsFactory = {
+  create: (fieldType: "card", options?: Record<string, unknown>) => DLocalCardField;
+};
+
+type DLocalSdkInstance = {
+  fields: (options?: Record<string, unknown>) => DLocalFieldsFactory;
+  createToken: (field: DLocalCardField, data?: Record<string, unknown>) => Promise<{ token?: string }>;
+};
+
+declare global {
+  interface Window {
+    dlocal?: (key: string) => DLocalSdkInstance;
+  }
+}
+
+let dlocalScriptPromise: Promise<void> | null = null;
+
+function getDLocalScriptSrc(environment: "sandbox" | "production") {
+  return environment === "sandbox" ? "https://js-sandbox.dlocal.com/" : "https://js.dlocal.com/";
+}
+
+function ensureDLocalScript(environment: "sandbox" | "production") {
+  const src = getDLocalScriptSrc(environment);
+  if (window.dlocal) return Promise.resolve();
+  if (dlocalScriptPromise) return dlocalScriptPromise;
+  dlocalScriptPromise = new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[data-dlocal-sdk=\"${environment}\"]`);
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Failed to load dLocal SDK")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.dataset.dlocalSdk = environment;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load dLocal SDK"));
+    document.head.appendChild(script);
+  });
+  return dlocalScriptPromise;
+}
 
 function ChangePasswordCard({
   showTitle = true,
@@ -122,6 +171,11 @@ type BillingSummary = {
   integrationReady: boolean;
   checkoutReady: boolean;
   customerPortalReady: boolean;
+  smartFields: {
+    ready: boolean;
+    key: string | null;
+    environment: "sandbox" | "production";
+  };
   planCode: "EARLY_STAGE" | "PRO_EARLY_ANNUAL" | "LEGACY_FREE" | "PRO_MONTHLY";
   subscriptionStatus:
     | "active"
@@ -137,6 +191,7 @@ type BillingSummary = {
   planEndsAt: string | null;
   graceEndsAt: string | null;
   cancelAtPeriodEnd: boolean;
+  canCancelCurrentSubscription: boolean;
   price: {
     amountMinor: number;
     currencyCode: "USD";
@@ -175,6 +230,12 @@ export default function AccountPage() {
   const [billingError, setBillingError] = useState("");
   const [billingCheckoutLoading, setBillingCheckoutLoading] = useState<null | "PRO_EARLY_ANNUAL" | "PRO_MONTHLY">(null);
   const [billingCheckoutError, setBillingCheckoutError] = useState("");
+  const [billingCardholderName, setBillingCardholderName] = useState("");
+  const [billingCardReady, setBillingCardReady] = useState(false);
+  const [billingCancelLoading, setBillingCancelLoading] = useState(false);
+  const billingCardHostRef = useRef<HTMLDivElement | null>(null);
+  const billingCardFieldRef = useRef<DLocalCardField | null>(null);
+  const billingDLocalRef = useRef<DLocalSdkInstance | null>(null);
 
   const [migrationStatus, setMigrationStatus] = useState<MigrationStatusType | null>(null);
   const [migrationStatusLoading, setMigrationStatusLoading] = useState(false);
@@ -275,18 +336,91 @@ export default function AccountPage() {
   const billingCurrentPlanNote = billingIsSuperAdminBypass || !billing
     ? ""
     : billing.planCode === "PRO_MONTHLY"
-      ? t("account.billingMonthlyCurrentNote", { price: billingPrice })
+      ? billing.cancelAtPeriodEnd
+        ? t("account.billingMonthlyCancellationScheduled", { date: formatBillingDate(billing.planEndsAt) })
+        : t("account.billingMonthlyCurrentNote", { price: billingPrice })
       : billing.planCode === "PRO_EARLY_ANNUAL"
         ? t("account.billingAnnualCurrentNote", { price: billingPrice })
         : "";
+  const shouldRenderMonthlyCardForm =
+    !!billing &&
+    !billingIsSuperAdminBypass &&
+    !hasPaidPlan &&
+    !!billingMonthlyOffer &&
+    !!billing.smartFields.ready &&
+    !!billing.smartFields.key;
 
   useEffect(() => {
     setPhone(me?.phone ?? "");
     setFirstName(me?.firstName ?? "");
     setLastName(me?.lastName ?? "");
+    const nextCardholder = [String(me?.firstName ?? "").trim(), String(me?.lastName ?? "").trim()].filter(Boolean).join(" ");
+    setBillingCardholderName(nextCardholder || String(me?.email ?? ""));
     const nextCountry = String(me?.country ?? "").toUpperCase();
     setCountry(isValidCountryCode(nextCountry) ? nextCountry : "");
-  }, [me?.phone, me?.firstName, me?.lastName, me?.country]);
+  }, [me?.phone, me?.firstName, me?.lastName, me?.email, me?.country]);
+
+  useEffect(() => {
+    if (!shouldRenderMonthlyCardForm || !billingCardHostRef.current || !billing?.smartFields.key) {
+      billingCardFieldRef.current?.destroy?.();
+      billingCardFieldRef.current?.unmount?.();
+      billingCardFieldRef.current = null;
+      billingDLocalRef.current = null;
+      setBillingCardReady(false);
+      return;
+    }
+
+    let cancelled = false;
+    setBillingCardReady(false);
+
+    ensureDLocalScript(billing.smartFields.environment)
+      .then(() => {
+        if (cancelled || !window.dlocal || !billingCardHostRef.current || !billing?.smartFields.key) return;
+        const sdk = window.dlocal(billing.smartFields.key);
+        const fields = sdk.fields({
+          locale: (i18n.language || "es").startsWith("es") ? "es" : "en",
+          country: country || (isValidCountryCode(String(me?.country ?? "").toUpperCase()) ? String(me?.country).toUpperCase() : "UY"),
+        });
+        const field = fields.create("card", {
+          style: {
+            base: {
+              fontSize: "16px",
+              color: "#0f172a",
+              fontFamily: "inherit",
+            },
+          },
+        });
+        billingCardHostRef.current.innerHTML = "";
+        field.mount(billingCardHostRef.current);
+        billingDLocalRef.current = sdk;
+        billingCardFieldRef.current = field;
+        setBillingCardReady(true);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setBillingCheckoutError(err instanceof Error ? err.message : t("account.billingSmartFieldsUnavailable"));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      billingCardFieldRef.current?.destroy?.();
+      billingCardFieldRef.current?.unmount?.();
+      billingCardFieldRef.current = null;
+      billingDLocalRef.current = null;
+      if (billingCardHostRef.current) {
+        billingCardHostRef.current.innerHTML = "";
+      }
+    };
+  }, [
+    shouldRenderMonthlyCardForm,
+    billing?.smartFields.key,
+    billing?.smartFields.environment,
+    i18n.language,
+    country,
+    me?.country,
+    t,
+  ]);
 
   async function onProfileSave(e: React.FormEvent) {
     e.preventDefault();
@@ -406,20 +540,56 @@ export default function AccountPage() {
     }
   }
 
-  async function onStartCheckout(planCode: "PRO_EARLY_ANNUAL" | "PRO_MONTHLY") {
+  async function onStartMonthlySubscription() {
+    if (!billingCardFieldRef.current || !billingDLocalRef.current) {
+      setBillingCheckoutError(t("account.billingSmartFieldsUnavailable"));
+      return;
+    }
+    if (!billingCardholderName.trim()) {
+      setBillingCheckoutError(t("account.billingCardholderRequired"));
+      return;
+    }
+
     setBillingCheckoutError("");
-    setBillingCheckoutLoading(planCode);
+    setBillingCheckoutLoading("PRO_MONTHLY");
     try {
-      const resp = await api<{ ok: true; redirectUrl: string }>("/billing/checkout", {
-        method: "POST",
-        body: JSON.stringify({ planCode }),
+      const tokenResult = await billingDLocalRef.current.createToken(billingCardFieldRef.current, {
+        name: billingCardholderName.trim(),
+        currency: "USD",
       });
-      if (!resp?.redirectUrl) throw new Error(t("account.billingCheckoutUnavailable"));
-      window.location.href = resp.redirectUrl;
+      const cardToken = String(tokenResult?.token ?? "").trim();
+      if (!cardToken) {
+        throw new Error(t("account.billingTokenizeFailed"));
+      }
+
+      const resp = await api<{ ok: true; paymentStatus: string; billing: BillingSummary }>("/billing/subscribe", {
+        method: "POST",
+        body: JSON.stringify({
+          planCode: "PRO_MONTHLY",
+          cardToken,
+        }),
+      });
+
+      setBilling(resp.billing);
     } catch (err: unknown) {
       setBillingCheckoutError(err instanceof Error ? err.message : t("account.billingCheckoutUnavailable"));
     } finally {
       setBillingCheckoutLoading(null);
+    }
+  }
+
+  async function onCancelSubscription() {
+    setBillingCheckoutError("");
+    setBillingCancelLoading(true);
+    try {
+      const resp = await api<{ ok: true; billing: BillingSummary }>("/billing/cancel", {
+        method: "POST",
+      });
+      setBilling(resp.billing);
+    } catch (err: unknown) {
+      setBillingCheckoutError(err instanceof Error ? err.message : t("account.billingCancelFailed"));
+    } finally {
+      setBillingCancelLoading(false);
     }
   }
 
@@ -622,21 +792,71 @@ export default function AccountPage() {
                 <p style={{ marginTop: 12, marginBottom: 0, lineHeight: 1.55 }}>{billingMonthlyPitch}</p>
               )}
               {!billingIsSuperAdminBypass && !hasPaidPlan && billingMonthlyOffer && (
+                <div style={{ marginTop: 16 }}>
+                  {shouldRenderMonthlyCardForm ? (
+                    <>
+                      <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>{t("account.billingCardholderLabel")}</div>
+                      <input
+                        className="input"
+                        value={billingCardholderName}
+                        onChange={(e) => setBillingCardholderName(e.target.value)}
+                        placeholder={t("account.billingCardholderPlaceholder")}
+                        autoComplete="cc-name"
+                      />
+                      <div style={{ fontWeight: 700, fontSize: 13, marginTop: 12, marginBottom: 8 }}>{t("account.billingCardLabel")}</div>
+                      <div
+                        ref={billingCardHostRef}
+                        style={{
+                          minHeight: 52,
+                          borderRadius: 14,
+                          border: "1px solid rgba(15,23,42,0.12)",
+                          background: "rgba(255,255,255,0.95)",
+                          padding: "14px 16px",
+                        }}
+                      />
+                      <p className="muted" style={{ marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
+                        {t("account.billingRecurringConsent", {
+                          price: formatBillingAmount(billingMonthlyOffer.amountMinor, billingMonthlyOffer.currencyCode),
+                        })}
+                      </p>
+                      <button
+                        type="button"
+                        className="btn primary"
+                        onClick={onStartMonthlySubscription}
+                        disabled={billingCheckoutLoading === "PRO_MONTHLY" || !billingCardReady}
+                        style={{ marginTop: 14, width: "100%" }}
+                      >
+                        {billingCheckoutLoading === "PRO_MONTHLY" ? t("account.billingOfferLoading") : t("account.billingMonthlyCta")}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn primary"
+                      disabled
+                      style={{
+                        marginTop: 0,
+                        width: "100%",
+                        background: "rgba(148,163,184,0.22)",
+                        borderColor: "rgba(148,163,184,0.34)",
+                        color: "rgba(51,65,85,0.9)",
+                        cursor: "not-allowed",
+                      }}
+                    >
+                      {t("account.billingMonthlyCta")}
+                    </button>
+                  )}
+                </div>
+              )}
+              {!billingIsSuperAdminBypass && billing.canCancelCurrentSubscription && (
                 <button
                   type="button"
-                  className="btn primary"
-                  onClick={() => onStartCheckout("PRO_MONTHLY")}
-                  disabled={billingCheckoutLoading === "PRO_MONTHLY" || !billingMonthlyOffer.enabled}
-                  style={{
-                    marginTop: 14,
-                    width: "100%",
-                    background: billingMonthlyOffer.enabled ? undefined : "rgba(148,163,184,0.22)",
-                    borderColor: billingMonthlyOffer.enabled ? undefined : "rgba(148,163,184,0.34)",
-                    color: billingMonthlyOffer.enabled ? undefined : "rgba(51,65,85,0.9)",
-                    cursor: billingMonthlyOffer.enabled ? undefined : "not-allowed",
-                  }}
+                  className="btn"
+                  onClick={onCancelSubscription}
+                  disabled={billingCancelLoading}
+                  style={{ marginTop: 14, width: "100%" }}
                 >
-                  {billingCheckoutLoading === "PRO_MONTHLY" ? t("account.billingOfferLoading") : t("account.billingMonthlyCta")}
+                  {billingCancelLoading ? t("account.billingCancelLoading") : t("account.billingCancelCta")}
                 </button>
               )}
               {billing.subscriptionStatus === "past_due" && billing.graceEndsAt && (
