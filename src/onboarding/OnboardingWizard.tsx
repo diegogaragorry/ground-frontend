@@ -400,111 +400,40 @@ export function OnboardingWizard(props: {
     const now = new Date();
     const year = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
-    const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
-    const previousMonthYear = currentMonth === 1 ? year - 1 : year;
     try {
-      const monthRange = Array.from({ length: 12 - currentMonth + 1 }, (_, idx) => currentMonth + idx);
-      const tasks: Array<Promise<unknown>> = [];
-      if (incomeWork) {
-        tasks.push((async () => {
-          const workCur = getItemCurrency("income.work");
-          const workRate = getItemRate("income.work");
-          const nominalUsd = toUsdAmount(incomeWorkUsd, workCur, workRate);
-          if (nominalUsd === null || nominalUsd < 0) return;
-          if (incomeWorkType === "nominal") {
-            const taxesUsd = toUsdAmount(incomeWorkTaxes, workCur, workRate) ?? 0;
-            await Promise.all(
-              monthRange.map((m) =>
-                api("/income", { method: "POST", body: JSON.stringify({ year, month: m, nominalUsd, taxesUsd }) })
-              )
-            );
-            return;
-          }
-          await Promise.all(
-            monthRange.map((m) =>
-              api("/income", { method: "POST", body: JSON.stringify({ year, month: m, amountUsd: nominalUsd }) })
-            )
-          );
-        })());
-      }
-      if (incomeSavings) {
-        tasks.push((async () => {
-          const savingsCur = getItemCurrency("income.savings");
-          const savingsRate = getItemRate("income.savings");
-          const savingsUsd = toUsdAmount(incomeSavingsUsd, savingsCur, savingsRate);
-          const existingInvs = await api<Array<{ id: string; type: string; currencyId?: string }>>("/investments").catch(() => []);
-          const account = Array.isArray(existingInvs) ? existingInvs.find((i) => i.type === "ACCOUNT") : null;
-          let bankAccountId: string | null = null;
-          if (account) {
-            bankAccountId = account.id;
-            await api(`/investments/${account.id}`, {
-              method: "PUT",
-              body: JSON.stringify({ currencyId: String(savingsCur).trim().toUpperCase() }),
-            });
-          } else {
-            const created = await api<{ id: string }>("/investments", {
-              method: "POST",
-              body: JSON.stringify({
-                name: t("investments.defaultBankAccountName"),
-                type: "ACCOUNT",
-                currencyId: savingsCur,
-                targetAnnualReturn: 0,
-                yieldStartYear: year,
-                yieldStartMonth: currentMonth,
-              }),
-            });
-            bankAccountId = created.id;
-          }
-          const capitalInCurrency = savingsCur === "UYU" ? Number(incomeSavingsUsd) || 0 : (savingsUsd ?? 0);
-          if (bankAccountId && Number.isFinite(capitalInCurrency) && capitalInCurrency >= 0) {
-            const body: { closingCapital: number; usdUyuRate?: number } = { closingCapital: capitalInCurrency };
-            if (savingsCur === "UYU" && Number.isFinite(savingsRate) && savingsRate > 0) body.usdUyuRate = savingsRate;
-            await api(`/investments/${bankAccountId}/snapshots/${year}/${currentMonth}`, {
-              method: "PUT",
-              body: JSON.stringify(body),
-            });
-          }
-        })());
-      }
-      const validInvs = investmentsList.filter((i) => i.name.trim());
-      tasks.push(
-        ...validInvs.map((inv) => (async () => {
-          const created = await api<{ id: string }>("/investments", {
-            method: "POST",
-            body: JSON.stringify({
+      const workCur = getItemCurrency("income.work");
+      const workRate = getItemRate("income.work");
+      const savingsCur = getItemCurrency("income.savings");
+      const savingsRate = getItemRate("income.savings");
+      await api("/auth/me/onboarding/finalize", {
+        method: "POST",
+        body: JSON.stringify({
+          year,
+          currentMonth,
+          incomeWork: {
+            enabled: incomeWork,
+            type: incomeWorkType,
+            amountUsd: toUsdAmount(incomeWorkUsd, workCur, workRate),
+            taxesUsd: incomeWorkType === "nominal" ? (toUsdAmount(incomeWorkTaxes, workCur, workRate) ?? 0) : 0,
+          },
+          savings: {
+            enabled: incomeSavings,
+            accountName: t("investments.defaultBankAccountName"),
+            currencyId: savingsCur,
+            capital: Number(incomeSavingsUsd) || 0,
+            usdUyuRate: savingsCur === "UYU" ? savingsRate : undefined,
+          },
+          investments: investmentsList
+            .filter((i) => i.name.trim())
+            .map((inv) => ({
               name: inv.name.trim(),
-              type: "PORTFOLIO",
               currencyId: inv.currencyId,
+              capital: Number(inv.amountUsd) || 0,
               targetAnnualReturn: (Number(inv.returnPct) || 0) / 100,
-              yieldStartYear: year,
-              yieldStartMonth: currentMonth,
-            }),
-          });
-          const amount = Number(inv.amountUsd);
-          if (Number.isFinite(amount) && amount >= 0) {
-            const snapshotBody: { closingCapital: number; usdUyuRate?: number } = { closingCapital: amount };
-            if (inv.currencyId === "UYU") snapshotBody.usdUyuRate = getItemRate("income.savings");
-            await api(`/investments/${created.id}/snapshots/${year}/${currentMonth}`, {
-              method: "PUT",
-              body: JSON.stringify(snapshotBody),
-            });
-            if (amount > 0) {
-              const movementDate = new Date(Date.UTC(previousMonthYear, previousMonth - 1, 1, 0, 0, 0)).toISOString();
-              await api("/investments/movements", {
-                method: "POST",
-                body: JSON.stringify({
-                  investmentId: created.id,
-                  date: movementDate,
-                  type: "deposit",
-                  currencyId: inv.currencyId,
-                  amount,
-                }),
-              });
-            }
-          }
-        })())
-      );
-      await Promise.all(tasks);
+              usdUyuRate: inv.currencyId === "UYU" ? getItemRate("income.savings") : undefined,
+            })),
+        }),
+      });
       setStep(7);
     } catch (e: any) {
       setError(e?.message ?? t("common.errorSaving"));
