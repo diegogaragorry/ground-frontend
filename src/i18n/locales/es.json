@@ -421,6 +421,8 @@
     "monthStoredNote": "Los montos se muestran sin decimales.",
     "errorConfirmingDraft": "Error al confirmar borrador",
     "allDraftsConfirmed": "Todos los borradores confirmados.",
+    "someDraftsConfirmed": "{{confirmed}} borradores confirmados. {{failed}} siguen pendientes y requieren revisión.",
+    "noDraftsConfirmed": "No se pudo confirmar ningún borrador. Revisá los montos pendientes.",
     "errorConfirmingDrafts": "Error al confirmar borradores",
     "usd": "USD"
   },

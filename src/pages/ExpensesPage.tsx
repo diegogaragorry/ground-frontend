@@ -631,17 +631,37 @@ export default function ExpensesPage() {
         })
       );
 
-      await api("/plannedExpenses/confirm-batch", {
+      const result = await api<{
+        count: number;
+        failedCount?: number;
+        rows: Array<{ id: string; expenseId: string; alreadyConfirmed?: boolean }>;
+        failed?: Array<{ id: string; error: string }>;
+      }>("/plannedExpenses/confirm-batch", {
         method: "POST",
         body: JSON.stringify({ items }),
       });
 
+      const confirmedIds = new Set((result.rows ?? []).map((row) => row.id));
       for (const item of items) {
-        if ((item as any).patch) clearPlannedDraft(item.id);
+        if (confirmedIds.has(item.id) && (item as any).patch) clearPlannedDraft(item.id);
       }
       await loadPageData();
-      setInfo(t("expenses.allDraftsConfirmed"));
-      showSuccess(t("expenses.allDraftsConfirmed"));
+
+      if ((result.failedCount ?? 0) > 0) {
+        if ((result.count ?? 0) > 0) {
+          const msg = t("expenses.someDraftsConfirmed", {
+            confirmed: result.count,
+            failed: result.failedCount ?? 0,
+          });
+          setInfo(msg);
+          showSuccess(msg);
+        } else {
+          setError(t("expenses.noDraftsConfirmed"));
+        }
+      } else {
+        setInfo(t("expenses.allDraftsConfirmed"));
+        showSuccess(t("expenses.allDraftsConfirmed"));
+      }
     } catch (err: any) {
       setError(err?.message ?? t("expenses.errorConfirmingDrafts"));
     } finally {

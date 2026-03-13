@@ -421,6 +421,8 @@
     "monthStoredNote": "Amounts are displayed without decimals.",
     "errorConfirmingDraft": "Error confirming draft",
     "allDraftsConfirmed": "All drafts confirmed.",
+    "someDraftsConfirmed": "{{confirmed}} drafts confirmed. {{failed}} still need review.",
+    "noDraftsConfirmed": "No drafts could be confirmed. Review the pending amounts.",
     "errorConfirmingDrafts": "Error confirming drafts",
     "usd": "USD"
   },
