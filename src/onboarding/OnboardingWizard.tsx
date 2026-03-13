@@ -182,22 +182,24 @@ export function OnboardingWizard(props: {
     selectedTemplateIdsRef.current = [];
     try {
       const housingId = await ensureCategory("Housing", "FIXED");
+      const tasks: Array<Promise<unknown>> = [];
       if (housingRent) {
         const cur = getItemCurrency("housing.rent");
-        await createTemplate(housingId, "Rent", toUsdAmount(housingRentUsd, cur, getItemRate("housing.rent")), cur);
+        tasks.push(createTemplate(housingId, "Rent", toUsdAmount(housingRentUsd, cur, getItemRate("housing.rent")), cur));
       }
       if (housingMortgage) {
         const cur = getItemCurrency("housing.mortgage");
-        await createTemplate(housingId, "Mortgage", toUsdAmount(housingMortgageUsd, cur, getItemRate("housing.mortgage")), cur);
+        tasks.push(createTemplate(housingId, "Mortgage", toUsdAmount(housingMortgageUsd, cur, getItemRate("housing.mortgage")), cur));
       }
       if (housingFees) {
         const cur = getItemCurrency("housing.fees");
-        await createTemplate(housingId, "Building Fees", toUsdAmount(housingFeesUsd, cur, getItemRate("housing.fees")), cur);
+        tasks.push(createTemplate(housingId, "Building Fees", toUsdAmount(housingFeesUsd, cur, getItemRate("housing.fees")), cur));
       }
       if (housingTaxes) {
         const cur = getItemCurrency("housing.taxes");
-        await createTemplate(housingId, "Property Taxes", toUsdAmount(housingTaxesUsd, cur, getItemRate("housing.taxes")), cur);
+        tasks.push(createTemplate(housingId, "Property Taxes", toUsdAmount(housingTaxesUsd, cur, getItemRate("housing.taxes")), cur));
       }
+      await Promise.all(tasks);
       setStep(2);
     } catch (e: any) {
       setError(e?.message ?? t("common.errorSaving"));
@@ -211,18 +213,20 @@ export function OnboardingWizard(props: {
     setLoading(true);
     try {
       const transportId = await ensureCategory("Transport", "VARIABLE");
+      const tasks: Array<Promise<unknown>> = [];
       if (transportVehicle) {
         const cur = getItemCurrency("transport.vehicle");
-        await createTemplate(transportId, "Fuel", toUsdAmount(transportVehicleUsd, cur, getItemRate("transport.vehicle")), cur);
+        tasks.push(createTemplate(transportId, "Fuel", toUsdAmount(transportVehicleUsd, cur, getItemRate("transport.vehicle")), cur));
       }
       if (transportPublic) {
         const cur = getItemCurrency("transport.public");
-        await createTemplate(transportId, "Public Transport", toUsdAmount(transportPublicUsd, cur, getItemRate("transport.public")), cur);
+        tasks.push(createTemplate(transportId, "Public Transport", toUsdAmount(transportPublicUsd, cur, getItemRate("transport.public")), cur));
       }
       if (transportTaxi) {
         const cur = getItemCurrency("transport.taxi");
-        await createTemplate(transportId, "Ride Sharing / Taxis", toUsdAmount(transportTaxiUsd, cur, getItemRate("transport.taxi")), cur);
+        tasks.push(createTemplate(transportId, "Ride Sharing / Taxis", toUsdAmount(transportTaxiUsd, cur, getItemRate("transport.taxi")), cur));
       }
+      await Promise.all(tasks);
       setStep(3);
     } catch (e: any) {
       setError(e?.message ?? t("common.errorSaving"));
@@ -237,42 +241,44 @@ export function OnboardingWizard(props: {
     try {
       const utilitiesCat = findCategory(categories, "Utilities", "FIXED");
       const connectivityCat = findCategory(categories, "Connectivity", "FIXED");
+      const tasks: Array<Promise<unknown>> = [];
       if (utilitiesCat) {
         if (svcElectricity) {
           const cur = getItemCurrency("svc.electricity");
-          await createTemplate(utilitiesCat.id, "Electricity", toUsdAmount(svcUsd.electricity ?? "", cur, getItemRate("svc.electricity")), cur);
+          tasks.push(createTemplate(utilitiesCat.id, "Electricity", toUsdAmount(svcUsd.electricity ?? "", cur, getItemRate("svc.electricity")), cur));
         }
         if (svcWater) {
           const cur = getItemCurrency("svc.water");
-          await createTemplate(utilitiesCat.id, "Water", toUsdAmount(svcUsd.water ?? "", cur, getItemRate("svc.water")), cur);
+          tasks.push(createTemplate(utilitiesCat.id, "Water", toUsdAmount(svcUsd.water ?? "", cur, getItemRate("svc.water")), cur));
         }
         if (svcGas) {
           const cur = getItemCurrency("svc.gas");
-          await createTemplate(utilitiesCat.id, "Gas", toUsdAmount(svcUsd.gas ?? "", cur, getItemRate("svc.gas")), cur);
+          tasks.push(createTemplate(utilitiesCat.id, "Gas", toUsdAmount(svcUsd.gas ?? "", cur, getItemRate("svc.gas")), cur));
         }
       }
       if (connectivityCat) {
         if (svcInternet) {
           const cur = getItemCurrency("svc.internet");
-          await createTemplate(connectivityCat.id, "Internet / Fiber", toUsdAmount(svcUsd.internet ?? "", cur, getItemRate("svc.internet")), cur);
+          tasks.push(createTemplate(connectivityCat.id, "Internet / Fiber", toUsdAmount(svcUsd.internet ?? "", cur, getItemRate("svc.internet")), cur));
         }
         if (svcMobile) {
           const cur = getItemCurrency("svc.mobile");
-          await createTemplate(connectivityCat.id, "Mobile Phone", toUsdAmount(svcUsd.mobile ?? "", cur, getItemRate("svc.mobile")), cur);
+          tasks.push(createTemplate(connectivityCat.id, "Mobile Phone", toUsdAmount(svcUsd.mobile ?? "", cur, getItemRate("svc.mobile")), cur));
         }
         if (svcTV) {
           const cur = getItemCurrency("svc.tv");
-          await createTemplate(connectivityCat.id, "TV / Cable", toUsdAmount(svcUsd.tv ?? "", cur, getItemRate("svc.tv")), cur);
+          tasks.push(createTemplate(connectivityCat.id, "TV / Cable", toUsdAmount(svcUsd.tv ?? "", cur, getItemRate("svc.tv")), cur));
         }
         if (svcStreaming) {
           const cur = getItemCurrency("svc.streaming");
-          await createTemplate(connectivityCat.id, "Streaming Services", toUsdAmount(svcUsd.streaming ?? "", cur, getItemRate("svc.streaming")), cur);
+          tasks.push(createTemplate(connectivityCat.id, "Streaming Services", toUsdAmount(svcUsd.streaming ?? "", cur, getItemRate("svc.streaming")), cur));
         }
         if (svcOtherOnline) {
           const cur = getItemCurrency("svc.otherOnline");
-          await createTemplate(connectivityCat.id, "Other online (Spotify, etc.)", toUsdAmount(svcUsd.otherOnline ?? "", cur, getItemRate("svc.otherOnline")), cur);
+          tasks.push(createTemplate(connectivityCat.id, "Other online (Spotify, etc.)", toUsdAmount(svcUsd.otherOnline ?? "", cur, getItemRate("svc.otherOnline")), cur));
         }
       }
+      await Promise.all(tasks);
       setStep(4);
     } catch (e: any) {
       setError(e?.message ?? t("common.errorSaving"));
@@ -291,30 +297,32 @@ export function OnboardingWizard(props: {
     setError("");
     setLoading(true);
     try {
+      const tasks: Array<Promise<unknown>> = [];
       if (healthCat) {
         if (healthInsurance) {
           const cur = getItemCurrency("health.insurance");
-          await createTemplate(healthCat.id, "Private Health Insurance", toUsdAmount(healthUsd.insurance ?? "", cur, getItemRate("health.insurance")), cur);
+          tasks.push(createTemplate(healthCat.id, "Private Health Insurance", toUsdAmount(healthUsd.insurance ?? "", cur, getItemRate("health.insurance")), cur));
         }
         if (healthGym) {
           const cur = getItemCurrency("health.gym");
-          await createTemplate(healthCat.id, "Gym Membership", toUsdAmount(healthUsd.gym ?? "", cur, getItemRate("health.gym")), cur);
+          tasks.push(createTemplate(healthCat.id, "Gym Membership", toUsdAmount(healthUsd.gym ?? "", cur, getItemRate("health.gym")), cur));
         }
       }
       if (wellnessCat) {
         if (healthPharmacy) {
           const cur = getItemCurrency("health.pharmacy");
-          await createTemplate(wellnessCat.id, "Pharmacy", toUsdAmount(healthUsd.pharmacy ?? "", cur, getItemRate("health.pharmacy")), cur);
+          tasks.push(createTemplate(wellnessCat.id, "Pharmacy", toUsdAmount(healthUsd.pharmacy ?? "", cur, getItemRate("health.pharmacy")), cur));
         }
         if (healthPersonal) {
           const cur = getItemCurrency("health.personal");
-          await createTemplate(wellnessCat.id, "Personal Care", toUsdAmount(healthUsd.personal ?? "", cur, getItemRate("health.personal")), cur);
+          tasks.push(createTemplate(wellnessCat.id, "Personal Care", toUsdAmount(healthUsd.personal ?? "", cur, getItemRate("health.personal")), cur));
         }
         if (healthDental) {
           const cur = getItemCurrency("health.dental");
-          await createTemplate(wellnessCat.id, "Psychologist", toUsdAmount(healthUsd.dental ?? "", cur, getItemRate("health.dental")), cur);
+          tasks.push(createTemplate(wellnessCat.id, "Psychologist", toUsdAmount(healthUsd.dental ?? "", cur, getItemRate("health.dental")), cur));
         }
       }
+      await Promise.all(tasks);
       setStep(5);
     } catch (e: any) {
       setError(e?.message ?? t("common.errorSaving"));
@@ -334,61 +342,51 @@ export function OnboardingWizard(props: {
     // Consider selected if checkbox is checked OR user entered an amount (so "completed" = visible)
     const has = (rec: boolean, key: string) => rec || String(recUsd[key] ?? "").trim() !== "";
     try {
+      const recurrentSelections: Array<{ categoryId: string; description: string; amountUsd: number | null; currencyId: "UYU" | "USD" }> = [];
       if (has(recGroceries, "groceries") && foodCat) {
         const cur = getItemCurrency("rec.groceries");
-        const t = await createTemplate(foodCat.id, "Groceries", toUsdAmount(recUsd.groceries ?? "", cur, getItemRate("rec.groceries")), cur);
-        if (t?.id) recurrentVisibleIds.push(t.id);
+        recurrentSelections.push({ categoryId: foodCat.id, description: "Groceries", amountUsd: toUsdAmount(recUsd.groceries ?? "", cur, getItemRate("rec.groceries")), currencyId: cur });
       }
       if (has(recGifts, "gifts") && giftsCat) {
         const cur = getItemCurrency("rec.gifts");
-        const t = await createTemplate(giftsCat.id, "Holiday Gifts", toUsdAmount(recUsd.gifts ?? "", cur, getItemRate("rec.gifts")), cur);
-        if (t?.id) recurrentVisibleIds.push(t.id);
+        recurrentSelections.push({ categoryId: giftsCat.id, description: "Holiday Gifts", amountUsd: toUsdAmount(recUsd.gifts ?? "", cur, getItemRate("rec.gifts")), currencyId: cur });
       }
       if (has(recDonations, "donations") && giftsCat) {
         const cur = getItemCurrency("rec.donations");
-        const t = await createTemplate(giftsCat.id, "Donations / Raffles", toUsdAmount(recUsd.donations ?? "", cur, getItemRate("rec.donations")), cur);
-        if (t?.id) recurrentVisibleIds.push(t.id);
+        recurrentSelections.push({ categoryId: giftsCat.id, description: "Donations / Raffles", amountUsd: toUsdAmount(recUsd.donations ?? "", cur, getItemRate("rec.donations")), currencyId: cur });
       }
       if (has(recSports, "sports") && sportsCat) {
         const cur = getItemCurrency("rec.sports");
-        const t = await createTemplate(sportsCat.id, "Tenis, Surf, Football / Others", toUsdAmount(recUsd.sports ?? "", cur, getItemRate("rec.sports")), cur);
-        if (t?.id) recurrentVisibleIds.push(t.id);
+        recurrentSelections.push({ categoryId: sportsCat.id, description: "Tenis, Surf, Football / Others", amountUsd: toUsdAmount(recUsd.sports ?? "", cur, getItemRate("rec.sports")), currencyId: cur });
       }
       if (has(recRestaurants, "restaurants") && diningCat) {
         const cur = getItemCurrency("rec.restaurants");
-        const t = await createTemplate(diningCat.id, "Restaurants", toUsdAmount(recUsd.restaurants ?? "", cur, getItemRate("rec.restaurants")), cur);
-        if (t?.id) recurrentVisibleIds.push(t.id);
+        recurrentSelections.push({ categoryId: diningCat.id, description: "Restaurants", amountUsd: toUsdAmount(recUsd.restaurants ?? "", cur, getItemRate("rec.restaurants")), currencyId: cur });
       }
       if (has(recCafes, "cafes") && diningCat) {
         const cur = getItemCurrency("rec.cafes");
-        const t = await createTemplate(diningCat.id, "Coffee & Snacks", toUsdAmount(recUsd.cafes ?? "", cur, getItemRate("rec.cafes")), cur);
-        if (t?.id) recurrentVisibleIds.push(t.id);
+        recurrentSelections.push({ categoryId: diningCat.id, description: "Coffee & Snacks", amountUsd: toUsdAmount(recUsd.cafes ?? "", cur, getItemRate("rec.cafes")), currencyId: cur });
       }
       if (has(recDelivery, "delivery") && diningCat) {
         const cur = getItemCurrency("rec.delivery");
-        const t = await createTemplate(diningCat.id, "Delivery", toUsdAmount(recUsd.delivery ?? "", cur, getItemRate("rec.delivery")), cur);
-        if (t?.id) recurrentVisibleIds.push(t.id);
+        recurrentSelections.push({ categoryId: diningCat.id, description: "Delivery", amountUsd: toUsdAmount(recUsd.delivery ?? "", cur, getItemRate("rec.delivery")), currencyId: cur });
       }
       if (has(recEvents, "events") && diningCat) {
         const cur = getItemCurrency("rec.events");
-        const t = await createTemplate(diningCat.id, "Events & Concerts", toUsdAmount(recUsd.events ?? "", cur, getItemRate("rec.events")), cur);
-        if (t?.id) recurrentVisibleIds.push(t.id);
+        recurrentSelections.push({ categoryId: diningCat.id, description: "Events & Concerts", amountUsd: toUsdAmount(recUsd.events ?? "", cur, getItemRate("rec.events")), currencyId: cur });
       }
+      const recurrentResults = await Promise.all(
+        recurrentSelections.map((selection) =>
+          createTemplate(selection.categoryId, selection.description, selection.amountUsd, selection.currencyId)
+        )
+      );
+      for (const template of recurrentResults) if (template?.id) recurrentVisibleIds.push(template.id);
       // Visibility: only templates selected in THIS step (recurrent). First time → only these; re-run → keep already visible + these
       const { rows } = await api<{ rows: Array<{ id: string; categoryId: string; description: string; showInExpenses?: boolean }> }>("/admin/expenseTemplates");
       const allRows = Array.isArray(rows) ? rows : [];
       // Fallback: add any recurrent template we selected but didn't get an id for (e.g. 409 path returned undefined)
-      const recurrentDescs: Array<{ categoryId: string; description: string }> = [];
-      if (foodCat && has(recGroceries, "groceries")) recurrentDescs.push({ categoryId: foodCat.id, description: "Groceries" });
-      if (giftsCat && has(recGifts, "gifts")) recurrentDescs.push({ categoryId: giftsCat.id, description: "Holiday Gifts" });
-      if (giftsCat && has(recDonations, "donations")) recurrentDescs.push({ categoryId: giftsCat.id, description: "Donations / Raffles" });
-      if (sportsCat && has(recSports, "sports")) recurrentDescs.push({ categoryId: sportsCat.id, description: "Tenis, Surf, Football / Others" });
-      if (diningCat && has(recRestaurants, "restaurants")) recurrentDescs.push({ categoryId: diningCat.id, description: "Restaurants" });
-      if (diningCat && has(recCafes, "cafes")) recurrentDescs.push({ categoryId: diningCat.id, description: "Coffee & Snacks" });
-      if (diningCat && has(recDelivery, "delivery")) recurrentDescs.push({ categoryId: diningCat.id, description: "Delivery" });
-      if (diningCat && has(recEvents, "events")) recurrentDescs.push({ categoryId: diningCat.id, description: "Events & Concerts" });
       const idsSet = new Set(recurrentVisibleIds);
-      for (const { categoryId, description } of recurrentDescs) {
+      for (const { categoryId, description } of recurrentSelections) {
         const row = allRows.find((r) => r.categoryId === categoryId && (r.description ?? "").trim() === description);
         if (row?.id && !idsSet.has(row.id)) {
           idsSet.add(row.id);
@@ -423,98 +421,108 @@ export function OnboardingWizard(props: {
     const previousMonth = currentMonth === 1 ? 12 : currentMonth - 1;
     const previousMonthYear = currentMonth === 1 ? year - 1 : year;
     try {
+      const monthRange = Array.from({ length: 12 - currentMonth + 1 }, (_, idx) => currentMonth + idx);
+      const tasks: Array<Promise<unknown>> = [];
       if (incomeWork) {
-        const workCur = getItemCurrency("income.work");
-        const workRate = getItemRate("income.work");
-        const nominalUsd = toUsdAmount(incomeWorkUsd, workCur, workRate);
-        if (nominalUsd !== null && nominalUsd >= 0) {
+        tasks.push((async () => {
+          const workCur = getItemCurrency("income.work");
+          const workRate = getItemRate("income.work");
+          const nominalUsd = toUsdAmount(incomeWorkUsd, workCur, workRate);
+          if (nominalUsd === null || nominalUsd < 0) return;
           if (incomeWorkType === "nominal") {
             const taxesUsd = toUsdAmount(incomeWorkTaxes, workCur, workRate) ?? 0;
-            for (let m = currentMonth; m <= 12; m++) {
-              await api("/income", { method: "POST", body: JSON.stringify({ year, month: m, nominalUsd, taxesUsd }) });
-            }
-          } else {
-            for (let m = currentMonth; m <= 12; m++) {
-              await api("/income", { method: "POST", body: JSON.stringify({ year, month: m, amountUsd: nominalUsd }) });
-            }
+            await Promise.all(
+              monthRange.map((m) =>
+                api("/income", { method: "POST", body: JSON.stringify({ year, month: m, nominalUsd, taxesUsd }) })
+              )
+            );
+            return;
           }
-        }
+          await Promise.all(
+            monthRange.map((m) =>
+              api("/income", { method: "POST", body: JSON.stringify({ year, month: m, amountUsd: nominalUsd }) })
+            )
+          );
+        })());
       }
-      let bankAccountId: string | null = null;
       if (incomeSavings) {
-        const savingsCur = getItemCurrency("income.savings");
-        const savingsRate = getItemRate("income.savings");
-        const savingsUsd = toUsdAmount(incomeSavingsUsd, savingsCur, savingsRate);
-        const existingInvs = await api<Array<{ id: string; type: string; currencyId?: string }>>("/investments").catch(() => []);
-        const account = Array.isArray(existingInvs) ? existingInvs.find((i) => i.type === "ACCOUNT") : null;
-        if (account) {
-          bankAccountId = account.id;
-          // Always set account currency to what user chose for savings (account may have been created at register with USD)
-          await api(`/investments/${account.id}`, {
-            method: "PUT",
-            body: JSON.stringify({ currencyId: String(savingsCur).trim().toUpperCase() }),
-          });
-        } else {
+        tasks.push((async () => {
+          const savingsCur = getItemCurrency("income.savings");
+          const savingsRate = getItemRate("income.savings");
+          const savingsUsd = toUsdAmount(incomeSavingsUsd, savingsCur, savingsRate);
+          const existingInvs = await api<Array<{ id: string; type: string; currencyId?: string }>>("/investments").catch(() => []);
+          const account = Array.isArray(existingInvs) ? existingInvs.find((i) => i.type === "ACCOUNT") : null;
+          let bankAccountId: string | null = null;
+          if (account) {
+            bankAccountId = account.id;
+            await api(`/investments/${account.id}`, {
+              method: "PUT",
+              body: JSON.stringify({ currencyId: String(savingsCur).trim().toUpperCase() }),
+            });
+          } else {
+            const created = await api<{ id: string }>("/investments", {
+              method: "POST",
+              body: JSON.stringify({
+                name: t("investments.defaultBankAccountName"),
+                type: "ACCOUNT",
+                currencyId: savingsCur,
+                targetAnnualReturn: 0,
+                yieldStartYear: year,
+                yieldStartMonth: currentMonth,
+              }),
+            });
+            bankAccountId = created.id;
+          }
+          const capitalInCurrency = savingsCur === "UYU" ? Number(incomeSavingsUsd) || 0 : (savingsUsd ?? 0);
+          if (bankAccountId && Number.isFinite(capitalInCurrency) && capitalInCurrency >= 0) {
+            const body: { closingCapital: number; usdUyuRate?: number } = { closingCapital: capitalInCurrency };
+            if (savingsCur === "UYU" && Number.isFinite(savingsRate) && savingsRate > 0) body.usdUyuRate = savingsRate;
+            await api(`/investments/${bankAccountId}/snapshots/${year}/${currentMonth}`, {
+              method: "PUT",
+              body: JSON.stringify(body),
+            });
+          }
+        })());
+      }
+      const validInvs = investmentsList.filter((i) => i.name.trim());
+      tasks.push(
+        ...validInvs.map((inv) => (async () => {
           const created = await api<{ id: string }>("/investments", {
             method: "POST",
             body: JSON.stringify({
-              name: t("investments.defaultBankAccountName"),
-              type: "ACCOUNT",
-              currencyId: savingsCur,
-              targetAnnualReturn: 0,
+              name: inv.name.trim(),
+              type: "PORTFOLIO",
+              currencyId: inv.currencyId,
+              targetAnnualReturn: (Number(inv.returnPct) || 0) / 100,
               yieldStartYear: year,
               yieldStartMonth: currentMonth,
             }),
           });
-          bankAccountId = created.id;
-        }
-        // Snapshot: value in the account currency (so Investments shows UYU when user chose UYU)
-        const capitalInCurrency = savingsCur === "UYU" ? Number(incomeSavingsUsd) || 0 : (savingsUsd ?? 0);
-        if (bankAccountId && Number.isFinite(capitalInCurrency) && capitalInCurrency >= 0) {
-          const body: { closingCapital: number; usdUyuRate?: number } = { closingCapital: capitalInCurrency };
-          if (savingsCur === "UYU" && Number.isFinite(savingsRate) && savingsRate > 0) body.usdUyuRate = savingsRate;
-          await api(`/investments/${bankAccountId}/snapshots/${year}/${currentMonth}`, {
-            method: "PUT",
-            body: JSON.stringify(body),
-          });
-        }
-      }
-      const validInvs = investmentsList.filter((i) => i.name.trim());
-      for (const inv of validInvs) {
-        const created = await api<{ id: string }>("/investments", {
-          method: "POST",
-          body: JSON.stringify({
-            name: inv.name.trim(),
-            type: "PORTFOLIO",
-            currencyId: inv.currencyId,
-            targetAnnualReturn: (Number(inv.returnPct) || 0) / 100,
-            yieldStartYear: year,
-            yieldStartMonth: currentMonth,
-          }),
-        });
-        const amount = Number(inv.amountUsd);
-        if (Number.isFinite(amount) && amount >= 0) {
-          const snapshotBody: { closingCapital: number; usdUyuRate?: number } = { closingCapital: amount };
-          if (inv.currencyId === "UYU") snapshotBody.usdUyuRate = getItemRate("income.savings");
-          await api(`/investments/${created.id}/snapshots/${year}/${currentMonth}`, {
-            method: "PUT",
-            body: JSON.stringify(snapshotBody),
-          });
-          if (amount > 0) {
-            const movementDate = new Date(Date.UTC(previousMonthYear, previousMonth - 1, 1, 0, 0, 0)).toISOString();
-            await api("/investments/movements", {
-              method: "POST",
-              body: JSON.stringify({
-                investmentId: created.id,
-                date: movementDate,
-                type: "deposit",
-                currencyId: inv.currencyId,
-                amount,
-              }),
+          const amount = Number(inv.amountUsd);
+          if (Number.isFinite(amount) && amount >= 0) {
+            const snapshotBody: { closingCapital: number; usdUyuRate?: number } = { closingCapital: amount };
+            if (inv.currencyId === "UYU") snapshotBody.usdUyuRate = getItemRate("income.savings");
+            await api(`/investments/${created.id}/snapshots/${year}/${currentMonth}`, {
+              method: "PUT",
+              body: JSON.stringify(snapshotBody),
             });
+            if (amount > 0) {
+              const movementDate = new Date(Date.UTC(previousMonthYear, previousMonth - 1, 1, 0, 0, 0)).toISOString();
+              await api("/investments/movements", {
+                method: "POST",
+                body: JSON.stringify({
+                  investmentId: created.id,
+                  date: movementDate,
+                  type: "deposit",
+                  currencyId: inv.currencyId,
+                  amount,
+                }),
+              });
+            }
           }
-        }
-      }
+        })())
+      );
+      await Promise.all(tasks);
       setStep(7);
     } catch (e: any) {
       setError(e?.message ?? t("common.errorSaving"));
@@ -666,9 +674,9 @@ export function OnboardingWizard(props: {
               { key: "housing.fees", checked: housingFees, set: setHousingFees, usd: housingFeesUsd, setUsd: setHousingFeesUsd, label: "wizardHousingFees" },
               { key: "housing.taxes", checked: housingTaxes, set: setHousingTaxes, usd: housingTaxesUsd, setUsd: setHousingTaxesUsd, label: "wizardHousingTaxes" },
             ].map(({ key, checked, set, usd, setUsd, label }) => (
-              <label key={key} className="row onboarding-option" style={{ flexWrap: "nowrap" }}>
+              <label key={key} className="row onboarding-option" style={{ flexWrap: "wrap" }}>
                 <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)} />
-                <span style={{ flexShrink: 0 }}>{t(`onboarding.${label}`)}</span>
+                <span style={{ minWidth: 0 }}>{t(`onboarding.${label}`)}</span>
                 {checked && (
                   <>
                     <select className="select" value={getItemCurrency(key)} onChange={(e) => setItemCurrency(key, e.target.value as "UYU" | "USD")} style={{ width: 72, minWidth: 72, height: 36, fontSize: 12, padding: "4px 6px", flexShrink: 0 }}>
