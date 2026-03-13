@@ -250,6 +250,8 @@
     "billingCancelCta": "Cancel automatic renewal",
     "billingCancelLoading": "Canceling renewal…",
     "billingCancelFailed": "Could not cancel automatic renewal.",
+    "billingReactivateCta": "Reactivate automatic renewal",
+    "billingReactivateFailed": "Could not reactivate automatic renewal.",
     "billingResult_paid": "Your payment was approved. Your subscription is now updated.",
     "billingResult_pending": "Your payment is pending. We will update your subscription as soon as dLocal confirms it.",
     "billingResult_invalidSignature": "We could not validate the dLocal callback. Review the status before trying again.",

@@ -192,6 +192,8 @@ type BillingSummary = {
   graceEndsAt: string | null;
   cancelAtPeriodEnd: boolean;
   canCancelCurrentSubscription: boolean;
+  canReactivateCurrentSubscription: boolean;
+  reactivationRequiresCard: boolean;
   price: {
     amountMinor: number;
     currencyCode: "USD";
@@ -345,10 +347,13 @@ export default function AccountPage() {
   const shouldRenderMonthlyCardForm =
     !!billing &&
     !billingIsSuperAdminBypass &&
-    !hasPaidPlan &&
-    !!billingMonthlyOffer &&
+    ((!hasPaidPlan && !!billingMonthlyOffer) || billing.canReactivateCurrentSubscription) &&
+    (!hasPaidPlan || billing.reactivationRequiresCard) &&
     !!billing.smartFields.ready &&
     !!billing.smartFields.key;
+  const billingMonthlyActionLabel = billing?.canReactivateCurrentSubscription
+    ? t("account.billingReactivateCta")
+    : t("account.billingMonthlyCta");
 
   useEffect(() => {
     setPhone(me?.phone ?? "");
@@ -578,6 +583,48 @@ export default function AccountPage() {
     }
   }
 
+  async function onReactivateSubscription() {
+    if (!billing) return;
+
+    const requiresCard = billing.reactivationRequiresCard;
+    if (requiresCard) {
+      if (!billingCardFieldRef.current || !billingDLocalRef.current) {
+        setBillingCheckoutError(t("account.billingSmartFieldsUnavailable"));
+        return;
+      }
+      if (!billingCardholderName.trim()) {
+        setBillingCheckoutError(t("account.billingCardholderRequired"));
+        return;
+      }
+    }
+
+    setBillingCheckoutError("");
+    setBillingCheckoutLoading("PRO_MONTHLY");
+    try {
+      let cardToken = "";
+      if (requiresCard) {
+        const tokenResult = await billingDLocalRef.current!.createToken(billingCardFieldRef.current!, {
+          name: billingCardholderName.trim(),
+          currency: "USD",
+        });
+        cardToken = String(tokenResult?.token ?? "").trim();
+        if (!cardToken) {
+          throw new Error(t("account.billingTokenizeFailed"));
+        }
+      }
+
+      const resp = await api<{ ok: true; billing: BillingSummary }>("/billing/reactivate", {
+        method: "POST",
+        body: JSON.stringify(cardToken ? { cardToken } : {}),
+      });
+      setBilling(resp.billing);
+    } catch (err: unknown) {
+      setBillingCheckoutError(err instanceof Error ? err.message : t("account.billingReactivateFailed"));
+    } finally {
+      setBillingCheckoutLoading(null);
+    }
+  }
+
   async function onCancelSubscription() {
     setBillingCheckoutError("");
     setBillingCancelLoading(true);
@@ -791,7 +838,7 @@ export default function AccountPage() {
               {!billingIsSuperAdminBypass && !hasPaidPlan && billingMonthlyPitch && (
                 <p style={{ marginTop: 12, marginBottom: 0, lineHeight: 1.55 }}>{billingMonthlyPitch}</p>
               )}
-              {!billingIsSuperAdminBypass && !hasPaidPlan && billingMonthlyOffer && (
+              {!billingIsSuperAdminBypass && ((!hasPaidPlan && billingMonthlyOffer) || billing.canReactivateCurrentSubscription) && (
                 <div style={{ marginTop: 16 }}>
                   {shouldRenderMonthlyCardForm ? (
                     <>
@@ -816,19 +863,32 @@ export default function AccountPage() {
                       />
                       <p className="muted" style={{ marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
                         {t("account.billingRecurringConsent", {
-                          price: formatBillingAmount(billingMonthlyOffer.amountMinor, billingMonthlyOffer.currencyCode),
+                          price: formatBillingAmount(
+                            billingMonthlyOffer?.amountMinor ?? billing.commercialPolicy.proMonthlyUsdMinor,
+                            billingMonthlyOffer?.currencyCode ?? "USD"
+                          ),
                         })}
                       </p>
                       <button
                         type="button"
                         className="btn primary"
-                        onClick={onStartMonthlySubscription}
+                        onClick={billing.canReactivateCurrentSubscription ? onReactivateSubscription : onStartMonthlySubscription}
                         disabled={billingCheckoutLoading === "PRO_MONTHLY" || !billingCardReady}
                         style={{ marginTop: 14, width: "100%" }}
                       >
-                        {billingCheckoutLoading === "PRO_MONTHLY" ? t("account.billingOfferLoading") : t("account.billingMonthlyCta")}
+                        {billingCheckoutLoading === "PRO_MONTHLY" ? t("account.billingOfferLoading") : billingMonthlyActionLabel}
                       </button>
                     </>
+                  ) : billing.canReactivateCurrentSubscription && !billing.reactivationRequiresCard ? (
+                    <button
+                      type="button"
+                      className="btn primary"
+                      onClick={onReactivateSubscription}
+                      disabled={billingCheckoutLoading === "PRO_MONTHLY"}
+                      style={{ marginTop: 0, width: "100%" }}
+                    >
+                      {billingCheckoutLoading === "PRO_MONTHLY" ? t("account.billingOfferLoading") : billingMonthlyActionLabel}
+                    </button>
                   ) : (
                     <button
                       type="button"
@@ -843,7 +903,7 @@ export default function AccountPage() {
                         cursor: "not-allowed",
                       }}
                     >
-                      {t("account.billingMonthlyCta")}
+                      {billingMonthlyActionLabel}
                     </button>
                   )}
                 </div>

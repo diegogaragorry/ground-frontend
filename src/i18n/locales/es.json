@@ -250,6 +250,8 @@
     "billingCancelCta": "Cancelar renovación automática",
     "billingCancelLoading": "Cancelando renovación…",
     "billingCancelFailed": "No se pudo cancelar la renovación automática.",
+    "billingReactivateCta": "Reactivar renovación automática",
+    "billingReactivateFailed": "No se pudo reactivar la renovación automática.",
     "billingResult_paid": "Tu pago fue aprobado. La suscripción ya quedó actualizada.",
     "billingResult_pending": "Tu pago quedó pendiente. Apenas dLocal lo confirme, actualizamos tu suscripción.",
     "billingResult_invalidSignature": "No pudimos validar el retorno de dLocal. Revisá el estado antes de intentar de nuevo.",
