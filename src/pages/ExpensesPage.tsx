@@ -102,6 +102,11 @@ function Badge({ children }: { children: React.ReactNode }) {
   return <span className="badge">{children}</span>;
 }
 
+function toFiniteNumber(value: unknown, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 export default function ExpensesPage() {
   const nav = useNavigate();
   const { t } = useTranslation();
@@ -236,16 +241,19 @@ export default function ExpensesPage() {
     return Promise.all(
       list.map(async (e) => {
         if (e.encryptedPayload) {
-          const pl = await decryptPayload<{ description?: string; amount?: number; amountUsd?: number; defaultAmountUsd?: number }>(e.encryptedPayload);
+          const pl = await decryptPayload<{ description?: string; amount?: number | string; amountUsd?: number | string; defaultAmountUsd?: number | string }>(e.encryptedPayload);
           if (pl) {
-            const resolvedAmountUsd = pl.amountUsd ?? pl.defaultAmountUsd ?? e.amountUsd;
+            const resolvedAmountUsd = toFiniteNumber(pl.amountUsd ?? pl.defaultAmountUsd ?? e.amountUsd, toFiniteNumber(e.amountUsd));
+            const decryptedAmount = pl.amount == null ? null : toFiniteNumber(pl.amount, NaN);
             const resolvedAmount =
-              pl.amount ??
+              decryptedAmount != null && Number.isFinite(decryptedAmount)
+                ? decryptedAmount
+                :
               (e.currencyId === "USD"
                 ? resolvedAmountUsd
                 : e.currencyId === "UYU" && Number(e.usdUyuRate) > 0
                   ? Math.round(resolvedAmountUsd * Number(e.usdUyuRate))
-                  : e.amount);
+                  : toFiniteNumber(e.amount));
             return {
               ...e,
               description: pl.description ?? e.description,
@@ -265,14 +273,15 @@ export default function ExpensesPage() {
     return Promise.all(
       raw.map(async (p) => {
         if (p.encryptedPayload) {
-          const pl = await decryptPayload<{ description?: string; amountUsd?: number | null; amount?: number | null; defaultAmountUsd?: number | null }>(p.encryptedPayload);
+          const pl = await decryptPayload<{ description?: string; amountUsd?: number | string | null; amount?: number | string | null; defaultAmountUsd?: number | string | null }>(p.encryptedPayload);
           if (pl != null) {
-            const amountUsd = pl.amountUsd ?? pl.defaultAmountUsd ?? p.amountUsd ?? null;
+            const resolvedAmountUsd = pl.amountUsd ?? pl.defaultAmountUsd ?? p.amountUsd;
+            const amountUsd = resolvedAmountUsd == null ? null : toFiniteNumber(resolvedAmountUsd, 0);
             return {
               ...p,
               description: typeof pl.description === "string" ? pl.description : p.description,
               amountUsd,
-              amount: pl.amount ?? p.amount ?? null,
+              amount: pl.amount == null ? (p.amount ?? null) : toFiniteNumber(pl.amount, 0),
             };
           }
           return { ...p, description: "—", amountUsd: null, amount: null };
@@ -323,7 +332,7 @@ export default function ExpensesPage() {
   const monthLabel = `${year}-${String(month).padStart(2, "0")}`;
 
   const totalUsdMonth = useMemo(
-    () => expenses.filter((e) => !e._decryptFailed).reduce((acc, e) => acc + (e.amountUsd ?? 0), 0),
+    () => expenses.filter((e) => !e._decryptFailed).reduce((acc, e) => acc + toFiniteNumber(e.amountUsd), 0),
     [expenses]
   );
 
@@ -388,7 +397,7 @@ export default function ExpensesPage() {
       const id = e.categoryId;
       const name = e.category?.name ?? "(unknown)";
       const prev = byCat.get(id);
-      byCat.set(id, { categoryName: name, total: (prev?.total ?? 0) + (e.amountUsd ?? 0) });
+      byCat.set(id, { categoryName: name, total: (prev?.total ?? 0) + toFiniteNumber(e.amountUsd) });
     }
     return [...byCat.entries()]
       .map(([categoryId, v]) => ({ categoryId, categoryName: v.categoryName, currencyId: "USD" as const, total: v.total }))
