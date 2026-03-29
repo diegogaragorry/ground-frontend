@@ -165,6 +165,21 @@ export default function InvestmentsPage() {
   const [closedMonths, setClosedMonths] = useState<Set<number>>(new Set());
   const isClosed = (m: number) => closedMonths.has(m);
 
+  async function resolveMovementRow(
+    row: MovementApiRow & { _decryptFailed?: boolean },
+    investmentById?: Map<string, Investment>
+  ) {
+    if (row.encryptedPayload) {
+      const pl = await decryptPayload<{ amount?: number | string }>(row.encryptedPayload);
+      const amount = Number(pl?.amount);
+      if (Number.isFinite(amount)) {
+        return normalizeMovement({ ...row, amount }, investmentById);
+      }
+      return normalizeMovement({ ...row, amount: 0, _decryptFailed: true }, investmentById);
+    }
+    return normalizeMovement(row, investmentById);
+  }
+
   async function load() {
     setLoading(true);
     setError("");
@@ -218,16 +233,9 @@ export default function InvestmentsPage() {
       setSnapshots(snaps);
 
       const rows = await Promise.all(
-        (payload.movements?.rows ?? []).map(async (r) => {
-          if (r.encryptedPayload) {
-            const pl = await decryptPayload<{ amount?: number }>(r.encryptedPayload);
-            if (pl != null && typeof pl.amount === "number") return { ...r, amount: pl.amount };
-            return { ...r, amount: 0, _decryptFailed: true };
-          }
-          return r;
-        })
+        (payload.movements?.rows ?? []).map((r) => resolveMovementRow(r, investmentById))
       );
-      setMovements(rows.map((row) => normalizeMovement(row, investmentById)));
+      setMovements(rows);
 
       const set = new Set<number>();
       for (const row of monthCloses.rows ?? []) {
@@ -605,7 +613,9 @@ export default function InvestmentsPage() {
         body: JSON.stringify(body),
       });
 
-      setMovements((prev) => [normalizeMovement(created, new Map(investments.map((inv) => [inv.id, inv]))), ...prev]);
+      const investmentById = new Map(investments.map((inv) => [inv.id, inv]));
+      const normalized = await resolveMovementRow(created, investmentById);
+      setMovements((prev) => [normalized, ...prev]);
       showSuccess("Movement added.");
     } catch (e: any) {
       setError(e?.message ?? t("investments.errorAddingMovement"));
@@ -634,7 +644,7 @@ export default function InvestmentsPage() {
         body: JSON.stringify(body),
       });
 
-      const normalized = normalizeMovement(res, new Map(investments.map((inv) => [inv.id, inv])));
+      const normalized = await resolveMovementRow(res, new Map(investments.map((inv) => [inv.id, inv])));
       setMovements((prev) => prev.map((x) => (x.id === normalized.id ? normalized : x)));
       showSuccess("Movement updated.");
     } catch (e: any) {
