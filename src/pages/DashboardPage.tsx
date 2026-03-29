@@ -1032,7 +1032,6 @@ export default function DashboardPage() {
           <div className="kpiLabel">{t("dashboard.projectedNetWorthEndMonth")}</div>
           <div className="kpiValue">{formatAmountUsd(projectedNetWorthEndMonth)}</div>
           <div className="kpiFoot muted">{t("dashboard.start")}: {formatAmountUsd(netWorthStartMonth)}</div>
-          <div className="kpiFoot muted">{t("dashboard.monthlySavings")}: {formatAmountUsd(monthBalance)}</div>
         </div>
       </div>
 
