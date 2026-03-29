@@ -185,6 +185,28 @@ export default function ExpensesPage() {
     });
   }
 
+  function getPlannedAmountUsdValue(p: PlannedExpense, d: PlannedDraft) {
+    const raw = d.amountUsd !== undefined ? Number(d.amountUsd) : Number(p.amountUsd ?? 0);
+    return Number.isFinite(raw) ? raw : 0;
+  }
+
+  function getPlannedDisplayState(p: PlannedExpense, d: PlannedDraft) {
+    const isUyu = p.template?.defaultCurrencyId === "UYU";
+    const hasLockedUyu = isUyu && p.amount != null && p.usdUyuRate != null && Number.isFinite(p.amount) && p.usdUyuRate > 0;
+    const rate = hasLockedUyu ? p.usdUyuRate! : isUyu && Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : 1;
+    const amountUsd = getPlannedAmountUsdValue(p, d);
+    const hasDraftAmount = d.amountUsd !== undefined && Number.isFinite(Number(d.amountUsd));
+    const displayValue = isUyu
+      ? hasDraftAmount
+        ? Math.round(amountUsd * rate)
+        : hasLockedUyu
+          ? Math.round(p.amount!)
+          : Math.round(amountUsd * rate)
+      : Math.round(amountUsd);
+
+    return { isUyu, hasLockedUyu, rate, amountUsd, displayValue };
+  }
+
   const categoriesByType = useMemo(() => {
     const out: Record<ExpenseType, Category[]> = { FIXED: [], VARIABLE: [] };
     for (const c of categories) out[c.expenseType]?.push(c);
@@ -358,7 +380,7 @@ export default function ExpensesPage() {
     downloadCsv(`gastos-${year}-${String(month).padStart(2, "0")}`, headers, rows);
   }
 
-  // Client-side summary from decrypted expenses (E2EE: server has 0 for encrypted amounts)
+  // Client-side summary from confirmed expenses only.
   const summaryByCategory = useMemo(() => {
     const byCat = new Map<string, { categoryName: string; total: number }>();
     for (const e of expenses) {
@@ -523,9 +545,15 @@ export default function ExpensesPage() {
     if (hasEncryptionSupport && (patch.description !== undefined || patch.amountUsd !== undefined || patch.amount !== undefined)) {
       const p = planned.find((x) => x.id === plannedId);
       if (p) {
+        const derivedAmountUsd =
+          patch.amountUsd !== undefined
+            ? Number(patch.amountUsd)
+            : patch.amount !== undefined && Number.isFinite(Number(patch.usdUyuRate)) && Number(patch.usdUyuRate) > 0
+              ? Math.round((Number(patch.amount) / Number(patch.usdUyuRate)) * 100) / 100
+              : p.amountUsd ?? 0;
         const merged = {
           description: patch.description ?? p.description,
-          amountUsd: patch.amountUsd ?? p.amountUsd ?? 0,
+          amountUsd: derivedAmountUsd,
           amount: patch.amount ?? p.amount ?? 0,
         };
         const enc = await encryptPayload(merged);
@@ -569,6 +597,7 @@ export default function ExpensesPage() {
           ? usdUyuRate
           : 1;
       if (isUyu && Number.isFinite(rate) && rate > 0) {
+        patch.amountUsd = Math.round(v * 100) / 100;
         patch.amount = Math.round(v * rate);
         patch.usdUyuRate = rate;
       } else {
@@ -1040,11 +1069,7 @@ export default function ExpensesPage() {
               const d = getPlannedDraft(p.id);
               const currentCategoryId = d.categoryId ?? p.categoryId;
               const enforcedType = categoryTypeOf(currentCategoryId) ?? (d.expenseType ?? p.expenseType);
-              const isUyu = p.template?.defaultCurrencyId === "UYU";
-              const hasLockedUyu = isUyu && p.amount != null && p.usdUyuRate != null && Number.isFinite(p.amount) && p.usdUyuRate > 0;
-              const rate = hasLockedUyu ? p.usdUyuRate! : isUyu && Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : 1;
-              const amountUsd = Number(d.amountUsd ?? p.amountUsd ?? 0) || 0;
-              const displayValue = hasLockedUyu ? Math.round(p.amount!) : isUyu ? Math.round(amountUsd * rate) : Math.round(amountUsd);
+              const { isUyu, rate, amountUsd, displayValue } = getPlannedDisplayState(p, d);
               const locked = isClosed(month);
               const ymDisplay = `${p.year}-${String(p.month).padStart(2, "0")}`;
 
@@ -1122,16 +1147,22 @@ export default function ExpensesPage() {
                             const usd = isUyu ? (Number.isFinite(rate) && rate > 0 ? raw / rate : raw) : raw;
                             setPlannedDraft(p.id, { amountUsd: usd });
                           }}
-                          onBlur={() => {
-                            if (locked) return;
-                            const v = Number(d.amountUsd ?? p.amountUsd ?? 0);
-                            if (!Number.isFinite(v)) return;
-                            const payload = isUyu && Number.isFinite(rate) && rate > 0
-                              ? { amount: Math.round(v * rate), usdUyuRate: rate }
-                              : { amountUsd: Math.round(v * 100) / 100 };
-                            patchPlanned(p.id, payload).then(() => clearPlannedDraft(p.id));
-                          }}
-                        />
+                        onBlur={(e) => {
+                          if (locked) return;
+                          const raw = Number(e.target.value);
+                          if (!Number.isFinite(raw)) return;
+                          const nextAmountUsd = isUyu && Number.isFinite(rate) && rate > 0 ? raw / rate : raw;
+                          if (!Number.isFinite(nextAmountUsd)) return;
+                          const payload = isUyu && Number.isFinite(rate) && rate > 0
+                            ? {
+                                amount: Math.round(nextAmountUsd * rate),
+                                amountUsd: Math.round(nextAmountUsd * 100) / 100,
+                                usdUyuRate: rate,
+                              }
+                            : { amountUsd: Math.round(nextAmountUsd * 100) / 100 };
+                          patchPlanned(p.id, payload).then(() => clearPlannedDraft(p.id));
+                        }}
+                      />
                       </div>
                       <div style={{ minWidth: 88 }}>
                         <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.curr")}</div>
@@ -1190,11 +1221,7 @@ export default function ExpensesPage() {
                 const d = getPlannedDraft(p.id);
                 const currentCategoryId = d.categoryId ?? p.categoryId;
                 const enforcedType = categoryTypeOf(currentCategoryId) ?? (d.expenseType ?? p.expenseType);
-                const isUyu = p.template?.defaultCurrencyId === "UYU";
-                const hasLockedUyu = isUyu && p.amount != null && p.usdUyuRate != null && Number.isFinite(p.amount) && p.usdUyuRate > 0;
-                const rate = hasLockedUyu ? p.usdUyuRate! : isUyu && Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : 1;
-                const amountUsd = Number(d.amountUsd ?? p.amountUsd ?? 0) || 0;
-                const displayValue = hasLockedUyu ? Math.round(p.amount!) : isUyu ? Math.round(amountUsd * rate) : Math.round(amountUsd);
+                const { isUyu, rate, amountUsd, displayValue } = getPlannedDisplayState(p, d);
                 const locked = isClosed(month);
                 const ymDisplay = `${p.year}-${String(p.month).padStart(2, "0")}`;
 
@@ -1273,13 +1300,19 @@ export default function ExpensesPage() {
                           const usd = isUyu ? (Number.isFinite(rate) && rate > 0 ? raw / rate : raw) : raw;
                           setPlannedDraft(p.id, { amountUsd: usd });
                         }}
-                        onBlur={() => {
+                        onBlur={(e) => {
                           if (locked) return;
-                          const v = Number(d.amountUsd ?? p.amountUsd ?? 0);
-                          if (!Number.isFinite(v)) return;
+                          const raw = Number(e.target.value);
+                          if (!Number.isFinite(raw)) return;
+                          const nextAmountUsd = isUyu && Number.isFinite(rate) && rate > 0 ? raw / rate : raw;
+                          if (!Number.isFinite(nextAmountUsd)) return;
                           const payload = isUyu && Number.isFinite(rate) && rate > 0
-                            ? { amount: Math.round(v * rate), usdUyuRate: rate }
-                            : { amountUsd: Math.round(v * 100) / 100 };
+                            ? {
+                                amount: Math.round(nextAmountUsd * rate),
+                                amountUsd: Math.round(nextAmountUsd * 100) / 100,
+                                usdUyuRate: rate,
+                              }
+                            : { amountUsd: Math.round(nextAmountUsd * 100) / 100 };
                           patchPlanned(p.id, payload).then(() => clearPlannedDraft(p.id));
                         }}
                         style={{ width: 100, textAlign: "right" }}
