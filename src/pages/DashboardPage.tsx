@@ -833,12 +833,7 @@ export default function DashboardPage() {
     [investments, snapshots, year, serverFxRate]
   );
 
-  const netWorthStartMonth = useMemo(() => {
-    if (month === 1) return netWorthByMonth[0] ?? 0;
-    return netWorthByMonth[month - 2] ?? 0;
-  }, [month, netWorthByMonth]);
-
-  const netWorthCurrentMonth = useMemo(() => netWorthByMonth[month - 1] ?? 0, [month, netWorthByMonth]);
+  const netWorthStartMonth = useMemo(() => netWorthByMonth[month - 1] ?? 0, [month, netWorthByMonth]);
 
   /* ---------------- Annual ---------------- */
 
@@ -925,6 +920,10 @@ export default function DashboardPage() {
     ? decryptedIncomeByMonth[annualMonth.month]
     : (annualMonth?.incomeUsd ?? 0);
   const monthBalance = annualMonth?.balanceUsd ?? 0;
+  const projectedNetWorthEndMonth = useMemo(
+    () => netWorthStartMonth + monthBalance,
+    [netWorthStartMonth, monthBalance]
+  );
 
   const sourceBadge = annualMonth?.source ?? "computed";
   const isLocked = annualMonth?.isClosed ?? false;
@@ -1030,9 +1029,10 @@ export default function DashboardPage() {
         </div>
 
         <div className="card kpi">
-          <div className="kpiLabel">{t("dashboard.netWorth")}</div>
-          <div className="kpiValue">{formatAmountUsd(netWorthCurrentMonth)}</div>
+          <div className="kpiLabel">{t("dashboard.projectedNetWorthEndMonth")}</div>
+          <div className="kpiValue">{formatAmountUsd(projectedNetWorthEndMonth)}</div>
           <div className="kpiFoot muted">{t("dashboard.start")}: {formatAmountUsd(netWorthStartMonth)}</div>
+          <div className="kpiFoot muted">{t("dashboard.monthlySavings")}: {formatAmountUsd(monthBalance)}</div>
         </div>
       </div>
 

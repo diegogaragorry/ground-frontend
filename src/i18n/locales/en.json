@@ -320,6 +320,7 @@
     "monthlyIncome": "Monthly income",
     "monthlySavings": "Monthly savings",
     "netWorth": "Net worth",
+    "projectedNetWorthEndMonth": "Projected end-of-month net worth",
     "fromBudgets": "From Budgets",
     "fromIncome": "From Income",
     "incomeMinusExpenses": "Income − expenses + investment earnings",
