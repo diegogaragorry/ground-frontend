@@ -152,6 +152,171 @@ function DisplayCurrencyCard({ showTitle = true }: { showTitle?: boolean }) {
   );
 }
 
+function CountryPicker({
+  value,
+  onChange,
+  options,
+  label,
+  placeholder,
+  searchPlaceholder,
+  noResultsLabel,
+}: {
+  value: string;
+  onChange: (nextValue: string) => void;
+  options: Array<{ code: string; label: string }>;
+  label: string;
+  placeholder: string;
+  searchPlaceholder: string;
+  noResultsLabel: string;
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const selectedOption = useMemo(
+    () => options.find((opt) => opt.code === value) ?? null,
+    [options, value]
+  );
+
+  const filteredOptions = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return options;
+    return options.filter((opt) => {
+      const labelMatch = opt.label.toLowerCase().includes(normalized);
+      const codeMatch = opt.code.toLowerCase().includes(normalized);
+      return labelMatch || codeMatch;
+    });
+  }, [options, query]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent | TouchEvent) => {
+      if (!rootRef.current) return;
+      if (rootRef.current.contains(event.target as Node)) return;
+      setOpen(false);
+      setQuery("");
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("touchstart", onPointerDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setTimeout(() => searchInputRef.current?.focus(), 0);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} style={{ position: "relative" }}>
+      <button
+        type="button"
+        className="select"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen((prev) => {
+            const next = !prev;
+            if (!next) setQuery("");
+            return next;
+          });
+        }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          textAlign: "left",
+          fontWeight: selectedOption ? 600 : 400,
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {selectedOption?.label ?? placeholder}
+        </span>
+        <span aria-hidden="true" style={{ color: "rgba(100,116,139,0.9)", fontSize: 12 }}>
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 8px)",
+            left: 0,
+            right: 0,
+            zIndex: 40,
+            borderRadius: 16,
+            border: "1px solid rgba(15,23,42,0.12)",
+            background: "#fff",
+            boxShadow: "0 18px 42px rgba(15,23,42,0.14)",
+            padding: 10,
+          }}
+        >
+          <input
+            ref={searchInputRef}
+            className="input"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
+            style={{ marginBottom: 8 }}
+          />
+          <div
+            role="listbox"
+            aria-label={label}
+            style={{
+              maxHeight: 260,
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
+            }}
+          >
+            {filteredOptions.length === 0 ? (
+              <div className="muted" style={{ padding: "10px 12px", fontSize: 13 }}>
+                {noResultsLabel}
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const selected = opt.code === value;
+                return (
+                  <button
+                    key={opt.code}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    onClick={() => {
+                      onChange(opt.code);
+                      setOpen(false);
+                      setQuery("");
+                    }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      border: 0,
+                      background: selected ? "rgba(34,197,94,0.1)" : "transparent",
+                      color: "var(--text)",
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      cursor: "pointer",
+                      fontWeight: selected ? 700 : 500,
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 type Me = {
   id: string;
   email: string;
@@ -737,14 +902,15 @@ export default function AccountPage() {
           </div>
           <div>
             <label className="label">{t("account.country")}</label>
-            <select className="select" value={country} onChange={(e) => setCountry(e.target.value)}>
-              <option value="">{t("account.selectCountry")}</option>
-              {countryOptions.map((opt) => (
-                <option key={opt.code} value={opt.code}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            <CountryPicker
+              value={country}
+              onChange={setCountry}
+              options={countryOptions}
+              label={t("account.country")}
+              placeholder={t("account.selectCountry")}
+              searchPlaceholder={t("account.countrySearch")}
+              noResultsLabel={t("account.countryNoResults")}
+            />
           </div>
           {profileError && <div className="error" style={{ marginTop: 8 }}>{profileError}</div>}
           {profileMessage && <div className="muted" style={{ marginTop: 8 }}>{profileMessage}</div>}

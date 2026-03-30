@@ -94,6 +94,8 @@
     "email": "Email",
     "country": "País",
     "selectCountry": "Seleccionar país",
+    "countrySearch": "Buscar país",
+    "countryNoResults": "No se encontraron países",
     "loading": "Cargando…",
     "loadError": "Error al cargar la cuenta",
     "saveProfile": "Guardar perfil",

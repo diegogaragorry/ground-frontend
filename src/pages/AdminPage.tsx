@@ -394,6 +394,16 @@ function ExpenseTemplatesAdminCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expenseType]);
 
+  useEffect(() => {
+    if (!editingId) return;
+    const allowed = editExpenseType === "FIXED" ? catsByType.fixed : catsByType.variable;
+    if (allowed.length === 0) return;
+    const currentStillMatches = allowed.some((c) => c.id === editCategoryId);
+    if (!currentStillMatches) {
+      setEditCategoryId(allowed[0].id);
+    }
+  }, [editingId, editExpenseType, editCategoryId, catsByType.fixed, catsByType.variable]);
+
   function computeDefaultAmountUsd(
     amountStr: string,
     currencyId: "UYU" | "USD",
@@ -508,7 +518,6 @@ function ExpenseTemplatesAdminCard({
 
     try {
       const body: Record<string, unknown> = {
-        expenseType: editExpenseType,
         categoryId: editCategoryId,
         defaultCurrencyId: editDefaultCurrencyId,
       };
