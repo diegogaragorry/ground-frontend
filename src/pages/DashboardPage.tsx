@@ -135,9 +135,10 @@ function toNullableFiniteNumber(value: unknown) {
 
 function expenseAmountUsdFromRow(
   row: ExpenseMonthRow,
-  payload: { amount?: number | string | null; amountUsd?: number | string | null } | null
+  payload: { amount?: number | string | null; amountUsd?: number | string | null; defaultAmountUsd?: number | string | null } | null
 ) {
-  const payloadAmountUsd = payload?.amountUsd == null ? null : toNullableFiniteNumber(payload.amountUsd);
+  const payloadAmountUsdSource = payload?.amountUsd ?? payload?.defaultAmountUsd;
+  const payloadAmountUsd = payloadAmountUsdSource == null ? null : toNullableFiniteNumber(payloadAmountUsdSource);
   if (payloadAmountUsd != null) return payloadAmountUsd;
 
   const rowAmountUsd = toNullableFiniteNumber(row.amountUsd);
@@ -644,7 +645,7 @@ export default function DashboardPage() {
         let sum = 0;
         for (const e of list) {
           if (e.encryptedPayload) {
-            const pl = await decryptPayload<{ amount?: number | string | null; amountUsd?: number | string | null }>(e.encryptedPayload);
+            const pl = await decryptPayload<{ amount?: number | string | null; amountUsd?: number | string | null; defaultAmountUsd?: number | string | null }>(e.encryptedPayload);
             sum += expenseAmountUsdFromRow(e, pl);
           } else {
             sum += expenseAmountUsdFromRow(e, null);
