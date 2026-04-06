@@ -87,6 +87,14 @@ type MovementRow = {
   encryptedPayload?: string | null;
 };
 
+type ExpenseMonthRow = {
+  amount?: number;
+  amountUsd?: number;
+  currencyId?: string;
+  usdUyuRate?: number | null;
+  encryptedPayload?: string | null;
+};
+
 function snapsByMonth(snaps: SnapshotMonth[]) {
   const map: Record<number, SnapshotMonth | undefined> = {};
   for (const s of snaps) map[s.month] = s;
@@ -138,6 +146,32 @@ function sanitizeNumber(raw: string) {
 
 function Badge({ children }: { children: React.ReactNode }) {
   return <span className="badge">{children}</span>;
+}
+
+function toNullableFiniteNumber(value: unknown) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function expenseAmountUsdFromRow(
+  row: ExpenseMonthRow,
+  payload: { amount?: number | string | null; amountUsd?: number | string | null } | null
+) {
+  const payloadAmountUsd = payload?.amountUsd == null ? null : toNullableFiniteNumber(payload.amountUsd);
+  if (payloadAmountUsd != null) return payloadAmountUsd;
+
+  const payloadAmount = payload?.amount == null ? null : toNullableFiniteNumber(payload.amount);
+  const rowAmount = payloadAmount ?? toNullableFiniteNumber(row.amount);
+  const rowAmountUsd = toNullableFiniteNumber(row.amountUsd);
+  const currencyId = (row.currencyId ?? "USD").toUpperCase();
+  const rate = toNullableFiniteNumber(row.usdUyuRate);
+
+  if (rowAmount != null) {
+    if (currencyId === "UYU" && rate != null && rate > 0) return rowAmount / rate;
+    return rowAmount;
+  }
+
+  return rowAmountUsd ?? 0;
 }
 
 const AnnualTable = React.memo(function AnnualTable({
@@ -529,7 +563,7 @@ export default function BudgetsPage() {
         income: { year: number; rows: Array<{ month: number; totalUsd: number; encryptedPayload?: string }> };
         planned: { year: number; rows: Array<{ month: number; amountUsd?: number | null; encryptedPayload?: string | null }> };
         expensesByMonth: { byMonth: Array<{ amountUsd?: number; encryptedPayload?: string | null }[]> };
-        yearExpensesByMonth?: { byMonth: Array<{ amountUsd?: number; encryptedPayload?: string | null }[]> };
+        yearExpensesByMonth?: { byMonth: ExpenseMonthRow[][] };
         investments?: Investment[];
         investmentSnapshotsYear?: Array<{ investmentId: string; months: SnapshotMonth[] }>;
         movements?: { year: number; rows: MovementRow[] };
@@ -558,13 +592,10 @@ export default function BudgetsPage() {
         let sum = 0;
         for (const e of list) {
           if (e.encryptedPayload) {
-            const pl = await decryptPayload<{ amountUsd?: number | string; defaultAmountUsd?: number | string }>(e.encryptedPayload);
-            const v = Number(pl?.amountUsd ?? pl?.defaultAmountUsd);
-            if (Number.isFinite(v)) {
-              sum += v;
-            }
+            const pl = await decryptPayload<{ amount?: number | string | null; amountUsd?: number | string | null }>(e.encryptedPayload);
+            sum += expenseAmountUsdFromRow(e, pl);
           } else {
-            sum += e.amountUsd ?? 0;
+            sum += expenseAmountUsdFromRow(e, null);
           }
         }
         if (list.length > 0) expenseTotals[idx + 1] = sum;
