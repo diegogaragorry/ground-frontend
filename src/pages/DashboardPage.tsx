@@ -141,7 +141,8 @@ function expenseAmountUsdFromRow(
   if (payloadAmountUsd != null) return payloadAmountUsd;
 
   const rowAmountUsd = toNullableFiniteNumber(row.amountUsd);
-  if (rowAmountUsd != null) return rowAmountUsd;
+  const hasEncryptedPayload = !!row.encryptedPayload;
+  if (rowAmountUsd != null && (!hasEncryptedPayload || rowAmountUsd !== 0)) return rowAmountUsd;
 
   const payloadAmount = payload?.amount == null ? null : toNullableFiniteNumber(payload.amount);
   const rowAmount = payloadAmount ?? toNullableFiniteNumber(row.amount);
