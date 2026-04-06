@@ -140,9 +140,11 @@ function expenseAmountUsdFromRow(
   const payloadAmountUsd = payload?.amountUsd == null ? null : toNullableFiniteNumber(payload.amountUsd);
   if (payloadAmountUsd != null) return payloadAmountUsd;
 
+  const rowAmountUsd = toNullableFiniteNumber(row.amountUsd);
+  if (rowAmountUsd != null) return rowAmountUsd;
+
   const payloadAmount = payload?.amount == null ? null : toNullableFiniteNumber(payload.amount);
   const rowAmount = payloadAmount ?? toNullableFiniteNumber(row.amount);
-  const rowAmountUsd = toNullableFiniteNumber(row.amountUsd);
   const currencyId = (row.currencyId ?? "USD").toUpperCase();
   const rate = toNullableFiniteNumber(row.usdUyuRate);
 
@@ -151,7 +153,7 @@ function expenseAmountUsdFromRow(
     return rowAmount;
   }
 
-  return rowAmountUsd ?? 0;
+  return 0;
 }
 
 /* Verde marca primero, luego paleta armónica */
