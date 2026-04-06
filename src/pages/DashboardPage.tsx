@@ -115,6 +115,16 @@ function clamp01(n: number) {
   return Math.max(0, Math.min(1, n));
 }
 
+function toFiniteNumber(value: unknown, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function toNullableFiniteNumber(value: unknown) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 /* Verde marca primero, luego paleta armónica */
 const CATEGORY_CHART_PALETTE = [
   "hsl(142, 71%, 45%)", /* --brand-green */
@@ -530,17 +540,20 @@ export default function DashboardPage() {
       const decryptedExpenses = await Promise.all(
         (list ?? []).map(async (e) => {
           if (e.encryptedPayload) {
-            const pl = await decryptPayload<{ description?: string; amount?: number; amountUsd?: number; defaultAmountUsd?: number }>(e.encryptedPayload);
+            const pl = await decryptPayload<{ description?: string; amount?: number | string | null; amountUsd?: number | string | null; defaultAmountUsd?: number | string | null }>(e.encryptedPayload);
             if (pl)
               {
-              const resolvedAmountUsd = pl.amountUsd ?? pl.defaultAmountUsd ?? e.amountUsd;
+              const resolvedAmountUsd = toFiniteNumber(pl.amountUsd ?? pl.defaultAmountUsd ?? e.amountUsd, toFiniteNumber(e.amountUsd));
+              const decryptedAmount = pl.amount == null ? null : toNullableFiniteNumber(pl.amount);
               const resolvedAmount =
-                pl.amount ??
+                (decryptedAmount != null
+                  ? decryptedAmount
+                  :
                 (e.currencyId === "USD"
                   ? resolvedAmountUsd
                   : e.currencyId === "UYU" && Number((e as Expense).amountUsd) > 0 && resolvedAmountUsd > 0
                     ? e.amount
-                    : e.amount);
+                    : toFiniteNumber(e.amount)));
               return {
                 ...e,
                 description: pl.description ?? e.description,
@@ -559,15 +572,15 @@ export default function DashboardPage() {
       const byMonth: Record<number, number> = {};
       for (const row of incomeResp.rows ?? []) {
         if (row.encryptedPayload) {
-          const pl = await decryptPayload<{ nominalUsd?: number; extraordinaryUsd?: number; taxesUsd?: number }>(row.encryptedPayload);
+          const pl = await decryptPayload<{ nominalUsd?: number | string | null; extraordinaryUsd?: number | string | null; taxesUsd?: number | string | null }>(row.encryptedPayload);
           if (pl) {
-            const nom = pl.nominalUsd ?? 0;
-            const ext = pl.extraordinaryUsd ?? 0;
-            const tax = pl.taxesUsd ?? 0;
+            const nom = toFiniteNumber(pl.nominalUsd);
+            const ext = toFiniteNumber(pl.extraordinaryUsd);
+            const tax = toFiniteNumber(pl.taxesUsd);
             byMonth[row.month] = nom + ext - tax;
           }
         } else {
-          byMonth[row.month] = row.totalUsd ?? 0;
+          byMonth[row.month] = toFiniteNumber(row.totalUsd);
         }
       }
       setDecryptedIncomeByMonth(byMonth);
@@ -577,12 +590,12 @@ export default function DashboardPage() {
       const plannedAmountByMonthLocal: Record<number, number> = {};
       await Promise.all(
         plannedRows.map(async (r) => {
-          let amountUsd = r.amountUsd ?? 0;
+          let amountUsd = toFiniteNumber(r.amountUsd);
           if (r.encryptedPayload) {
-            const pl = await decryptPayload<{ amountUsd?: number; defaultAmountUsd?: number }>(r.encryptedPayload);
+            const pl = await decryptPayload<{ amountUsd?: number | string | null; defaultAmountUsd?: number | string | null }>(r.encryptedPayload);
             if (pl != null) {
               const v = pl.amountUsd ?? pl.defaultAmountUsd;
-              if (typeof v === "number") amountUsd = v;
+              if (v != null) amountUsd = toFiniteNumber(v, amountUsd);
             }
           }
           const mo = r.month ?? 0;
@@ -599,10 +612,10 @@ export default function DashboardPage() {
         let sum = 0;
         for (const e of list) {
           if (e.encryptedPayload) {
-            const pl = await decryptPayload<{ amountUsd?: number }>(e.encryptedPayload);
-            if (pl != null && typeof pl.amountUsd === "number") sum += pl.amountUsd;
+            const pl = await decryptPayload<{ amountUsd?: number | string | null }>(e.encryptedPayload);
+            if (pl != null && pl.amountUsd != null) sum += toFiniteNumber(pl.amountUsd);
           } else {
-            sum += e.amountUsd ?? 0;
+            sum += toFiniteNumber(e.amountUsd);
           }
         }
         if (list.length > 0) clientExpensesUsdByMonth[i + 1] = sum;
@@ -617,12 +630,12 @@ export default function DashboardPage() {
         const monthsSnap: SnapshotMonth[] = await Promise.all(
           (entry.months ?? []).map(async (s) => {
             if (s.encryptedPayload) {
-              const pl = await decryptPayload<{ closingCapital?: number; closingCapitalUsd?: number }>(s.encryptedPayload);
+              const pl = await decryptPayload<{ closingCapital?: number | string | null; closingCapitalUsd?: number | string | null }>(s.encryptedPayload);
               if (pl != null) {
-                const closingCapital = typeof pl.closingCapital === "number" ? pl.closingCapital : s.closingCapital;
+                const closingCapital = pl.closingCapital == null ? (s.closingCapital ?? null) : toNullableFiniteNumber(pl.closingCapital);
                 const closingCapitalUsd =
-                  typeof pl.closingCapitalUsd === "number"
-                    ? pl.closingCapitalUsd
+                  pl.closingCapitalUsd != null
+                    ? toFiniteNumber(pl.closingCapitalUsd)
                     : inv
                       ? snapshotUsdValue(inv, { ...s, closingCapital, closingCapitalUsd: s.closingCapitalUsd ?? null }, fx)
                       : (s.closingCapitalUsd ?? null);
@@ -643,10 +656,10 @@ export default function DashboardPage() {
       const movementRows = movResp?.rows ?? [];
       const movementsDecrypted = await Promise.all(
         movementRows.map(async (mv) => {
-          let amount = mv.amount ?? 0;
+          let amount = toFiniteNumber(mv.amount);
           if (mv.encryptedPayload) {
-            const pl = await decryptPayload<{ amount?: number }>(mv.encryptedPayload);
-            if (pl != null && typeof pl.amount === "number") amount = pl.amount;
+            const pl = await decryptPayload<{ amount?: number | string | null }>(mv.encryptedPayload);
+            if (pl != null && pl.amount != null) amount = toFiniteNumber(pl.amount, amount);
           }
           const movMonth = mv.month ?? (mv.date ? new Date(mv.date).getUTCMonth() + 1 : 0);
           return { ...mv, amount, month: movMonth };
@@ -690,49 +703,49 @@ export default function DashboardPage() {
           const lockedEnc = (m as { lockedEncryptedPayload?: string }).lockedEncryptedPayload;
           if (lockedEnc && m.source === "locked") {
             const pl = await decryptPayload<{
-              incomeUsd?: number;
-              expensesUsd?: number;
-              investmentEarningsUsd?: number;
-              balanceUsd?: number;
-              netWorthStartUsd?: number;
-              netWorthEndUsd?: number;
+              incomeUsd?: number | string | null;
+              expensesUsd?: number | string | null;
+              investmentEarningsUsd?: number | string | null;
+              balanceUsd?: number | string | null;
+              netWorthStartUsd?: number | string | null;
+              netWorthEndUsd?: number | string | null;
             }>(lockedEnc);
             if (pl != null) {
               let otherUsd = 0;
               const otherEnc = (m as { otherExpensesEncryptedPayload?: string }).otherExpensesEncryptedPayload;
               if (otherEnc) {
-                const otherPl = await decryptPayload<{ otherExpensesUsd?: number }>(otherEnc);
-                if (otherPl != null && typeof otherPl.otherExpensesUsd === "number") otherUsd = otherPl.otherExpensesUsd;
+                const otherPl = await decryptPayload<{ otherExpensesUsd?: number | string | null }>(otherEnc);
+                if (otherPl != null && otherPl.otherExpensesUsd != null) otherUsd = toFiniteNumber(otherPl.otherExpensesUsd);
               }
               otherByMonthLocal[m.month] = otherUsd;
               return {
                 ...m,
-                incomeUsd: pl.incomeUsd ?? m.incomeUsd ?? 0,
-                expensesUsd: pl.expensesUsd ?? m.expensesUsd ?? 0,
-                investmentEarningsUsd: pl.investmentEarningsUsd ?? m.investmentEarningsUsd ?? 0,
-                balanceUsd: pl.balanceUsd ?? m.balanceUsd ?? 0,
-                netWorthUsd: pl.netWorthStartUsd ?? m.netWorthUsd ?? 0,
+                incomeUsd: toFiniteNumber(pl.incomeUsd ?? m.incomeUsd),
+                expensesUsd: toFiniteNumber(pl.expensesUsd ?? m.expensesUsd),
+                investmentEarningsUsd: toFiniteNumber(pl.investmentEarningsUsd ?? m.investmentEarningsUsd),
+                balanceUsd: toFiniteNumber(pl.balanceUsd ?? m.balanceUsd),
+                netWorthUsd: toFiniteNumber(pl.netWorthStartUsd ?? m.netWorthUsd),
                 otherExpensesUsd: otherUsd,
               };
             }
           }
           const otherEnc = (m as { otherExpensesEncryptedPayload?: string }).otherExpensesEncryptedPayload;
-          let otherUsd = m.otherExpensesUsd ?? 0;
+          let otherUsd = toFiniteNumber(m.otherExpensesUsd);
           if (otherEnc) {
-            const pl = await decryptPayload<{ otherExpensesUsd?: number }>(otherEnc);
-            if (pl != null && typeof pl.otherExpensesUsd === "number") otherUsd = pl.otherExpensesUsd;
+            const pl = await decryptPayload<{ otherExpensesUsd?: number | string | null }>(otherEnc);
+            if (pl != null && pl.otherExpensesUsd != null) otherUsd = toFiniteNumber(pl.otherExpensesUsd, otherUsd);
             else otherByMonthLocal[m.month] = 0;
           }
           otherByMonthLocal[m.month] = otherUsd;
-          const incomeUsd = byMonth[m.month] ?? m.incomeUsd ?? 0;
+          const incomeUsd = toFiniteNumber(byMonth[m.month] ?? m.incomeUsd);
           if (m.source === "computed") {
-            const serverBase = m.baseExpensesUsd ?? 0;
+            const serverBase = toFiniteNumber(m.baseExpensesUsd);
             const isPastMonth = year < realCurrentYear || (year === realCurrentYear && m.month < realCurrentMonth);
-            const plannedFallback = isPastMonth ? 0 : (plannedAmountByMonthLocal[m.month] ?? 0);
+            const plannedFallback = isPastMonth ? 0 : toFiniteNumber(plannedAmountByMonthLocal[m.month]);
             // Misma lógica que Presupuestos: gastos reales del cliente; si no, drafts solo mes actual/futuros; luego server.
-            const baseExpensesUsd = (clientExpensesUsdByMonth[m.month] ?? (plannedFallback > 0 ? plannedFallback : serverBase));
+            const baseExpensesUsd = toFiniteNumber(clientExpensesUsdByMonth[m.month] ?? (plannedFallback > 0 ? plannedFallback : serverBase));
             const expensesUsd = baseExpensesUsd + otherUsd;
-            const investmentEarningsUsd = earningsByMonth[m.month] ?? m.investmentEarningsUsd ?? 0;
+            const investmentEarningsUsd = toFiniteNumber(earningsByMonth[m.month] ?? m.investmentEarningsUsd);
             const balanceUsd = incomeUsd - expensesUsd + investmentEarningsUsd;
             return { ...m, baseExpensesUsd, otherExpensesUsd: otherUsd, expensesUsd, investmentEarningsUsd, balanceUsd };
           }
@@ -756,7 +769,7 @@ export default function DashboardPage() {
   /* ---------------- Monthly ---------------- */
 
   const monthlyExpenses = useMemo(
-    () => expenses.filter((e) => !(e as { _decryptFailed?: boolean })._decryptFailed).reduce((a, e) => a + (e.amountUsd ?? 0), 0),
+    () => expenses.filter((e) => !(e as { _decryptFailed?: boolean })._decryptFailed).reduce((a, e) => a + toFiniteNumber(e.amountUsd), 0),
     [expenses]
   );
 
@@ -771,7 +784,7 @@ export default function DashboardPage() {
         categoryName: name,
         nameKey: e.category?.nameKey ?? null,
         expenseType: e.category?.expenseType ?? null,
-        total: (prev?.total ?? 0) + (e.amountUsd ?? 0),
+        total: (prev?.total ?? 0) + toFiniteNumber(e.amountUsd),
       });
     }
     return [...byCat.entries()].map(([categoryId, v]) => ({ categoryId, ...v }));
@@ -786,7 +799,7 @@ export default function DashboardPage() {
     () =>
       [...expenses]
         .filter((e) => !(e as { _decryptFailed?: boolean })._decryptFailed)
-        .sort((a, b) => (b.amountUsd ?? 0) - (a.amountUsd ?? 0))
+        .sort((a, b) => toFiniteNumber(b.amountUsd) - toFiniteNumber(a.amountUsd))
         .slice(0, 3),
     [expenses]
   );
@@ -856,21 +869,21 @@ export default function DashboardPage() {
         netWorthUsd: 0,
         source: "computed" as const,
       };
-      const incomeUsd = decryptedIncomeByMonth[monthNum] ?? base.incomeUsd ?? 0;
+      const incomeUsd = toFiniteNumber(decryptedIncomeByMonth[monthNum] ?? base.incomeUsd);
       const clientBase = clientExpensesUsdByMonth[monthNum];
-      const serverBase = base.baseExpensesUsd ?? 0;
-      const plannedBase = plannedAmountByMonth[monthNum] ?? 0;
+      const serverBase = toFiniteNumber(base.baseExpensesUsd);
+      const plannedBase = toFiniteNumber(plannedAmountByMonth[monthNum]);
       const isPastMonth = year < realCurrentYear || (year === realCurrentYear && monthNum < realCurrentMonth);
       const plannedFallback = isPastMonth ? 0 : plannedBase;
       const baseExpensesUsd = base.isClosed
         ? serverBase
-        : (clientBase ?? (plannedFallback > 0 ? plannedFallback : serverBase));
-      const otherExpensesUsd = decryptedOtherByMonth[monthNum] ?? base.otherExpensesUsd ?? 0;
-      const expensesUsd = base.isClosed ? (base.expensesUsd ?? 0) : baseExpensesUsd + otherExpensesUsd;
+        : toFiniteNumber(clientBase ?? (plannedFallback > 0 ? plannedFallback : serverBase));
+      const otherExpensesUsd = toFiniteNumber(decryptedOtherByMonth[monthNum] ?? base.otherExpensesUsd);
+      const expensesUsd = base.isClosed ? toFiniteNumber(base.expensesUsd) : baseExpensesUsd + otherExpensesUsd;
       const investmentEarningsUsd = base.isClosed
-        ? (base.investmentEarningsUsd ?? 0)
-        : (investmentEarningsByMonth[monthNum] ?? base.investmentEarningsUsd ?? 0);
-      const balanceUsd = base.isClosed ? (base.balanceUsd ?? 0) : incomeUsd - expensesUsd + investmentEarningsUsd;
+        ? toFiniteNumber(base.investmentEarningsUsd)
+        : toFiniteNumber(investmentEarningsByMonth[monthNum] ?? base.investmentEarningsUsd);
+      const balanceUsd = base.isClosed ? toFiniteNumber(base.balanceUsd) : incomeUsd - expensesUsd + investmentEarningsUsd;
       return {
         ...base,
         incomeUsd,
@@ -917,9 +930,9 @@ export default function DashboardPage() {
   }, [annualMonthsResolved]);
 
   const monthIncome = (annualMonth && decryptedIncomeByMonth[annualMonth.month] !== undefined)
-    ? decryptedIncomeByMonth[annualMonth.month]
-    : (annualMonth?.incomeUsd ?? 0);
-  const monthBalance = annualMonth?.balanceUsd ?? 0;
+    ? toFiniteNumber(decryptedIncomeByMonth[annualMonth.month])
+    : toFiniteNumber(annualMonth?.incomeUsd);
+  const monthBalance = toFiniteNumber(annualMonth?.balanceUsd);
   const projectedNetWorthEndMonth = useMemo(
     () => netWorthStartMonth + monthBalance,
     [netWorthStartMonth, monthBalance]
