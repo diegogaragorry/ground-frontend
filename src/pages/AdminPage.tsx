@@ -1037,7 +1037,9 @@ export default function AdminPage() {
   const [mcInfo, setMcInfo] = useState("");
   const [closePreviewOpen, setClosePreviewOpen] = useState(false);
   const [closePreviewData, setClosePreviewData] = useState<ClosePreviewResp | null>(null);
+  const [closeMonthPreparing, setCloseMonthPreparing] = useState(false);
   const [closeMonthSubmitting, setCloseMonthSubmitting] = useState(false);
+  const closeMonthBusy = closeMonthPreparing || closeMonthSubmitting;
 
   const closedSet = useMemo(() => {
     const s = new Set<string>();
@@ -1394,10 +1396,12 @@ export default function AdminPage() {
 
   // ---------- Month close handlers ----------
   async function closeMonth() {
+    if (closeMonthBusy) return;
     setMcError("");
     setMcInfo("");
     setClosePreviewData(null);
     setClosePreviewOpen(false);
+    setCloseMonthPreparing(true);
     try {
       try {
         const preview = await api<ClosePreviewResp>(`/monthCloses/preview`, {
@@ -1432,6 +1436,8 @@ export default function AdminPage() {
       await doCloseMonth();
     } catch (err: any) {
       setMcError(err?.message ?? "Error closing month");
+    } finally {
+      setCloseMonthPreparing(false);
     }
   }
 
@@ -1479,7 +1485,7 @@ export default function AdminPage() {
   }
 
   async function confirmCloseMonth() {
-    if (!closePreviewData || closeMonthSubmitting) return;
+    if (!closePreviewData || closeMonthBusy) return;
     setMcError("");
     setCloseMonthSubmitting(true);
     try {
@@ -1830,7 +1836,7 @@ export default function AdminPage() {
               className="input"
               type="number"
               value={mcYear}
-              disabled={closeMonthSubmitting}
+              disabled={closeMonthBusy}
               onChange={(e) => setMcYear(Number(e.target.value))}
               style={{ width: 120, height: 42 }}
             />
@@ -1841,7 +1847,7 @@ export default function AdminPage() {
             <select
               className="select"
               value={mcMonth}
-              disabled={closeMonthSubmitting}
+              disabled={closeMonthBusy}
               onChange={(e) => setMcMonth(Number(e.target.value))}
               style={{ width: 120, height: 42 }}
             >
@@ -1861,19 +1867,19 @@ export default function AdminPage() {
           <div style={{ flex: 1 }} />
 
           {isSelectedClosed ? (
-            <button className="btn" type="button" onClick={reopenMonth} disabled={closeMonthSubmitting} style={{ height: 42 }}>
+            <button className="btn" type="button" onClick={reopenMonth} disabled={closeMonthBusy} style={{ height: 42 }}>
               {t("admin.reopen")}
             </button>
           ) : (
-            <button className="btn primary" type="button" onClick={closeMonth} disabled={closeMonthSubmitting} style={{ height: 42 }}>
-              {closeMonthSubmitting ? t("admin.closeMonthConfirmLoading") : t("admin.closeMonth")}
+            <button className="btn primary" type="button" onClick={closeMonth} disabled={closeMonthBusy} style={{ height: 42 }}>
+              {closeMonthBusy ? t("admin.closeMonthConfirmLoading") : t("admin.closeMonth")}
               </button>
           )}
         </div>
 
         {mcError && <div style={{ marginTop: 12, color: "var(--danger)" }}>{mcError}</div>}
         {mcInfo && <div style={{ marginTop: 12, color: "rgba(15,23,42,0.75)" }}>{mcInfo}</div>}
-        {closeMonthSubmitting && (
+        {closeMonthBusy && (
           <div
             style={{
               marginTop: 12,
@@ -1945,7 +1951,7 @@ export default function AdminPage() {
             padding: 16,
           }}
           onClick={() => {
-            if (!closeMonthSubmitting) setClosePreviewOpen(false);
+            if (!closeMonthBusy) setClosePreviewOpen(false);
           }}
         >
           <div
@@ -1980,7 +1986,7 @@ export default function AdminPage() {
                 ? t("admin.closeMonthPreviewP3NoAdjust")
                 : t("admin.closeMonthPreviewP3")}
             </div>
-            {closeMonthSubmitting && (
+            {closeMonthBusy && (
               <div
                 style={{
                   marginBottom: 16,
@@ -1997,11 +2003,11 @@ export default function AdminPage() {
               </div>
             )}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
-              <button type="button" className="btn" disabled={closeMonthSubmitting} onClick={() => setClosePreviewOpen(false)}>
+              <button type="button" className="btn" disabled={closeMonthBusy} onClick={() => setClosePreviewOpen(false)}>
                 {t("admin.closeMonthCancel")}
               </button>
-              <button type="button" className="btn primary" disabled={closeMonthSubmitting} onClick={confirmCloseMonth}>
-                {closeMonthSubmitting ? t("admin.closeMonthConfirmLoading") : t("admin.closeMonthConfirm")}
+              <button type="button" className="btn primary" disabled={closeMonthBusy} onClick={confirmCloseMonth}>
+                {closeMonthBusy ? t("admin.closeMonthConfirmLoading") : t("admin.closeMonthConfirm")}
               </button>
             </div>
           </div>
