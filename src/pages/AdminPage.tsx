@@ -1826,12 +1826,25 @@ export default function AdminPage() {
         <div className="row" style={{ gap: 10, flexWrap: "wrap", marginTop: 12, alignItems: "end" }}>
           <div>
             <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.year")}</div>
-            <input className="input" type="number" value={mcYear} onChange={(e) => setMcYear(Number(e.target.value))} style={{ width: 120, height: 42 }} />
+            <input
+              className="input"
+              type="number"
+              value={mcYear}
+              disabled={closeMonthSubmitting}
+              onChange={(e) => setMcYear(Number(e.target.value))}
+              style={{ width: 120, height: 42 }}
+            />
           </div>
 
           <div>
             <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.month")}</div>
-            <select className="select" value={mcMonth} onChange={(e) => setMcMonth(Number(e.target.value))} style={{ width: 120, height: 42 }}>
+            <select
+              className="select"
+              value={mcMonth}
+              disabled={closeMonthSubmitting}
+              onChange={(e) => setMcMonth(Number(e.target.value))}
+              style={{ width: 120, height: 42 }}
+            >
               {months.map((m) => (
                 <option key={m} value={m}>{m2(m)}</option>
               ))}
@@ -1848,18 +1861,33 @@ export default function AdminPage() {
           <div style={{ flex: 1 }} />
 
           {isSelectedClosed ? (
-            <button className="btn" type="button" onClick={reopenMonth} style={{ height: 42 }}>
+            <button className="btn" type="button" onClick={reopenMonth} disabled={closeMonthSubmitting} style={{ height: 42 }}>
               {t("admin.reopen")}
             </button>
           ) : (
-            <button className="btn primary" type="button" onClick={closeMonth} style={{ height: 42 }}>
-{t("admin.closeMonth")}
+            <button className="btn primary" type="button" onClick={closeMonth} disabled={closeMonthSubmitting} style={{ height: 42 }}>
+              {closeMonthSubmitting ? t("admin.closeMonthConfirmLoading") : t("admin.closeMonth")}
               </button>
           )}
         </div>
 
         {mcError && <div style={{ marginTop: 12, color: "var(--danger)" }}>{mcError}</div>}
         {mcInfo && <div style={{ marginTop: 12, color: "rgba(15,23,42,0.75)" }}>{mcInfo}</div>}
+        {closeMonthSubmitting && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: "10px 12px",
+              borderRadius: 12,
+              background: "rgba(37, 99, 235, 0.08)",
+              color: "rgba(15,23,42,0.8)",
+              fontSize: 13,
+              fontWeight: 700,
+            }}
+          >
+            {t("admin.closeMonthProcessing")}
+          </div>
+        )}
 
         {isSelectedClosed && selectedClose && (
           isMobile ? (
