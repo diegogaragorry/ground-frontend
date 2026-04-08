@@ -1037,6 +1037,7 @@ export default function AdminPage() {
   const [mcInfo, setMcInfo] = useState("");
   const [closePreviewOpen, setClosePreviewOpen] = useState(false);
   const [closePreviewData, setClosePreviewData] = useState<ClosePreviewResp | null>(null);
+  const [closeMonthSubmitting, setCloseMonthSubmitting] = useState(false);
 
   const closedSet = useMemo(() => {
     const s = new Set<string>();
@@ -1478,8 +1479,9 @@ export default function AdminPage() {
   }
 
   async function confirmCloseMonth() {
-    if (!closePreviewData) return;
+    if (!closePreviewData || closeMonthSubmitting) return;
     setMcError("");
+    setCloseMonthSubmitting(true);
     try {
       if (hasEncryptionSupport) {
         await buildEncryptedSnapshotAndClose();
@@ -1490,6 +1492,8 @@ export default function AdminPage() {
       setClosePreviewData(null);
     } catch (err: any) {
       setMcError(err?.message ?? "Error closing month");
+    } finally {
+      setCloseMonthSubmitting(false);
     }
   }
 
@@ -1912,7 +1916,9 @@ export default function AdminPage() {
             justifyContent: "center",
             padding: 16,
           }}
-          onClick={() => setClosePreviewOpen(false)}
+          onClick={() => {
+            if (!closeMonthSubmitting) setClosePreviewOpen(false);
+          }}
         >
           <div
             className="card"
@@ -1946,12 +1952,28 @@ export default function AdminPage() {
                 ? t("admin.closeMonthPreviewP3NoAdjust")
                 : t("admin.closeMonthPreviewP3")}
             </div>
+            {closeMonthSubmitting && (
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: "12px 14px",
+                  borderRadius: 14,
+                  background: "rgba(34,197,94,0.08)",
+                  color: "rgba(15,23,42,0.8)",
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  fontWeight: 600,
+                }}
+              >
+                {t("admin.closeMonthProcessing")}
+              </div>
+            )}
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
-              <button type="button" className="btn" onClick={() => setClosePreviewOpen(false)}>
+              <button type="button" className="btn" disabled={closeMonthSubmitting} onClick={() => setClosePreviewOpen(false)}>
                 {t("admin.closeMonthCancel")}
               </button>
-              <button type="button" className="btn primary" onClick={confirmCloseMonth}>
-                {t("admin.closeMonthConfirm")}
+              <button type="button" className="btn primary" disabled={closeMonthSubmitting} onClick={confirmCloseMonth}>
+                {closeMonthSubmitting ? t("admin.closeMonthConfirmLoading") : t("admin.closeMonthConfirm")}
               </button>
             </div>
           </div>

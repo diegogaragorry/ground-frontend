@@ -213,6 +213,10 @@ const AnnualTable = React.memo(function AnnualTable({
   saveOtherExpenses: (month: number, value: number) => Promise<void>;
   setError: React.Dispatch<React.SetStateAction<string>>;
 }) {
+  const ytdMonths = months.filter((m) => m.month <= currentMonth);
+  const sumYtd = (pick: (m: MonthRow) => number | null | undefined) =>
+    ytdMonths.reduce((acc, m) => acc + (pick(m) ?? 0), 0);
+
   return (
     <div className="budgets-table-wrap" style={{ overflowX: "auto", marginTop: 12 }} role="region" aria-label="Annual budget by month">
       <table className="table compact budgets-table" aria-label="Budget grid: income, expenses, balance by month">
@@ -232,6 +236,11 @@ const AnnualTable = React.memo(function AnnualTable({
             <th className="right budgets-th-total" style={{ width: 110 }}>
               {t("budgets.total")}
             </th>
+            <th className="right budgets-th-total" style={{ width: 110 }}>
+              <span className="budgets-label-with-hint" title={t("budgets.ytdHint")}>
+                {t("budgets.ytd")}
+              </span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -243,6 +252,7 @@ const AnnualTable = React.memo(function AnnualTable({
                 {formatAmountUsd(netWorthStartSeries[idx] ?? 0)}
               </td>
             ))}
+            <td className="right budgets-td-total muted">—</td>
             <td className="right budgets-td-total muted">—</td>
           </tr>
 
@@ -261,6 +271,9 @@ const AnnualTable = React.memo(function AnnualTable({
             <td className="right budgets-td-total" style={{ fontWeight: 850 }}>
               {formatAmountUsd(totals.income)}
             </td>
+            <td className="right budgets-td-total" style={{ fontWeight: 850 }}>
+              {formatAmountUsd(sumYtd((m) => m.incomeUsd))}
+            </td>
           </tr>
 
           {/* Base expenses (actuals if any, else drafts planned) */}
@@ -277,6 +290,9 @@ const AnnualTable = React.memo(function AnnualTable({
             ))}
             <td className="right budgets-td-total" style={{ fontWeight: 850 }}>
               {formatAmountUsd(totals.base)}
+            </td>
+            <td className="right budgets-td-total" style={{ fontWeight: 850 }}>
+              {formatAmountUsd(sumYtd((m) => m.baseExpensesUsd))}
             </td>
           </tr>
 
@@ -336,6 +352,9 @@ const AnnualTable = React.memo(function AnnualTable({
             <td className="right budgets-td-total" style={{ fontWeight: 850, whiteSpace: "nowrap" }}>
               {formatAmountUsdWith(totals.other, otherExpensesCurrency, otherExpensesRateOrNull)}
             </td>
+            <td className="right budgets-td-total" style={{ fontWeight: 850, whiteSpace: "nowrap" }}>
+              {formatAmountUsdWith(sumYtd((m) => m.otherExpensesUsd), otherExpensesCurrency, otherExpensesRateOrNull)}
+            </td>
           </tr>
 
           {/* Total expenses */}
@@ -348,6 +367,9 @@ const AnnualTable = React.memo(function AnnualTable({
             ))}
             <td className="right budgets-td-total" style={{ fontWeight: 900 }}>
               {formatAmountUsd(totals.expenses)}
+            </td>
+            <td className="right budgets-td-total" style={{ fontWeight: 900 }}>
+              {formatAmountUsd(sumYtd((m) => m.expensesUsd))}
             </td>
           </tr>
 
@@ -363,6 +385,9 @@ const AnnualTable = React.memo(function AnnualTable({
               ))}
               <td className="right budgets-td-total" style={{ fontWeight: 850 }}>
                 {formatAmountUsd(totals.earnings)}
+              </td>
+              <td className="right budgets-td-total" style={{ fontWeight: 850 }}>
+                {formatAmountUsd(sumYtd((m) => m.investmentEarningsUsd))}
               </td>
             </tr>
           )}
@@ -386,6 +411,9 @@ const AnnualTable = React.memo(function AnnualTable({
             ))}
             <td className="right budgets-td-total" style={{ fontWeight: 950, color: totals.balance < 0 ? "var(--danger)" : undefined }}>
               {formatAmountUsd(totals.balance)}
+            </td>
+            <td className="right budgets-td-total" style={{ fontWeight: 950, color: sumYtd((m) => m.balanceUsd) < 0 ? "var(--danger)" : undefined }}>
+              {formatAmountUsd(sumYtd((m) => m.balanceUsd))}
             </td>
           </tr>
         </tbody>
