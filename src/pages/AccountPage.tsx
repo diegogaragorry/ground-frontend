@@ -384,6 +384,21 @@ type BillingSummary = {
   notes: string[];
 };
 
+function cleanupDLocalCardField(field: DLocalCardField | null) {
+  if (!field) return;
+  try {
+    if (typeof field.destroy === "function") {
+      field.destroy();
+      return;
+    }
+    if (typeof field.unmount === "function") {
+      field.unmount();
+    }
+  } catch {
+    // dLocal can already detach the field during route changes; ignore duplicate teardown errors.
+  }
+}
+
 export default function AccountPage() {
   const { t, i18n } = useTranslation();
   const location = useLocation();
@@ -532,8 +547,7 @@ export default function AccountPage() {
 
   useEffect(() => {
     if (!shouldRenderMonthlyCardForm || !billingCardHostRef.current || !billing?.smartFields.key) {
-      billingCardFieldRef.current?.destroy?.();
-      billingCardFieldRef.current?.unmount?.();
+      cleanupDLocalCardField(billingCardFieldRef.current);
       billingCardFieldRef.current = null;
       billingDLocalRef.current = null;
       setBillingCardReady(false);
@@ -560,7 +574,7 @@ export default function AccountPage() {
             },
           },
         });
-        billingCardHostRef.current.innerHTML = "";
+        billingCardHostRef.current.replaceChildren();
         field.mount(billingCardHostRef.current);
         billingDLocalRef.current = sdk;
         billingCardFieldRef.current = field;
@@ -574,13 +588,9 @@ export default function AccountPage() {
 
     return () => {
       cancelled = true;
-      billingCardFieldRef.current?.destroy?.();
-      billingCardFieldRef.current?.unmount?.();
+      cleanupDLocalCardField(billingCardFieldRef.current);
       billingCardFieldRef.current = null;
       billingDLocalRef.current = null;
-      if (billingCardHostRef.current) {
-        billingCardHostRef.current.innerHTML = "";
-      }
     };
   }, [
     shouldRenderMonthlyCardForm,
