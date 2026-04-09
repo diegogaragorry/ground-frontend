@@ -41,7 +41,7 @@ type ClosePreviewResp = {
 };
 
 type MeResp = { id: string; email: string; role: "USER" | "SUPER_ADMIN" };
-type UserRow = { id: string; email: string; role: "USER" | "SUPER_ADMIN"; createdAt: string };
+type UserRow = { id: string; email: string; role: "USER" | "SUPER_ADMIN"; specialGuest: boolean; createdAt: string };
 
 type ExpenseTemplateRow = {
   id: string;
@@ -88,10 +88,12 @@ function UsersAdminCard() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"USER" | "SUPER_ADMIN">("USER");
+  const [specialGuest, setSpecialGuest] = useState(false);
 
   const [editing, setEditing] = useState<UserRow | null>(null);
   const [editEmail, setEditEmail] = useState("");
   const [editRole, setEditRole] = useState<"USER" | "SUPER_ADMIN">("USER");
+  const [editSpecialGuest, setEditSpecialGuest] = useState(false);
   const [editPassword, setEditPassword] = useState("");
 
   async function loadUsers() {
@@ -113,11 +115,12 @@ function UsersAdminCard() {
     try {
       await api("/admin/users", {
         method: "POST",
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email, password, role, specialGuest }),
       });
       setEmail("");
       setPassword("");
       setRole("USER");
+      setSpecialGuest(false);
       await loadUsers();
       setInfo(t("admin.userCreated"));
       showSuccess(t("admin.userCreated"));
@@ -137,6 +140,7 @@ function UsersAdminCard() {
         body: JSON.stringify({
           email: editEmail,
           role: editRole,
+          specialGuest: editSpecialGuest,
           ...(editPassword ? { password: editPassword } : {}),
         }),
       });
@@ -197,6 +201,21 @@ function UsersAdminCard() {
           </select>
         </div>
 
+        <label
+          style={{
+            minWidth: 180,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            height: 42,
+            paddingTop: 18,
+            fontSize: 14,
+          }}
+        >
+          <input type="checkbox" checked={specialGuest} onChange={(e) => setSpecialGuest(e.target.checked)} />
+          <span>{t("admin.specialGuest")}</span>
+        </label>
+
         <button className="btn primary" type="submit" style={{ height: 42 }}>
           {t("admin.create")}
         </button>
@@ -222,6 +241,21 @@ function UsersAdminCard() {
                 <option value="SUPER_ADMIN">SUPER_ADMIN</option>
               </select>
             </div>
+
+            <label
+              style={{
+                minWidth: 180,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                height: 42,
+                paddingTop: 18,
+                fontSize: 14,
+              }}
+            >
+              <input type="checkbox" checked={editSpecialGuest} onChange={(e) => setEditSpecialGuest(e.target.checked)} />
+              <span>{t("admin.specialGuest")}</span>
+            </label>
 
             <div style={{ minWidth: 220 }}>
               <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.newPasswordOptional")}</div>
@@ -249,6 +283,7 @@ function UsersAdminCard() {
             <tr>
               <th>{t("admin.email")}</th>
               <th style={{ width: 140 }}>{t("admin.role")}</th>
+              <th style={{ width: 140 }}>{t("admin.specialGuest")}</th>
               <th style={{ width: 160 }}>{t("admin.created")}</th>
               <th className="right" style={{ width: 220 }}>{t("expenses.actions")}</th>
             </tr>
@@ -258,6 +293,24 @@ function UsersAdminCard() {
               <tr key={u.id}>
                 <td>{u.email}</td>
                 <td>{u.role}</td>
+                <td>
+                  {u.specialGuest ? (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        borderRadius: 999,
+                        padding: "4px 10px",
+                        background: "rgba(34,197,94,0.12)",
+                        color: "rgb(21, 128, 61)",
+                        fontSize: 12,
+                        fontWeight: 700,
+                      }}
+                    >
+                      {t("admin.specialGuestBadge")}
+                    </span>
+                  ) : "—"}
+                </td>
                 <td className="muted">{new Date(u.createdAt).toISOString().slice(0, 10)}</td>
                 <td className="right">
                   <div className="row" style={{ justifyContent: "flex-end", gap: 10 }}>
@@ -268,6 +321,7 @@ function UsersAdminCard() {
                         setEditing(u);
                         setEditEmail(u.email);
                         setEditRole(u.role);
+                        setEditSpecialGuest(u.specialGuest);
                         setEditPassword("");
                       }}
                       style={{ height: 34 }}
@@ -283,7 +337,7 @@ function UsersAdminCard() {
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={4} className="muted">
+                <td colSpan={5} className="muted">
                   {t("admin.noUsers")}
                 </td>
               </tr>

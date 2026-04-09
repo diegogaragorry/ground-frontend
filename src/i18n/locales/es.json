@@ -631,6 +631,8 @@
     "email": "Email",
     "password": "Contraseña",
     "role": "Rol",
+    "specialGuest": "Special Guest",
+    "specialGuestBadge": "Special Guest",
     "created": "Creado",
     "edit": "Editar",
     "noUsers": "No hay usuarios.",
