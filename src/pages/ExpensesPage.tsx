@@ -70,13 +70,6 @@ function inputValueToYm(v: string) {
   if (!Number.isInteger(y) || !Number.isInteger(m) || m < 1 || m > 12) return null;
   return { year: y, month: m };
 }
-function isoToYm(iso: string) {
-  const y = Number(iso.slice(0, 4));
-  const m = Number(iso.slice(5, 7));
-  if (!Number.isInteger(y) || !Number.isInteger(m)) return null;
-  return { year: y, month: m };
-}
-
 const usd0 = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0, minimumFractionDigits: 0 });
 
 type Draft = {
@@ -97,6 +90,10 @@ type PlannedDraft = {
   expenseType?: ExpenseType;
 };
 type PlannedDraftMap = Record<string, PlannedDraft>;
+
+function isEncryptedPlaceholder(value: unknown) {
+  return typeof value === "string" && /^\(encrypted(?:-[a-z0-9]+)?\)$/i.test(value.trim());
+}
 
 function Badge({ children }: { children: React.ReactNode }) {
   return <span className="badge">{children}</span>;
@@ -242,22 +239,42 @@ export default function ExpensesPage() {
     return Promise.all(
       list.map(async (e) => {
         if (e.encryptedPayload) {
-          const pl = await decryptPayload<{ description?: string; amount?: number | string; amountUsd?: number | string; defaultAmountUsd?: number | string }>(e.encryptedPayload);
+          const pl = await decryptPayload<{
+            description?: string;
+            amount?: number | string;
+            amountUsd?: number | string;
+            defaultAmountUsd?: number | string;
+            importMeta?: { merchantRaw?: string };
+          }>(e.encryptedPayload);
           if (pl) {
             const resolvedAmountUsd = toFiniteNumber(pl.amountUsd ?? pl.defaultAmountUsd ?? e.amountUsd, toFiniteNumber(e.amountUsd));
             const decryptedAmount = pl.amount == null ? null : toFiniteNumber(pl.amount, NaN);
+            const merchantRaw = typeof pl.importMeta?.merchantRaw === "string" ? pl.importMeta.merchantRaw.trim() : "";
+            const fallbackDescription =
+              merchantRaw ||
+              (!isEncryptedPlaceholder(e.description)
+                ? (e.description ?? "")
+                : getCategoryDisplayName(
+                    { name: e.category?.name ?? "", expenseType: e.expenseType },
+                    t
+                  ));
             const resolvedAmount =
-              decryptedAmount != null && Number.isFinite(decryptedAmount)
+              decryptedAmount != null && Number.isFinite(decryptedAmount) && decryptedAmount > 0
                 ? decryptedAmount
                 :
-              (e.currencyId === "USD"
-                ? resolvedAmountUsd
-                : e.currencyId === "UYU" && Number(e.usdUyuRate) > 0
-                  ? Math.round(resolvedAmountUsd * Number(e.usdUyuRate))
+                (resolvedAmountUsd > 0
+                  ? e.currencyId === "USD"
+                    ? resolvedAmountUsd
+                    : e.currencyId === "UYU" && Number(e.usdUyuRate) > 0
+                      ? Math.round(resolvedAmountUsd * Number(e.usdUyuRate))
+                      : resolvedAmountUsd
                   : toFiniteNumber(e.amount));
             return {
               ...e,
-              description: pl.description ?? e.description,
+              description:
+                typeof pl.description === "string" && !isEncryptedPlaceholder(pl.description)
+                  ? pl.description
+                  : fallbackDescription || "—",
               amount: resolvedAmount,
               amountUsd: resolvedAmountUsd,
             };
@@ -325,7 +342,7 @@ export default function ExpensesPage() {
   useEffect(() => {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [year, month]);
+  }, [year, month, hasEncryptionSupport]);
 
   const createYm = inputValueToYm(ymCreate);
   const createMonthClosed = createYm ? isClosed(createYm.month) : false;
@@ -811,6 +828,13 @@ export default function ExpensesPage() {
             t("common.refresh")
           )}
           </button>
+          <button
+            className="btn"
+            type="button"
+            onClick={() => nav(`${APP_BASE}/expenses/import?year=${year}&month=${month}`)}
+          >
+            {t("expenses.bulkImport")}
+          </button>
           <button className="btn" type="button" onClick={exportExpensesCsv} aria-label={t("common.exportCsv")}>
             {t("common.exportCsv")}
           </button>
@@ -1007,6 +1031,7 @@ export default function ExpensesPage() {
           patchExpense={patchExpense}
           removeExpense={removeExpense}
           fallbackMonth={month}
+          fallbackYm={monthLabel}
         />
       </div>
 
@@ -1031,6 +1056,7 @@ export default function ExpensesPage() {
           patchExpense={patchExpense}
           removeExpense={removeExpense}
           fallbackMonth={month}
+          fallbackYm={monthLabel}
         />
         <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
           {t("expenses.monthStoredNote")}
@@ -1441,9 +1467,22 @@ function RealExpensesTable(props: {
   patchExpense: (expenseId: string, expenseMonth: number, patch: any) => Promise<void>;
   removeExpense: (expenseId: string, expenseMonth: number) => Promise<void>;
   fallbackMonth: number;
+  fallbackYm: string;
 }) {
   const { t } = useTranslation();
-  const { expenses, categories, isMobile, isMonthClosed, getDraft, setDraft, clearDraft, patchExpense, removeExpense, fallbackMonth } =
+  const {
+    expenses,
+    categories,
+    isMobile,
+    isMonthClosed,
+    getDraft,
+    setDraft,
+    clearDraft,
+    patchExpense,
+    removeExpense,
+    fallbackMonth,
+    fallbackYm,
+  } =
     props;
 
   const categoriesSorted = useMemo(() => categories.slice().sort((a, b) => a.name.localeCompare(b.name)), [categories]);
@@ -1459,10 +1498,9 @@ function RealExpensesTable(props: {
             currentCurrency === "UYU"
               ? (d.usdUyuRate ?? (e.usdUyuRate ?? getFxDefault()))
               : (d.usdUyuRate ?? getFxDefault());
-          const ymValue = d.ym ?? e.date.slice(0, 7);
+          const ymValue = d.ym ?? fallbackYm;
           const usdPreview = currentCurrency === "USD" ? currentAmount : currentAmount / (currentRate || 1);
-          const parsed = isoToYm(e.date);
-          const expMonth = parsed?.month ?? fallbackMonth;
+          const expMonth = fallbackMonth;
           const locked = isMonthClosed(expMonth);
 
           return (
@@ -1643,11 +1681,9 @@ function RealExpensesTable(props: {
                 ? (d.usdUyuRate ?? (e.usdUyuRate ?? getFxDefault()))
                 : (d.usdUyuRate ?? getFxDefault());
 
-            const ymValue = d.ym ?? e.date.slice(0, 7);
+            const ymValue = d.ym ?? fallbackYm;
             const usdPreview = currentCurrency === "USD" ? currentAmount : currentAmount / (currentRate || 1);
-
-            const parsed = isoToYm(e.date);
-            const expMonth = parsed?.month ?? fallbackMonth;
+            const expMonth = fallbackMonth;
             const locked = isMonthClosed(expMonth);
 
             return (

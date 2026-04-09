@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { encryptWithKey, decryptWithKey } from "../utils/crypto";
+import { decryptWithKey, encryptWithKey, exportKeyToBase64, importKeyFromBase64 } from "../utils/crypto";
 
 type EncryptionCtx = {
   /** AES CryptoKey in memory (derived once at login). Null if not available (e.g. after refresh). */
@@ -17,6 +17,7 @@ type EncryptionCtx = {
 const Ctx = createContext<EncryptionCtx | null>(null);
 
 const LOGOUT_EVENT = "ground:logout";
+const SESSION_STORAGE_KEY = "ground:e2ee:key:v1";
 
 export function EncryptionProvider(props: { children: React.ReactNode }) {
   const [encryptionKey, setEncryptionKeyState] = useState<CryptoKey | null>(null);
@@ -31,6 +32,28 @@ export function EncryptionProvider(props: { children: React.ReactNode }) {
     window.addEventListener(LOGOUT_EVENT, onLogout);
     return () => window.removeEventListener(LOGOUT_EVENT, onLogout);
   }, []);
+
+  useEffect(() => {
+    const stored = window.sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (!stored) return;
+    importKeyFromBase64(stored)
+      .then((key) => setEncryptionKeyState(key))
+      .catch(() => {
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      });
+  }, []);
+
+  useEffect(() => {
+    if (!encryptionKey) {
+      window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      return;
+    }
+    exportKeyToBase64(encryptionKey)
+      .then((raw) => window.sessionStorage.setItem(SESSION_STORAGE_KEY, raw))
+      .catch(() => {
+        window.sessionStorage.removeItem(SESSION_STORAGE_KEY);
+      });
+  }, [encryptionKey]);
 
   const encryptPayload = useCallback(
     async <T,>(payload: T): Promise<string | null> => {

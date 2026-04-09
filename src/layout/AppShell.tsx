@@ -10,7 +10,7 @@ import { api } from "../api";
 import { getMigrationStatus, runMigration } from "../utils/migrateToE2EE";
 import { setFxDefault } from "../utils/fx";
 import { formatAmountUsdWith } from "../utils/formatCurrency";
-import { exportKeyToBase64 } from "../utils/crypto";
+import { exportKeyToBase64, importKeyFromBase64 } from "../utils/crypto";
 import { OnboardingWizard } from "../onboarding/OnboardingWizard";
 import { OnboardingTour } from "../onboarding/OnboardingTour";
 import appI18n from "../i18n";
@@ -33,6 +33,7 @@ type Me = {
   phone?: string | null;
   phoneVerifiedAt?: string | null;
   recoveryEnabled?: boolean;
+  encryptionKey?: string;
   role: "USER" | "SUPER_ADMIN";
   forceOnboardingNextLogin?: boolean;
   onboardingStep?: string;
@@ -131,6 +132,7 @@ const Ctx = createContext<AppShellCtx | null>(null);
 ========================= */
 
 export function AppShellProvider(props: { children: React.ReactNode }) {
+  const { hasEncryptionSupport, setEncryptionKey } = useEncryption();
   const now = useMemo(() => ymNow(), []);
   const [year, setYear] = useState(now.year);
   const [month, setMonth] = useState(now.month);
@@ -177,7 +179,15 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     api<Me>("/auth/me")
-      .then((r) => {
+      .then(async (r) => {
+        if (!hasEncryptionSupport && r.encryptionKey) {
+          try {
+            const importedKey = await importKeyFromBase64(r.encryptionKey);
+            setEncryptionKey(importedKey);
+          } catch {
+            // ignore invalid recovery key and keep session usable
+          }
+        }
         setMe(r);
         const serverLanguage = r.preferredLanguage === "es" || r.preferredLanguage === "en" ? r.preferredLanguage : null;
         const clientLanguage = appI18n.language?.startsWith("es") ? "es" : "en";
@@ -212,7 +222,7 @@ export function AppShellProvider(props: { children: React.ReactNode }) {
         setMe(null);
       })
       .finally(() => setMeLoaded(true));
-  }, []);
+  }, [hasEncryptionSupport, setEncryptionKey]);
 
   React.useEffect(() => {
     if (!me) return;

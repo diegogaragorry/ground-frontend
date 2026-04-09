@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom";
 import { AppShell, AppShellProvider } from "./layout/AppShell";
 import { EncryptionProvider } from "./context/EncryptionContext";
@@ -16,6 +17,7 @@ import RegisterPage from "./pages/RegisterPage";
 import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import AccountPage from "./pages/AccountPage";
+const ExpenseImportPage = lazy(() => import("./pages/ExpenseImportPage"));
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem("token");
@@ -55,6 +57,14 @@ export default function App() {
         >
           <Route index element={<DashboardPage />} />
           <Route path="expenses" element={<ExpensesPage />} />
+          <Route
+            path="expenses/import"
+            element={
+              <Suspense fallback={<div className="card">Loading…</div>}>
+                <ExpenseImportPage />
+              </Suspense>
+            }
+          />
           <Route path="income" element={<IncomePage />} />
           <Route path="investments" element={<InvestmentsPage />} />
           <Route path="budgets" element={<BudgetsPage />} />

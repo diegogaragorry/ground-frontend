@@ -24,6 +24,13 @@ function bufToBase64(buf: ArrayBuffer | Uint8Array): string {
   return btoa(bin);
 }
 
+function bufToHex(buf: ArrayBuffer | Uint8Array): string {
+  const bytes = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf;
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export async function deriveEncryptionKey(
   password: string,
   saltBase64: string
@@ -99,6 +106,20 @@ export async function decryptWithKey(
 export async function exportKeyToBase64(cryptoKey: CryptoKey): Promise<string> {
   const raw = await crypto.subtle.exportKey("raw", cryptoKey);
   return bufToBase64(raw);
+}
+
+export async function sha256Hex(value: string): Promise<string> {
+  const encoded = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest("SHA-256", encoded);
+  return bufToHex(digest);
+}
+
+export async function buildMerchantRuleFingerprint(
+  cryptoKey: CryptoKey,
+  merchantNormalized: string
+): Promise<string> {
+  const keyBase64 = await exportKeyToBase64(cryptoKey);
+  return sha256Hex(`ground:merchant-rule:${keyBase64}:${merchantNormalized}`);
 }
 
 /**
