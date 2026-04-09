@@ -137,6 +137,7 @@ export default function ExpensesPage() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
+  const [confirmingPlannedId, setConfirmingPlannedId] = useState<string | null>(null);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -620,7 +621,9 @@ export default function ExpensesPage() {
     setError("");
     setInfo("");
     if (isClosed(month)) return setError(t("expenses.monthClosedConfirmDrafts"));
+    if (confirmingPlannedId) return;
 
+    setConfirmingPlannedId(p.id);
     try {
       const d = getPlannedDraft(p.id);
       const patch = buildPlannedDraftPatch(p, d);
@@ -640,6 +643,8 @@ export default function ExpensesPage() {
       showSuccess(t("expenses.draftConfirmed"));
     } catch (err: any) {
       setError(err?.message ?? t("expenses.errorConfirmingDraft"));
+    } finally {
+      setConfirmingPlannedId((current) => (current === p.id ? null : current));
     }
   }
 
@@ -1189,11 +1194,11 @@ export default function ExpensesPage() {
                     <button
                       className="btn primary"
                       type="button"
-                      disabled={locked}
+                      disabled={locked || loading || confirmingPlannedId !== null}
                       onClick={() => confirmPlanned(p)}
                       title={locked ? t("expenses.monthClosed") : t("expenses.confirmAndCreateReal")}
                     >
-                      {t("expenses.confirmDraft")}
+                      {confirmingPlannedId === p.id ? t("expenses.confirming") : t("expenses.confirmDraft")}
                     </button>
                   </div>
                 </div>
@@ -1345,12 +1350,12 @@ export default function ExpensesPage() {
                         <button
                           className="btn primary"
                           type="button"
-                          disabled={locked}
+                          disabled={locked || loading || confirmingPlannedId !== null}
                           onClick={() => confirmPlanned(p)}
                           title={locked ? t("expenses.monthClosed") : t("expenses.confirmAndCreateReal")}
                           style={{ height: 34 }}
                         >
-                          {t("expenses.confirmDraft")}
+                          {confirmingPlannedId === p.id ? t("expenses.confirming") : t("expenses.confirmDraft")}
                         </button>
                       </div>
                     </td>
@@ -1381,7 +1386,7 @@ export default function ExpensesPage() {
 
         {onboardingActive && (
           <div className="row" style={{ justifyContent: "flex-end", gap: 10, marginTop: 10, flexWrap: "wrap" }}>
-            <button className="btn" type="button" onClick={confirmAllPlanned} disabled={!canEditThisMonth || planned.length === 0 || loading}>
+            <button className="btn" type="button" onClick={confirmAllPlanned} disabled={!canEditThisMonth || planned.length === 0 || loading || confirmingPlannedId !== null}>
               {loading ? t("expenses.confirming") : t("expenses.confirmAllDrafts")}
             </button>
             <button className="btn primary" type="button" onClick={markStep2Done}>
