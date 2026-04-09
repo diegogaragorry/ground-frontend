@@ -435,19 +435,6 @@ export default function ExpenseImportPage() {
             </span>
           </div>
 
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {[
-              t("expenseImport.supportedSantanderCard"),
-              t("expenseImport.supportedItauCard"),
-              t("expenseImport.supportedBbvaCard"),
-              t("expenseImport.supportedSantanderChecking"),
-            ].map((item) => (
-              <span key={item} className="badge">
-                {item}
-              </span>
-            ))}
-          </div>
-
           <div className="muted" style={{ fontSize: 13, lineHeight: 1.55 }}>
             {targetMonthClosed
               ? t("expenseImport.targetMonthClosed", { month: targetMonthLabel })
