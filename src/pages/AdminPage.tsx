@@ -42,6 +42,23 @@ type ClosePreviewResp = {
 
 type MeResp = { id: string; email: string; role: "USER" | "SUPER_ADMIN" };
 type UserRow = { id: string; email: string; role: "USER" | "SUPER_ADMIN"; specialGuest: boolean; createdAt: string };
+type CampaignPreviewResp = {
+  campaignId: string;
+  language: "es" | "en";
+  subject: string;
+  text: string;
+  html: string;
+};
+type CampaignSendResp = {
+  campaignId: string;
+  audienceType: "user" | "group";
+  audienceLabel: string;
+  requestedCount: number;
+  sentCount: number;
+  failedCount: number;
+  failures: Array<{ email: string; error: string }>;
+  sentLanguages: { es: number; en: number };
+};
 
 type ExpenseTemplateRow = {
   id: string;
@@ -355,6 +372,321 @@ function UsersAdminCard() {
           background: var(--panel);
         }
       `}</style>
+    </div>
+  );
+}
+
+function CampaignsAdminCard() {
+  const { t } = useTranslation();
+  const { showSuccess } = useAppShell();
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [preview, setPreview] = useState<CampaignPreviewResp | null>(null);
+  const [previewLanguage, setPreviewLanguage] = useState<"es" | "en">("es");
+  const [audienceType, setAudienceType] = useState<"group" | "user">("group");
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [err, setErr] = useState("");
+  const [info, setInfo] = useState("");
+  const [result, setResult] = useState<CampaignSendResp | null>(null);
+
+  const selectableUsers = useMemo(
+    () => [...users].sort((a, b) => a.email.localeCompare(b.email)),
+    [users]
+  );
+
+  const specialGuestUsers = useMemo(
+    () => users.filter((row) => row.role !== "SUPER_ADMIN" && row.specialGuest),
+    [users]
+  );
+
+  const selectedUser = useMemo(
+    () => selectableUsers.find((row) => row.id === selectedUserId) ?? null,
+    [selectableUsers, selectedUserId]
+  );
+
+  async function loadData(language: "es" | "en") {
+    setLoading(true);
+    setErr("");
+    try {
+      const [usersResp, previewResp] = await Promise.all([
+        api<{ rows: UserRow[] }>("/admin/users"),
+        api<CampaignPreviewResp>(`/admin/campaigns/special-guest/preview?language=${language}`),
+      ]);
+      setUsers(usersResp.rows ?? []);
+      setPreview(previewResp);
+    } catch (e: any) {
+      setErr(e?.message ?? t("common.error"));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadData(previewLanguage).catch(() => {});
+  }, [previewLanguage]);
+
+  async function sendCampaign() {
+    setErr("");
+    setInfo("");
+    setResult(null);
+
+    if (audienceType === "user" && !selectedUserId) {
+      setErr(t("admin.campaignSelectUserError"));
+      return;
+    }
+
+    const confirmed =
+      audienceType === "group"
+        ? confirm(t("admin.campaignConfirmGroupSend", { count: specialGuestUsers.length }))
+        : confirm(t("admin.campaignConfirmUserSend", { email: selectedUser?.email ?? "" }));
+    if (!confirmed) return;
+
+    setSending(true);
+    try {
+      const resp = await api<CampaignSendResp>("/admin/campaigns/special-guest/send", {
+        method: "POST",
+        body: JSON.stringify(
+          audienceType === "group"
+            ? { audienceType: "group", groupId: "special_guest" }
+            : { audienceType: "user", userId: selectedUserId }
+        ),
+      });
+      setResult(resp);
+      setInfo(
+        t("admin.campaignSentSummary", {
+          sent: resp.sentCount,
+          requested: resp.requestedCount,
+          failed: resp.failedCount,
+        })
+      );
+      showSuccess(
+        t("admin.campaignSentSummary", {
+          sent: resp.sentCount,
+          requested: resp.requestedCount,
+          failed: resp.failedCount,
+        })
+      );
+    } catch (e: any) {
+      setErr(e?.message ?? t("admin.campaignSendError"));
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontWeight: 800 }}>{t("admin.campaigns")}</div>
+          <div className="muted" style={{ fontSize: 12 }}>{t("admin.campaignsDesc")}</div>
+        </div>
+        <button className="btn" type="button" onClick={() => loadData(previewLanguage)} disabled={loading || sending}>
+          {t("common.refresh")}
+        </button>
+      </div>
+
+      <div
+        style={{
+          marginTop: 14,
+          display: "grid",
+          gridTemplateColumns: "minmax(300px, 380px) minmax(0, 1fr)",
+          gap: 16,
+        }}
+      >
+        <div className="admin-inner-card">
+          <div style={{ fontWeight: 800, fontSize: 14 }}>{t("admin.campaignAudience")}</div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{t("admin.campaignAudienceDesc")}</div>
+
+          <div style={{ marginTop: 14 }}>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.campaignTemplate")}</div>
+            <div
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 14,
+                padding: "12px 14px",
+                background: "var(--panel)",
+              }}
+            >
+              <div style={{ fontWeight: 800 }}>{t("admin.campaignSpecialGuestTitle")}</div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{t("admin.campaignSpecialGuestDesc")}</div>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.campaignPreviewLanguage")}</div>
+            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className={"btn " + (previewLanguage === "es" ? "primary" : "")}
+                onClick={() => setPreviewLanguage("es")}
+                disabled={loading || sending}
+              >
+                Español
+              </button>
+              <button
+                type="button"
+                className={"btn " + (previewLanguage === "en" ? "primary" : "")}
+                onClick={() => setPreviewLanguage("en")}
+                disabled={loading || sending}
+              >
+                English
+              </button>
+            </div>
+          </div>
+
+          <div style={{ marginTop: 18 }}>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.campaignSendTo")}</div>
+            <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className={"btn " + (audienceType === "group" ? "primary" : "")}
+                onClick={() => setAudienceType("group")}
+                disabled={loading || sending}
+              >
+                {t("admin.campaignGroupSpecialGuest")}
+              </button>
+              <button
+                type="button"
+                className={"btn " + (audienceType === "user" ? "primary" : "")}
+                onClick={() => setAudienceType("user")}
+                disabled={loading || sending}
+              >
+                {t("admin.campaignSingleUser")}
+              </button>
+            </div>
+          </div>
+
+          {audienceType === "group" ? (
+            <div
+              style={{
+                marginTop: 12,
+                padding: "12px 14px",
+                borderRadius: 14,
+                background: "rgba(34,197,94,0.08)",
+                color: "rgba(15,23,42,0.82)",
+                fontSize: 13,
+                lineHeight: 1.5,
+              }}
+            >
+              {t("admin.campaignGroupCount", { count: specialGuestUsers.length })}
+            </div>
+          ) : (
+            <div style={{ marginTop: 12 }}>
+              <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.campaignUser")}</div>
+              <select
+                className="select"
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                style={{ width: "100%", height: 42 }}
+                disabled={loading || sending}
+              >
+                <option value="">{t("admin.campaignUserPlaceholder")}</option>
+                {selectableUsers.map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div
+            style={{
+              marginTop: 14,
+              padding: "12px 14px",
+              borderRadius: 14,
+              background: "rgba(15,23,42,0.04)",
+              color: "rgba(15,23,42,0.76)",
+              fontSize: 12,
+              lineHeight: 1.55,
+            }}
+          >
+            {t("admin.campaignLanguageNote")}
+          </div>
+
+          <div style={{ marginTop: 16 }}>
+            <button
+              className="btn primary"
+              type="button"
+              onClick={sendCampaign}
+              disabled={loading || sending || (audienceType === "user" && !selectedUserId)}
+            >
+              {sending ? t("admin.campaignSending") : t("admin.campaignSend")}
+            </button>
+          </div>
+
+          {err && <div style={{ marginTop: 12, color: "var(--danger)" }}>{err}</div>}
+          {info && <div style={{ marginTop: 12, color: "rgba(15,23,42,0.75)" }}>{info}</div>}
+          {result && result.failedCount > 0 && (
+            <div style={{ marginTop: 12, fontSize: 12, color: "rgba(15,23,42,0.78)" }}>
+              <div style={{ fontWeight: 800, marginBottom: 6 }}>{t("admin.campaignFailures")}</div>
+              <div style={{ display: "grid", gap: 4 }}>
+                {result.failures.slice(0, 8).map((failure) => (
+                  <div key={`${failure.email}-${failure.error}`}>
+                    {failure.email}: {failure.error}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="admin-inner-card">
+          <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 14 }}>{t("admin.campaignPreview")}</div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>{t("admin.campaignPreviewDesc")}</div>
+            </div>
+            {preview && (
+              <div
+                style={{
+                  borderRadius: 999,
+                  padding: "4px 10px",
+                  background: "rgba(15,23,42,0.06)",
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                {preview.language.toUpperCase()}
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: 14 }}>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("admin.subject")}</div>
+            <div
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 14,
+                padding: "12px 14px",
+                background: "var(--panel)",
+                fontWeight: 700,
+              }}
+            >
+              {preview?.subject ?? "—"}
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop: 14,
+              border: "1px solid var(--border)",
+              borderRadius: 18,
+              overflow: "hidden",
+              background: "#f4f7fb",
+            }}
+          >
+            {loading ? (
+              <div style={{ padding: 24, color: "rgba(15,23,42,0.65)" }}>{t("admin.campaignLoadingPreview")}</div>
+            ) : preview ? (
+              <div dangerouslySetInnerHTML={{ __html: preview.html }} />
+            ) : (
+              <div style={{ padding: 24, color: "rgba(15,23,42,0.65)" }}>{t("admin.campaignNoPreview")}</div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1042,7 +1374,7 @@ export default function AdminPage() {
 
   const isSuperAdmin = meResp?.role === "SUPER_ADMIN";
 
-  type AdminTab = "categories" | "templates" | "monthClose" | "users";
+  type AdminTab = "categories" | "templates" | "monthClose" | "users" | "campaigns";
   const [activeTab, setActiveTab] = useState<AdminTab>("templates");
 
   /**
@@ -1589,6 +1921,7 @@ export default function AdminPage() {
     { id: "categories", label: t("admin.tabCategories") },
     { id: "monthClose", label: t("admin.tabMonthClose") },
     ...(isSuperAdmin ? [{ id: "users" as const, label: t("admin.tabUsers") }] : []),
+    ...(isSuperAdmin ? [{ id: "campaigns" as const, label: t("admin.tabCampaigns") }] : []),
   ];
 
   return (
@@ -2076,6 +2409,12 @@ export default function AdminPage() {
       </div>
       <RecentActivityCard />
       </>
+      )}
+
+      {activeTab === "campaigns" && isSuperAdmin && (
+      <div className="card">
+        <CampaignsAdminCard />
+      </div>
       )}
 
       {/* ===== Tab: Templates ===== */}
