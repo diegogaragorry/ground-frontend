@@ -7,7 +7,7 @@ import { useEncryption } from "../context/EncryptionContext";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
 import { extractPdfText } from "../import/pdf";
 import { parseStatement } from "../import/parsers";
-import { suggestTemplateForRowWithRules } from "../import/suggestions";
+import { shouldAutoAcceptSuggestion, suggestTemplateForRowWithRules } from "../import/suggestions";
 import { getCategoryDisplayName } from "../utils/categoryI18n";
 import { buildMerchantRuleFingerprint } from "../utils/crypto";
 import type {
@@ -259,6 +259,7 @@ export default function ExpenseImportPage() {
 
           const rows: ReviewRow[] = statement.rows.map((row) => {
             const suggestion = suggestTemplateForRowWithRules(row, templates, learnedRules);
+            const autoAccept = shouldAutoAcceptSuggestion(suggestion);
             return {
               ...row,
               suggestion,
@@ -267,7 +268,9 @@ export default function ExpenseImportPage() {
               descriptionFinal: suggestion?.descriptionSuggested ?? row.descriptionSuggested,
               categoryIdFinal: suggestion?.categoryId ?? "",
               expenseTypeFinal: suggestion?.expenseType ?? "",
-              status: row.shouldIgnore ? "ignored" : "accepted",
+              status: autoAccept || !row.shouldIgnore ? "accepted" : "ignored",
+              shouldIgnore: autoAccept ? false : row.shouldIgnore,
+              ignoreReason: autoAccept ? null : row.ignoreReason,
             };
           });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { suggestTemplateForRowWithRules } from "./suggestions";
+import { shouldAutoAcceptSuggestion, suggestTemplateForRowWithRules } from "./suggestions";
 import type { LearnedMerchantRule, ParsedImportRow, TemplateCandidate } from "./types";
 
 const baseRow: ParsedImportRow = {
@@ -24,7 +24,7 @@ describe("import suggestions", () => {
     const templates: TemplateCandidate[] = [
       {
         id: "tpl-1",
-        description: "Restaurants",
+        description: "MCDONALDS",
         categoryId: "cat-rest",
         categoryName: "Dining & Leisure",
         expenseType: "VARIABLE",
@@ -49,5 +49,20 @@ describe("import suggestions", () => {
     expect(suggestion?.categoryId).toBe("cat-grocery");
     expect(suggestion?.descriptionSuggested).toBe("Supermercado Disco");
     expect(suggestion?.reason).toBe("learned-rule-exact-match");
+    expect(shouldAutoAcceptSuggestion(suggestion)).toBe(true);
+  });
+
+  it("does not auto-accept plain template suggestions", () => {
+    const suggestion = {
+      templateId: "tpl-1",
+      categoryId: "cat-rest",
+      categoryName: "Dining & Leisure",
+      expenseType: "VARIABLE" as const,
+      descriptionSuggested: "MCDONALDS",
+      score: 3.2,
+      reason: "template-token-match",
+    };
+
+    expect(shouldAutoAcceptSuggestion(suggestion)).toBe(false);
   });
 });

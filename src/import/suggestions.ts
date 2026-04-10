@@ -46,6 +46,10 @@ function tokenize(value: string) {
     .filter((token) => token.length >= 3);
 }
 
+export function shouldAutoAcceptSuggestion(suggestion: ImportSuggestion | null | undefined) {
+  return !!suggestion && suggestion.reason.startsWith("learned-rule");
+}
+
 export function suggestTemplateForRow(row: ParsedImportRow, templates: TemplateCandidate[]): ImportSuggestion | null {
   const merchantNormalized = normalizeImportText(row.merchantRaw);
   const merchantTokens = new Set(tokenize(row.merchantRaw));
