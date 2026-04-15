@@ -56,6 +56,7 @@ type PlannedExpense = {
   usdUyuRate?: number | null;
   isConfirmed: boolean;
   reminderChannel?: ReminderChannel;
+  reminderLabel?: string | null;
   dueDate?: string | null;
   remindAt?: string | null;
   remindDaysBefore?: number | null;
@@ -173,6 +174,7 @@ export default function ExpensesPage() {
   const [updatingReminderPlannedId, setUpdatingReminderPlannedId] = useState<string | null>(null);
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
   const [creatingExpense, setCreatingExpense] = useState(false);
+  const repairedReminderLabelIdsRef = useRef<Set<string>>(new Set());
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -385,6 +387,47 @@ export default function ExpensesPage() {
     setExpenses(resolvedExpenses);
     setPlanned(resolvedPlanned);
     applyMonthCloses(payload.monthCloses ?? { year, rows: [] });
+
+    const repairCandidates = resolvedPlanned.filter(
+      (row) =>
+        row.reminderChannel &&
+        row.reminderChannel !== "NONE" &&
+        !String(row.reminderLabel ?? "").trim() &&
+        typeof row.description === "string" &&
+        row.description.trim() &&
+        row.description.trim() !== "—" &&
+        !isEncryptedPlaceholder(row.description) &&
+        !repairedReminderLabelIdsRef.current.has(row.id)
+    );
+
+    if (repairCandidates.length > 0) {
+      for (const row of repairCandidates) repairedReminderLabelIdsRef.current.add(row.id);
+      const repaired = await Promise.all(
+        repairCandidates.map(async (row) => {
+          try {
+            await api(`/plannedExpenses/${row.id}`, {
+              method: "PUT",
+              body: JSON.stringify({ reminderLabel: row.description }),
+            });
+            return true;
+          } catch {
+            return false;
+          }
+        })
+      );
+
+      if (repaired.some(Boolean)) {
+        const refreshed = await api<ExpensesPageData>(`/expenses/page-data?year=${year}&month=${month}`);
+        const [refreshedExpenses, refreshedPlanned] = await Promise.all([
+          resolveExpenses(refreshed.expenses ?? []),
+          resolvePlanned(refreshed.planned?.rows ?? []),
+        ]);
+        applyCategories(refreshed.categories ?? []);
+        setExpenses(refreshedExpenses);
+        setPlanned(refreshedPlanned);
+        applyMonthCloses(refreshed.monthCloses ?? { year, rows: [] });
+      }
+    }
   }
 
   async function loadAll() {
@@ -666,9 +709,16 @@ export default function ExpensesPage() {
   }
 
   async function buildPlannedPatchBody(plannedId: string, patch: any) {
-    let body = patch;
+    const p = planned.find((x) => x.id === plannedId);
+    const reminderLabel =
+      typeof (patch.description ?? p?.description) === "string"
+        ? String(patch.description ?? p?.description).trim()
+        : "";
+    let body = {
+      ...patch,
+      ...(reminderLabel ? { reminderLabel } : {}),
+    };
     if (hasEncryptionSupport && (patch.description !== undefined || patch.amountUsd !== undefined || patch.amount !== undefined)) {
-      const p = planned.find((x) => x.id === plannedId);
       if (p) {
         const derivedAmountUsd =
           patch.amountUsd !== undefined
@@ -685,7 +735,7 @@ export default function ExpensesPage() {
         if (enc) {
           body = {
             encryptedPayload: enc,
-            reminderLabel: String(merged.description ?? "").trim() || undefined,
+            ...(reminderLabel ? { reminderLabel } : {}),
             ...(patch.categoryId !== undefined && { categoryId: patch.categoryId }),
             ...(patch.expenseType !== undefined && { expenseType: patch.expenseType }),
             ...(patch.dueDate !== undefined && { dueDate: patch.dueDate }),

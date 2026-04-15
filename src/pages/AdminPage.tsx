@@ -73,6 +73,7 @@ type ExpenseTemplateRow = {
   defaultCurrencyId?: string | null;
   showInExpenses?: boolean;
   reminderChannel?: ReminderChannel;
+  reminderLabel?: string | null;
   dueDayOfMonth?: number | null;
   remindDaysBefore?: number | null;
   createdAt: string;
@@ -797,6 +798,7 @@ function ExpenseTemplatesAdminCard({
     id: string | null;
     kind: "add" | "remove" | "delete" | null;
   }>({ id: null, kind: null });
+  const repairedReminderLabelIdsRef = useRef<Set<string>>(new Set());
   const templateFxRate = serverFxRate ?? getFxDefault();
 
   const catsByType = useMemo(() => {
@@ -805,13 +807,9 @@ function ExpenseTemplatesAdminCard({
     return { fixed, variable };
   }, [categories]);
 
-  async function loadTemplates() {
-    setErr("");
-    setInfo("");
-    const r = await api<{ rows: ExpenseTemplateRow[] }>("/admin/expenseTemplates");
-    const raw = r.rows ?? [];
+  async function resolveTemplateRows(rawRows: ExpenseTemplateRow[]) {
     const resolved: ExpenseTemplateRow[] = [];
-    for (const row of raw) {
+    for (const row of rawRows) {
       if (row.encryptedPayload) {
         const pl = await decryptPayload<{
           description?: string;
@@ -832,7 +830,49 @@ function ExpenseTemplatesAdminCard({
         resolved.push({ ...row, defaultAmount: row.defaultAmountUsd });
       }
     }
+    return resolved;
+  }
+
+  async function loadTemplates() {
+    setErr("");
+    setInfo("");
+    const r = await api<{ rows: ExpenseTemplateRow[] }>("/admin/expenseTemplates");
+    const raw = r.rows ?? [];
+    const resolved = await resolveTemplateRows(raw);
     setRows(resolved);
+
+    const repairCandidates = resolved.filter(
+      (row) =>
+        row.reminderChannel &&
+        row.reminderChannel !== "NONE" &&
+        !String(row.reminderLabel ?? "").trim() &&
+        typeof row.description === "string" &&
+        row.description.trim() &&
+        row.description.trim() !== "—" &&
+        !isEncryptedPlaceholder(row.description) &&
+        !repairedReminderLabelIdsRef.current.has(row.id)
+    );
+
+    if (repairCandidates.length > 0) {
+      for (const row of repairCandidates) repairedReminderLabelIdsRef.current.add(row.id);
+      const repaired = await Promise.all(
+        repairCandidates.map(async (row) => {
+          try {
+            await api(`/admin/expenseTemplates/${row.id}`, {
+              method: "PUT",
+              body: JSON.stringify({ reminderLabel: row.description }),
+            });
+            return true;
+          } catch {
+            return false;
+          }
+        })
+      );
+      if (repaired.some(Boolean)) {
+        const refreshed = await api<{ rows: ExpenseTemplateRow[] }>("/admin/expenseTemplates");
+        setRows(await resolveTemplateRows(refreshed.rows ?? []));
+      }
+    }
   }
 
   useEffect(() => {
