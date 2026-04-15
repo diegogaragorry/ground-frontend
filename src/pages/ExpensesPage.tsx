@@ -171,6 +171,7 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(false);
   const [confirmingPlannedId, setConfirmingPlannedId] = useState<string | null>(null);
   const [updatingReminderPlannedId, setUpdatingReminderPlannedId] = useState<string | null>(null);
+  const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -569,15 +570,19 @@ export default function ExpensesPage() {
     setError("");
     setInfo("");
     if (isClosed(expenseMonth)) return setError(t("expenses.monthClosedDelete"));
+    if (deletingExpenseId) return;
     if (!confirm(t("expenses.deleteExpenseConfirm"))) return;
 
     try {
+      setDeletingExpenseId(expenseId);
       await api(`/expenses/${expenseId}`, { method: "DELETE" });
       await loadPageData();
       setInfo(t("expenses.expenseDeleted"));
       showSuccess(t("expenses.expenseDeleted"));
     } catch (err: any) {
       setError(err?.message ?? t("common.error"));
+    } finally {
+      setDeletingExpenseId((current) => (current === expenseId ? null : current));
     }
   }
 
@@ -932,6 +937,21 @@ export default function ExpensesPage() {
         </div>
 
         {error && <div style={{ marginTop: 10, color: "var(--danger)" }}>{error}</div>}
+        {deletingExpenseId && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: "12px 14px",
+              borderRadius: 14,
+              background: "rgba(15,23,42,0.04)",
+              color: "rgba(15,23,42,0.78)",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            {t("expenses.deleteExpenseProcessingNotice")}
+          </div>
+        )}
 
         <div style={{ marginTop: 12 }}>
           {summaryByCategory.length === 0 ? (
@@ -1121,6 +1141,7 @@ export default function ExpensesPage() {
           categories={categories}
           isMobile={isMobile}
           isMonthClosed={isClosed}
+          deletingExpenseId={deletingExpenseId}
           getDraft={getDraft}
           setDraft={setDraft}
           clearDraft={clearDraft}
@@ -1146,6 +1167,7 @@ export default function ExpensesPage() {
           categories={categories}
           isMobile={isMobile}
           isMonthClosed={isClosed}
+          deletingExpenseId={deletingExpenseId}
           getDraft={getDraft}
           setDraft={setDraft}
           clearDraft={clearDraft}
@@ -1655,6 +1677,7 @@ function RealExpensesTable(props: {
   categories: Category[];
   isMobile: boolean;
   isMonthClosed: (m: number) => boolean;
+  deletingExpenseId: string | null;
   getDraft: (id: string) => Draft;
   setDraft: (id: string, patch: Draft) => void;
   clearDraft: (id: string) => void;
@@ -1670,6 +1693,7 @@ function RealExpensesTable(props: {
     categories,
     isMobile,
     isMonthClosed,
+    deletingExpenseId,
     getDraft,
     setDraft,
     clearDraft,
@@ -1845,10 +1869,10 @@ function RealExpensesTable(props: {
                   <button
                     className="btn danger"
                     type="button"
-                    disabled={locked}
+                    disabled={locked || !!deletingExpenseId}
                     onClick={() => removeExpense(e.id, expMonth)}
                   >
-                    {t("common.delete")}
+                    {deletingExpenseId === e.id ? t("expenses.deleteExpenseProcessing") : t("common.delete")}
                   </button>
                 </div>
               </div>
@@ -2063,11 +2087,11 @@ function RealExpensesTable(props: {
                   <button
                     className="btn danger"
                     type="button"
-                    disabled={locked}
+                    disabled={locked || !!deletingExpenseId}
                     onClick={() => removeExpense(e.id, expMonth)}
                     title={locked ? t("expenses.monthClosed") : undefined}
                   >
-                    {t("common.delete")}
+                    {deletingExpenseId === e.id ? t("expenses.deleteExpenseProcessing") : t("common.delete")}
                   </button>
                 </td>
               </tr>

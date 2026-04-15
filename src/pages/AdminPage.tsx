@@ -793,6 +793,10 @@ function ExpenseTemplatesAdminCard({
   const [editDueDayOfMonth, setEditDueDayOfMonth] = useState<string>("");
   const [editRemindDaysBefore, setEditRemindDaysBefore] = useState<string>("0");
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [templateActionBusy, setTemplateActionBusy] = useState<{
+    id: string | null;
+    kind: "add" | "remove" | "delete" | null;
+  }>({ id: null, kind: null });
   const templateFxRate = serverFxRate ?? getFxDefault();
 
   const catsByType = useMemo(() => {
@@ -1071,6 +1075,7 @@ function ExpenseTemplatesAdminCard({
   async function setShowInExpenses(id: string, visible: boolean) {
     setErr("");
     setInfo("");
+    setTemplateActionBusy({ id, kind: visible ? "add" : "remove" });
     try {
       await api(`/admin/expenseTemplates/${id}`, {
         method: "PUT",
@@ -1080,6 +1085,8 @@ function ExpenseTemplatesAdminCard({
       showSuccess(visible ? t("admin.templateAddedToExpenses") : t("admin.templateRemovedFromExpenses"));
     } catch (e: any) {
       setErr(e?.message ?? t("common.error"));
+    } finally {
+      setTemplateActionBusy({ id: null, kind: null });
     }
   }
 
@@ -1088,6 +1095,7 @@ function ExpenseTemplatesAdminCard({
     setInfo("");
     if (!confirm(t("admin.deleteTemplate"))) return;
 
+    setTemplateActionBusy({ id, kind: "delete" });
     try {
       await api(`/admin/expenseTemplates/${id}`, { method: "DELETE" });
       await loadTemplates();
@@ -1095,6 +1103,8 @@ function ExpenseTemplatesAdminCard({
       showSuccess("Template deleted.");
     } catch (e: any) {
       setErr(e?.message ?? "Error deleting template");
+    } finally {
+      setTemplateActionBusy({ id: null, kind: null });
     }
   }
 
@@ -1132,10 +1142,12 @@ function ExpenseTemplatesAdminCard({
   const notVisibleRowsSorted = useMemo(() => [...notVisibleRows].sort(sortTemplates), [notVisibleRows]);
 
   const showOnbCallout = onboardingActive;
+  const templatesBusy = templateActionBusy.kind !== null;
 
   function renderTemplateRow(row: ExpenseTemplateRow, options: { showAddButton?: boolean; showRemoveButton?: boolean }) {
     const { showAddButton = false, showRemoveButton = false } = options;
     const isEditing = editingId === row.id;
+    const isActionBusy = templateActionBusy.id === row.id;
     return (
       <tr key={row.id} style={isEditing ? { background: "rgba(15,23,42,0.03)" } : undefined}>
         <td className="muted" style={{ width: 110 }}>
@@ -1259,13 +1271,19 @@ function ExpenseTemplatesAdminCard({
               </>
             ) : (
               <>
-                <button className="btn" type="button" onClick={() => startEdit(row)} style={{ height: 32 }}>{t("admin.edit")}</button>
-                <button className="btn danger" type="button" onClick={() => del(row.id)} style={{ height: 32 }}>{t("common.delete")}</button>
+                <button className="btn" type="button" onClick={() => startEdit(row)} disabled={templatesBusy} style={{ height: 32 }}>{t("admin.edit")}</button>
+                <button className="btn danger" type="button" onClick={() => del(row.id)} disabled={templatesBusy} style={{ height: 32 }}>
+                  {isActionBusy && templateActionBusy.kind === "delete" ? t("admin.templateActionProcessing") : t("common.delete")}
+                </button>
                 {showAddButton && (
-                  <button className="btn primary" type="button" onClick={() => setShowInExpenses(row.id, true)} style={{ height: 32 }}>{t("admin.addToExpenses")}</button>
+                  <button className="btn primary" type="button" onClick={() => setShowInExpenses(row.id, true)} disabled={templatesBusy} style={{ height: 32 }}>
+                    {isActionBusy && templateActionBusy.kind === "add" ? t("admin.templateActionProcessing") : t("admin.addToExpenses")}
+                  </button>
                 )}
                 {showRemoveButton && (
-                  <button className="btn" type="button" onClick={() => setShowInExpenses(row.id, false)} style={{ height: 32 }}>{t("admin.removeFromExpenses")}</button>
+                  <button className="btn" type="button" onClick={() => setShowInExpenses(row.id, false)} disabled={templatesBusy} style={{ height: 32 }}>
+                    {isActionBusy && templateActionBusy.kind === "remove" ? t("admin.templateActionProcessing") : t("admin.removeFromExpenses")}
+                  </button>
                 )}
               </>
             )}
@@ -1282,10 +1300,26 @@ function ExpenseTemplatesAdminCard({
           <div style={{ fontWeight: 900 }}>{t("admin.tabTemplates")}</div>
           <div className="muted" style={{ fontSize: 13, marginTop: 4 }}>{t("admin.templatesIntro")}</div>
         </div>
-        <button className="btn" type="button" onClick={loadTemplates}>
-          {t("common.refresh")}
+        <button className="btn" type="button" onClick={loadTemplates} disabled={templatesBusy}>
+          {templatesBusy ? t("admin.templateActionProcessing") : t("common.refresh")}
         </button>
       </div>
+
+      {templatesBusy && (
+        <div
+          style={{
+            marginTop: 14,
+            padding: "12px 14px",
+            borderRadius: 14,
+            background: "rgba(15,23,42,0.04)",
+            color: "rgba(15,23,42,0.78)",
+            fontSize: 13,
+            lineHeight: 1.5,
+          }}
+        >
+          {t("admin.templateActionProcessingNotice")}
+        </div>
+      )}
 
       {showOnbCallout && (
         <div className="admin-onb-callout" style={{ marginTop: 16 }}>
