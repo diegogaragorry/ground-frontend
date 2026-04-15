@@ -65,12 +65,20 @@ export type ParsedImportRow = {
   suggestion?: ImportSuggestion | null;
 };
 
+export type ParsedStatementBalance = {
+  openingBalance?: number | null;
+  closingBalance?: number | null;
+  currencyId: CurrencyId;
+  accountHint?: string | null;
+};
+
 export type StatementParseResult = {
   providerKey: SupportedProviderKey;
   providerLabel: string;
   sourceKind: ImportSourceKind;
   statementDate?: string | null;
   periodLabel?: string | null;
+  balanceSummary?: ParsedStatementBalance | null;
   rows: ParsedImportRow[];
 };
 

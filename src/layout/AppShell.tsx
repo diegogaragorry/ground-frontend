@@ -552,7 +552,14 @@ export function AppShell(props: { children: React.ReactNode }) {
             >
               <OnboardingWizard
                 key={i18n.language}
-                onComplete={() => {
+                onGoToDashboard={() => {
+                  if (!ctx?.me) return;
+                  ctx.setOnboardingStep("done");
+                  ctx.setOnboardingTourStep(null);
+                  nav(APP_BASE, { replace: false });
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                onStartTour={() => {
                   if (!ctx?.me) return;
                   ctx.setOnboardingStep("expenses");
                   ctx.setOnboardingTourStep(0);

@@ -3,6 +3,7 @@ import type {
   ExtractedPdfText,
   ImportSourceKind,
   ImportSourceType,
+  ParsedStatementBalance,
   ParsedImportRow,
   StatementParseResult,
   SupportedProviderKey,
@@ -22,12 +23,20 @@ function cleanupSantanderCheckingDescription(value: string) {
       .replace(/\bDB\.\s*PAGO\s+SUELDOS\b/gi, " ")
       .replace(/\bDEBITO\s+\d+\s+OPERACION\s+EN\s+SUPERNET\s+O\s+SMS\b/gi, " ")
       .replace(/\bDEBITO\s+OPERACION\s+EN\s+SUPERNET\s+O\s+SMS\b/gi, " ")
+      .replace(/\bOPERACION\s+EN\b/gi, " ")
+      .replace(/\bSUPERNET\s+O\s+SMS\b/gi, " ")
       .replace(/\bPAGO\s+DE\s+SERVICIO\s+POR\s+BANRED\s+SERVICIO\s+DE\s+PAGOS\s+BANRED\b/gi, " ")
+      .replace(/\bPAGO\s+DE\s+SERVICIO(?:\s+POR\s+BANRED)?(?:\s+\d+)?\s+SERVICIO\s+DE\s+PAGOS\s+BANRED\b/gi, " ")
+      .replace(/\bSERVICIO\s+DE\s+PAGOS\s+BANRED\b/gi, " ")
+      .replace(/\bPAGO\s+DE\s+SERVICIO\b/gi, " ")
+      .replace(/\bPAGOS\s+BANRED\b/gi, " ")
+      .replace(/\bPOR\s+BANRED\b/gi, " ")
       .replace(/\bCOMPRA\s+CON\s+TARJETA\s+DEBITO\b/gi, " ")
       .replace(/\bPAGO\s+SERVICIO\s+VISA\b/gi, "PAGO TARJETA VISA ")
       .replace(/\bTRANSF\s+INSTANTANEA\s+ENVIADA\b/gi, "TRANSFERENCIA ENVIADA ")
       .replace(/\bTRANSFERENCIA\s+RECIBIDA\b/gi, "TRANSFERENCIA RECIBIDA ")
       .replace(/\bABONO\s+POR\s+PAGO\s+A\s+PROVEEDORES\b/gi, "ABONO PROVEEDOR ")
+      .replace(/\b1\s+TRF\.\s*PLAZA-\b/gi, "TRANSFERENCIA PLAZA ")
       .replace(/\bTRF\.\s*PLAZA-\s*/gi, "TRANSFERENCIA PLAZA ")
       .replace(/\bNRR:\s*\d+\b/gi, " ")
       .replace(/\s*,\s*/g, " ")
@@ -40,6 +49,20 @@ function detectSantanderCheckingCurrency(fullText: string): CurrencyId {
     fullText.match(/Cuenta Corriente Select[\s\S]{0,80}\b(USD|UYU)\b/i) ??
     fullText.match(/\bMoneda\b[\s\S]{0,40}\b(USD|UYU)\b/i);
   return String(match?.[1] ?? "UYU").toUpperCase() === "USD" ? "USD" : "UYU";
+}
+
+function extractLabeledAmount(lines: string[], label: string) {
+  const line = lines.find((item) => new RegExp(`^${label}\\b`, "i").test(item));
+  if (!line) return null;
+  const match = line.match(/(-?[\d\.,]+)\s*$/);
+  return match ? parseFlexibleAmount(match[1]) : null;
+}
+
+function extractSantanderCheckingAccountHint(fullText: string) {
+  const line = fullText.split(/\r?\n/).map((item) => compactSpaces(item)).find((item) => /Cuenta Corriente Select/i.test(item));
+  if (!line) return null;
+  const match = line.match(/Cuenta Corriente Select,\s*([0-9]+)\s+(?:USD|UYU)\b/i);
+  return compactSpaces(match?.[1] ?? "");
 }
 
 export function normalizeImportText(value: string) {
@@ -336,6 +359,12 @@ function parseSantanderChecking(statement: ExtractedPdfText): StatementParseResu
   const movementLines = lines.slice(startIndex + 1, endIndex > -1 ? endIndex : undefined);
   const rows: ParsedImportRow[] = [];
   const currencyId = detectSantanderCheckingCurrency(statement.fullText);
+  const balanceSummary: ParsedStatementBalance = {
+    openingBalance: extractLabeledAmount(lines, "Saldo inicial"),
+    closingBalance: extractLabeledAmount(lines, "Saldo final"),
+    currencyId,
+    accountHint: extractSantanderCheckingAccountHint(statement.fullText),
+  };
   let current: string[] = [];
 
   const flush = () => {
@@ -343,18 +372,50 @@ function parseSantanderChecking(statement: ExtractedPdfText): StatementParseResu
     const blockLines = [...current];
     current = [];
     const firstLine = blockLines[0] ?? "";
-    const match = firstLine.match(/^(\d{2}\/\d{2}\/\d{2})(?:\d{0,2})?\s+(.+?)\s+(-?[\d\.,]+)\s+([\d\.,]+)$/);
-    if (!match) return;
-    const [, rawDatePrefix, body, rawAmount] = match;
+    const compactBlockLines = blockLines.map((line) => compactSpaces(line)).filter(Boolean);
+    const inlineMatch = firstLine.match(/^(\d{2}\/\d{2}\/\d{2})(?:\d{0,2})?\s+(.+?)\s+(-?[\d\.,]+)\s+([\d\.,]+)$/);
+    const splitMatch = firstLine.match(/^(\d{2}\/\d{2}\/\d{2})(?:\d{0,2})?\s+(.+)$/);
+    if (!inlineMatch && !splitMatch) return;
+
+    const rawDatePrefix = inlineMatch?.[1] ?? splitMatch?.[1] ?? "";
+    let descriptionLines = [compactSpaces(inlineMatch?.[2] ?? splitMatch?.[2] ?? "")].filter(Boolean);
+    let rawAmount = inlineMatch?.[3] ?? "";
     let yearSuffix = "";
-    let continuationLines = blockLines.slice(1);
-    if (/^\d{2}\/\d{2}\/\d{2}$/.test(rawDatePrefix) && continuationLines[0]?.match(/^\d{2}\b/)) {
-      const y = continuationLines[0].match(/^(\d{2})\b/)?.[1] ?? "";
-      yearSuffix = y;
-      continuationLines[0] = continuationLines[0].replace(/^\d{2}\b/, "").trim();
+    const continuationLines = compactBlockLines.slice(1);
+
+    for (const line of continuationLines) {
+      if (!yearSuffix) {
+        const y = line.match(/^(\d{2})\b/)?.[1] ?? "";
+        if (y) yearSuffix = y;
+      }
+
+      if (/^\d{1,4}(?:\s+\d{1,6})*$/.test(line)) {
+        continue;
+      }
+
+      if (!rawAmount) {
+        const amountOnly = line.match(/^(-?[\d\.,]+)\s+([\d\.,]+)$/);
+        if (amountOnly) {
+          rawAmount = amountOnly[1];
+          break;
+        }
+
+        const trailingAmount = line.match(/^(.+?)\s+(-?[\d\.,]+)\s+([\d\.,]+)$/);
+        if (trailingAmount && /[A-Za-zÁÉÍÓÚáéíóú]/.test(trailingAmount[1])) {
+          descriptionLines.push(compactSpaces(trailingAmount[1]));
+          rawAmount = trailingAmount[2];
+          break;
+        }
+      }
+
+      descriptionLines.push(line);
     }
+
+    if (!rawAmount) return;
+
     const date = toIsoDateFromSlash(`${rawDatePrefix}${yearSuffix}`);
-    const rawText = [body, ...continuationLines]
+    const rawText = descriptionLines
+      .filter((line) => !/^\d{1,4}(?:\s+\d{1,6})*$/.test(line))
       .join(" ")
       .replace(/\s+/g, " ")
       .trim();
@@ -388,6 +449,7 @@ function parseSantanderChecking(statement: ExtractedPdfText): StatementParseResu
     sourceKind: "bank_statement_pdf",
     statementDate: null,
     periodLabel: statement.fullText.match(/Movimientos\s+(\d{2}\/\d{2}\/\d{4}\s+-\s+\d{2}\/\d{2}\/\d{4})/)?.[1] ?? null,
+    balanceSummary,
     rows,
   };
 }

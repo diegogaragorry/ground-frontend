@@ -11,10 +11,12 @@ import { shouldAutoAcceptSuggestion, suggestTemplateForRowWithRules } from "../i
 import { getCategoryDisplayName } from "../utils/categoryI18n";
 import { buildMerchantRuleFingerprint } from "../utils/crypto";
 import type {
+  CurrencyId,
   ExpenseType,
   ImportRowStatus,
   LearnedMerchantRule,
   ParsedImportRow,
+  ParsedStatementBalance,
   StatementParseResult,
   TemplateCandidate,
 } from "../import/types";
@@ -48,9 +50,16 @@ type MerchantMappingRuleApiRow = {
   category?: { id: string; name: string; nameKey?: string | null; expenseType?: ExpenseType } | null;
 };
 
+type InvestmentSummary = {
+  id: string;
+  name: string;
+  type: "ACCOUNT" | "PORTFOLIO";
+  currencyId: CurrencyId;
+};
+
 type ReviewRow = ParsedImportRow & {
   amountFinal: number;
-  currencyIdFinal: "UYU" | "USD";
+  currencyIdFinal: CurrencyId;
   categoryIdFinal: string;
   descriptionFinal: string;
   expenseTypeFinal: ExpenseType | "";
@@ -64,6 +73,9 @@ type StatementPreview = {
   sourceKind: StatementParseResult["sourceKind"];
   statementDate?: string | null;
   periodLabel?: string | null;
+  balanceSummary?: ParsedStatementBalance | null;
+  mappedAccountId: string;
+  shouldUpdateMappedAccount: boolean;
   rows: ReviewRow[];
   unsupportedReason?: string | null;
 };
@@ -96,6 +108,32 @@ function formatDate(iso?: string | null) {
   const [year, month, day] = iso.split("-");
   if (!year || !month || !day) return iso;
   return `${day}/${month}/${year}`;
+}
+
+function formatMoney(value: number | null | undefined, currencyId: CurrencyId) {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat("es-UY", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value) + ` ${currencyId}`;
+}
+
+function nextYearMonth(year: number, month: number) {
+  if (month === 12) return { year: year + 1, month: 1 };
+  return { year, month: month + 1 };
+}
+
+function buildStatementAccountMatch(
+  balanceSummary: ParsedStatementBalance | null | undefined,
+  accounts: InvestmentSummary[]
+) {
+  if (!balanceSummary) return "";
+  const sameCurrencyAccounts = accounts.filter((account) => account.currencyId === balanceSummary.currencyId);
+  if (sameCurrencyAccounts.length === 0) return "";
+  const hint = compactSpaces(balanceSummary.accountHint ?? "");
+  if (!hint) return sameCurrencyAccounts.length === 1 ? sameCurrencyAccounts[0].id : "";
+  const matchedByName = sameCurrencyAccounts.find((account) => compactSpaces(account.name).includes(hint));
+  return matchedByName?.id ?? (sameCurrencyAccounts.length === 1 ? sameCurrencyAccounts[0].id : "");
 }
 
 function kindColor(kind: StatementPreview["sourceKind"]) {
@@ -137,12 +175,15 @@ export default function ExpenseImportPage() {
 
   const targetYm = useMemo(() => parseYm(searchParams) ?? { year, month }, [searchParams, year, month]);
   const targetMonthLabel = `${targetYm.year}-${String(targetYm.month).padStart(2, "0")}`;
+  const nextSnapshotYm = useMemo(() => nextYearMonth(targetYm.year, targetYm.month), [targetYm.month, targetYm.year]);
+  const nextSnapshotMonthLabel = `${nextSnapshotYm.year}-${String(nextSnapshotYm.month).padStart(2, "0")}`;
 
   const [loadingContext, setLoadingContext] = useState(false);
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState("");
   const [categories, setCategories] = useState<Category[]>([]);
+  const [accounts, setAccounts] = useState<InvestmentSummary[]>([]);
   const [templates, setTemplates] = useState<TemplateCandidate[]>([]);
   const [learnedRules, setLearnedRules] = useState<LearnedMerchantRule[]>([]);
   const [statements, setStatements] = useState<StatementPreview[]>([]);
@@ -162,16 +203,18 @@ export default function ExpenseImportPage() {
       setLoadingContext(true);
       setError("");
       try {
-        const [pageData, templatesResp, rulesResp] = await Promise.all([
+        const [pageData, templatesResp, rulesResp, investmentsResp] = await Promise.all([
           api<ExpensesPageData>(`/expenses/page-data?year=${targetYm.year}&month=${targetYm.month}`),
           api<{ rows: ExpenseTemplateApiRow[] }>("/admin/expenseTemplates"),
           api<{ rows: MerchantMappingRuleApiRow[] }>("/expenses/import/rules"),
+          api<InvestmentSummary[]>("/investments"),
         ]);
 
         if (!active) return;
         setCategories(pageData.categories ?? []);
         const closed = (pageData.monthCloses?.rows ?? []).some((row) => row.month === targetYm.month && row.isClosed !== false);
         setTargetMonthClosed(closed);
+        setAccounts((investmentsResp ?? []).filter((row) => row.type === "ACCOUNT"));
 
         const resolvedTemplates: TemplateCandidate[] = [];
         for (const row of templatesResp.rows ?? []) {
@@ -234,6 +277,19 @@ export default function ExpenseImportPage() {
     };
   }, [decryptPayload, t, targetYm.month, targetYm.year]);
 
+  useEffect(() => {
+    if (accounts.length === 0) return;
+    setStatements((prev) =>
+      prev.map((statement) => {
+        if (statement.mappedAccountId || !statement.balanceSummary) return statement;
+        return {
+          ...statement,
+          mappedAccountId: buildStatementAccountMatch(statement.balanceSummary, accounts),
+        };
+      })
+    );
+  }, [accounts]);
+
   async function handleFilesSelected(fileList: FileList | null) {
     const files = Array.from(fileList ?? []);
     if (files.length === 0) return;
@@ -252,6 +308,9 @@ export default function ExpenseImportPage() {
               pageCount: extracted.pageCount,
               providerLabel: t("expenseImport.unsupportedProvider"),
               sourceKind: "credit_card_pdf" as const,
+              balanceSummary: null,
+              mappedAccountId: "",
+              shouldUpdateMappedAccount: false,
               rows: [],
               unsupportedReason: t("expenseImport.unsupportedBody"),
             } satisfies StatementPreview;
@@ -281,6 +340,10 @@ export default function ExpenseImportPage() {
             sourceKind: statement.sourceKind,
             statementDate: statement.statementDate,
             periodLabel: statement.periodLabel,
+            balanceSummary: statement.balanceSummary ?? null,
+            mappedAccountId: buildStatementAccountMatch(statement.balanceSummary, accounts),
+            shouldUpdateMappedAccount:
+              statement.sourceKind === "bank_statement_pdf" && statement.balanceSummary?.closingBalance != null,
             rows,
           } satisfies StatementPreview;
         })
@@ -303,6 +366,12 @@ export default function ExpenseImportPage() {
           rows: statement.rows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
         };
       })
+    );
+  }
+
+  function updateStatement(statementIndex: number, patch: Partial<StatementPreview>) {
+    setStatements((prev) =>
+      prev.map((statement, idx) => (idx === statementIndex ? { ...statement, ...patch } : statement))
     );
   }
 
@@ -405,7 +474,85 @@ export default function ExpenseImportPage() {
         body: JSON.stringify({ items, learnedRules: learnedRulesPayload.filter(Boolean) }),
       });
 
-      showSuccess(t("expenseImport.importedSuccess", { count: result.count, month: targetMonthLabel }));
+      const balanceUpdates = new Map<
+        string,
+        {
+          investmentId: string;
+          closingBalance: number;
+          currencyId: CurrencyId;
+        }
+      >();
+
+      for (const statement of statements) {
+        if (
+          statement.sourceKind !== "bank_statement_pdf" ||
+          !statement.shouldUpdateMappedAccount ||
+          !statement.mappedAccountId ||
+          statement.balanceSummary?.closingBalance == null
+        ) {
+          continue;
+        }
+        const account = accounts.find((row) => row.id === statement.mappedAccountId);
+        if (!account || account.currencyId !== statement.balanceSummary.currencyId) continue;
+        balanceUpdates.set(statement.mappedAccountId, {
+          investmentId: statement.mappedAccountId,
+          closingBalance: statement.balanceSummary.closingBalance,
+          currencyId: statement.balanceSummary.currencyId,
+        });
+      }
+
+      const snapshotResults = await Promise.allSettled(
+        Array.from(balanceUpdates.values()).map(async (update) => {
+          const closingCapitalUsd =
+            update.currencyId === "UYU"
+              ? Math.round((update.closingBalance / serverFxRate) * 100) / 100
+              : update.closingBalance;
+          const encryptedPayload = await encryptPayload({
+            closingCapital: update.closingBalance,
+            closingCapitalUsd,
+          });
+          const body = encryptedPayload
+            ? {
+                encryptedPayload,
+                closingCapital: 0,
+                usdUyuRate: update.currencyId === "UYU" ? serverFxRate : undefined,
+              }
+            : {
+                closingCapital: update.closingBalance,
+                ...(update.currencyId === "UYU" ? { usdUyuRate: serverFxRate } : {}),
+              };
+
+          await api(`/investments/${update.investmentId}/snapshots/${nextSnapshotYm.year}/${nextSnapshotYm.month}`, {
+            method: "PUT",
+            body: JSON.stringify(body),
+          });
+        })
+      );
+
+      const balancesUpdated = snapshotResults.filter((result) => result.status === "fulfilled").length;
+      const balancesFailed = snapshotResults.length - balancesUpdated;
+
+      if (balancesUpdated > 0 && balancesFailed === 0) {
+        showSuccess(
+          t("expenseImport.importedSuccessWithBalances", {
+            count: result.count,
+            month: targetMonthLabel,
+            balanceCount: balancesUpdated,
+            nextMonth: nextSnapshotMonthLabel,
+          })
+        );
+      } else if (balancesUpdated > 0 && balancesFailed > 0) {
+        showSuccess(
+          t("expenseImport.importedSuccessPartialBalances", {
+            count: result.count,
+            month: targetMonthLabel,
+            balanceCount: balancesUpdated,
+            nextMonth: nextSnapshotMonthLabel,
+          })
+        );
+      } else {
+        showSuccess(t("expenseImport.importedSuccess", { count: result.count, month: targetMonthLabel }));
+      }
       nav(`${APP_BASE}/expenses`, { replace: false });
     } catch (err: any) {
       setError(err?.message ?? t("common.error"));
@@ -416,10 +563,14 @@ export default function ExpenseImportPage() {
 
   return (
     <div className="grid" style={{ gap: 16 }}>
-      <SectionCard title={t("expenseImport.uploadTitle")} subtitle={t("expenseImport.uploadSubtitle")}>
+      <SectionCard title={t("expenseImport.uploadTitle")}>
         <div style={{ display: "grid", gap: 12 }}>
           <div className="row" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <label className="btn primary" style={{ cursor: parsing ? "not-allowed" : "pointer", opacity: parsing ? 0.7 : 1 }}>
+            <label
+              className="btn primary"
+              title={t("expenseImport.parseLocalNote")}
+              style={{ cursor: parsing ? "not-allowed" : "pointer", opacity: parsing ? 0.7 : 1 }}
+            >
               <input
                 type="file"
                 accept="application/pdf"
@@ -433,9 +584,11 @@ export default function ExpenseImportPage() {
               />
               {parsing ? t("expenseImport.parsing") : t("expenseImport.choosePdf")}
             </label>
-            <span className="muted" style={{ fontSize: 13 }}>
-              {loadingContext ? t("common.loading") : t("expenseImport.parseLocalNote")}
-            </span>
+            {loadingContext ? (
+              <span className="muted" style={{ fontSize: 13 }}>
+                {t("common.loading")}
+              </span>
+            ) : null}
           </div>
 
           <div className="muted" style={{ fontSize: 13, lineHeight: 1.55 }}>
@@ -450,7 +603,14 @@ export default function ExpenseImportPage() {
 
       {statements.length > 0 ? (
         <div className="grid" style={{ gap: 16 }}>
-          {statements.map((statement, statementIndex) => (
+          {statements.map((statement, statementIndex) => {
+            const mappedAccount = accounts.find((account) => account.id === statement.mappedAccountId) ?? null;
+            const currencyMismatch =
+              !!mappedAccount &&
+              !!statement.balanceSummary &&
+              mappedAccount.currencyId !== statement.balanceSummary.currencyId;
+
+            return (
             <div key={`${statement.fileName}-${statementIndex}`} className="card" style={{ display: "grid", gap: 14 }}>
               <div className="row" style={{ justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "flex-start" }}>
                 <div style={{ minWidth: 260 }}>
@@ -482,6 +642,95 @@ export default function ExpenseImportPage() {
                 </div>
               </div>
 
+              {statement.sourceKind === "bank_statement_pdf" && statement.balanceSummary ? (
+                <div
+                  style={{
+                    display: "grid",
+                    gap: 12,
+                    padding: 14,
+                    borderRadius: 14,
+                    border: "1px solid var(--border)",
+                    background: "rgba(59,130,246,0.04)",
+                  }}
+                >
+                  <div style={{ fontWeight: 800 }}>{t("expenseImport.accountMappingTitle")}</div>
+                  <div className="row" style={{ gap: 12, flexWrap: "wrap", alignItems: "end" }}>
+                    <label style={{ display: "grid", gap: 6, minWidth: 280, flex: "1 1 320px" }}>
+                      <span className="muted" style={{ fontSize: 12 }}>
+                        {t("expenseImport.accountMappingLabel")}
+                      </span>
+                      <select
+                        className="select"
+                        value={statement.mappedAccountId}
+                        onChange={(event) =>
+                          updateStatement(statementIndex, {
+                            mappedAccountId: event.target.value,
+                            shouldUpdateMappedAccount: !!event.target.value && statement.balanceSummary?.closingBalance != null,
+                          })
+                        }
+                      >
+                        <option value="">{t("expenseImport.accountMappingPlaceholder")}</option>
+                        {accounts.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name} · {account.currencyId}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div style={{ display: "grid", gap: 4, minWidth: 160 }}>
+                      <span className="muted" style={{ fontSize: 12 }}>
+                        {t("expenseImport.detectedOpeningBalance")}
+                      </span>
+                      <strong>{formatMoney(statement.balanceSummary.openingBalance, statement.balanceSummary.currencyId)}</strong>
+                    </div>
+
+                    <div style={{ display: "grid", gap: 4, minWidth: 160 }}>
+                      <span className="muted" style={{ fontSize: 12 }}>
+                        {t("expenseImport.detectedClosingBalance")}
+                      </span>
+                      <strong>{formatMoney(statement.balanceSummary.closingBalance, statement.balanceSummary.currencyId)}</strong>
+                    </div>
+                  </div>
+
+                  {statement.balanceSummary.accountHint ? (
+                    <div className="muted" style={{ fontSize: 12 }}>
+                      {t("expenseImport.accountHintDetected", { hint: statement.balanceSummary.accountHint })}
+                    </div>
+                  ) : null}
+
+                  {accounts.length === 0 ? (
+                    <div className="muted" style={{ fontSize: 13 }}>
+                      {t("expenseImport.noAccountsAvailable")}
+                    </div>
+                  ) : null}
+
+                  {currencyMismatch ? (
+                    <div style={{ color: "var(--danger)", fontSize: 13 }}>
+                      {t("expenseImport.accountCurrencyMismatch")}
+                    </div>
+                  ) : null}
+
+                  <label className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <input
+                      type="checkbox"
+                      checked={statement.shouldUpdateMappedAccount && !!statement.mappedAccountId && !currencyMismatch}
+                      disabled={!statement.mappedAccountId || statement.balanceSummary.closingBalance == null || currencyMismatch}
+                      onChange={(event) =>
+                        updateStatement(statementIndex, {
+                          shouldUpdateMappedAccount: event.target.checked,
+                        })
+                      }
+                    />
+                    <span>{t("expenseImport.saveClosingBalance")}</span>
+                  </label>
+
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    {t("expenseImport.saveClosingBalanceHelp", { nextMonth: nextSnapshotMonthLabel })}
+                  </div>
+                </div>
+              ) : null}
+
               {statement.unsupportedReason ? (
                 <div style={{ color: "var(--danger)" }}>{statement.unsupportedReason}</div>
               ) : statement.rows.length === 0 ? (
@@ -498,7 +747,6 @@ export default function ExpenseImportPage() {
                         <th style={{ width: 130 }}>{t("expenseImport.statusColumn")}</th>
                         <th style={{ width: 230 }}>{t("expenseImport.suggestedCategory")}</th>
                         <th style={{ width: 380 }}>{t("expenseImport.finalDescription")}</th>
-                        <th style={{ width: 220 }}>{t("expenseImport.detection")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -583,24 +831,6 @@ export default function ExpenseImportPage() {
                               style={{ minWidth: 320 }}
                             />
                           </td>
-                          <td>
-                            <div style={{ display: "grid", gap: 4 }}>
-                              <span>
-                                {row.suggestion?.categoryId
-                                  ? getCategoryDisplayName(
-                                      categories.find((category) => category.id === row.suggestion?.categoryId) ?? {
-                                        name: row.suggestion?.categoryName ?? "",
-                                        expenseType: row.suggestion?.expenseType ?? "VARIABLE",
-                                      },
-                                      t
-                                    )
-                                  : t("expenseImport.noSuggestion")}
-                              </span>
-                              <span className="muted" style={{ fontSize: 12 }}>
-                                {row.ignoreReason ?? row.suggestion?.reason ?? t("expenseImport.reviewNeeded")}
-                              </span>
-                            </div>
-                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -608,7 +838,8 @@ export default function ExpenseImportPage() {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
 
           <div className="card" style={{ display: "grid", gap: 8 }}>
             <div style={{ fontWeight: 850 }}>{t("expenseImport.importTitle")}</div>

@@ -150,6 +150,10 @@ describe("expense import parsers", () => {
     expect(parsed?.rows[0].shouldIgnore).toBe(true);
     expect(parsed?.rows[1].shouldIgnore).toBe(true);
     expect(parsed?.rows[0].amount).toBe(1254.82);
+    expect(parsed?.balanceSummary?.openingBalance).toBe(153476.57);
+    expect(parsed?.balanceSummary?.closingBalance).toBe(77524.82);
+    expect(parsed?.balanceSummary?.currencyId).toBe("UYU");
+    expect(parsed?.balanceSummary?.accountHint).toBe("000000402273");
     expect(parsed?.rows[2].merchantRaw).toContain("BAIPA PUNTA DEL ESTE");
   });
 
@@ -183,7 +187,62 @@ describe("expense import parsers", () => {
     expect(parsed?.rows).toHaveLength(2);
     expect(parsed?.rows[0].currencyId).toBe("USD");
     expect(parsed?.rows[0].amount).toBe(1906);
+    expect(parsed?.balanceSummary?.openingBalance).toBe(43337.1);
+    expect(parsed?.balanceSummary?.closingBalance).toBe(41347.69);
+    expect(parsed?.balanceSummary?.currencyId).toBe("USD");
     expect(parsed?.rows[0].merchantRaw).toContain("MARCO MANFRINI");
+    expect(parsed?.rows[0].merchantRaw).not.toMatch(/SUPERNET|TT55960/);
+    expect(parsed?.rows[1].merchantRaw).toBe("TCBBVAMA");
+  });
+
+  it("parses Santander checking statements when the debit and balance are split across multiple lines", () => {
+    const statement: ExtractedPdfText = {
+      pageCount: 1,
+      lines: [
+        "Santander",
+        "Cliente",
+        "Garagorry I Diego Javier",
+        "Cuenta Moneda Sucursal",
+        "Cuenta Corriente Select, 005100444444 USD 10 - Rondeau",
+        "Movimientos",
+        "01/03/2026 - 31/03/2026",
+        "Fecha Tipo Movimiento Descripción Débito Crédito Saldo",
+        "Saldo inicial 3.000,00",
+        "DEBITO",
+        "06/03/20 TT55960",
+        "OPERACION EN 1 TRF. PLAZA-",
+        "26 561",
+        "SUPERNET O SMS",
+        "Marco M",
+        "479648TT5596056",
+        "-1.000,00 2.000,00",
+        "1",
+        "SERVICIO DE",
+        "06/03/20 0000006",
+        "PAGO DE SERVICIO",
+        "PAGOS BANRED ,",
+        "26 15191",
+        "POR BANRED",
+        "TCBBVAMA TARJ:",
+        "############8066",
+        "-50,00 1.950,00",
+        "Saldo final 1.950,00",
+      ],
+      fullText: [
+        "Cuenta Corriente Select, 005100444444 USD 10 - Rondeau",
+        "Movimientos",
+        "01/03/2026 - 31/03/2026",
+      ].join("\n"),
+    };
+
+    expect(detectProvider(statement)).toBe("santander_checking_uy");
+    const parsed = parseStatement(statement);
+    expect(parsed?.rows).toHaveLength(2);
+    expect(parsed?.balanceSummary?.openingBalance).toBe(3000);
+    expect(parsed?.balanceSummary?.closingBalance).toBe(1950);
+    expect(parsed?.rows[0].amount).toBe(1000);
+    expect(parsed?.rows[0].merchantRaw).toContain("TRANSFERENCIA PLAZA");
+    expect(parsed?.rows[0].merchantRaw).toContain("Marco M");
     expect(parsed?.rows[0].merchantRaw).not.toMatch(/SUPERNET|TT55960/);
     expect(parsed?.rows[1].merchantRaw).toBe("TCBBVAMA");
   });

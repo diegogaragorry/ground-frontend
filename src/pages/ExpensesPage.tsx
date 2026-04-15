@@ -11,6 +11,7 @@ import { downloadCsv } from "../utils/exportCsv";
 import { getFxDefault, setFxDefault } from "../utils/fx";
 
 type ExpenseType = "FIXED" | "VARIABLE";
+type ReminderChannel = "NONE" | "EMAIL" | "SMS";
 
 type Category = { id: string; name: string; expenseType: ExpenseType; nameKey?: string | null };
 
@@ -54,6 +55,14 @@ type PlannedExpense = {
   amount?: number | null;
   usdUyuRate?: number | null;
   isConfirmed: boolean;
+  reminderChannel?: ReminderChannel;
+  dueDate?: string | null;
+  remindAt?: string | null;
+  remindDaysBefore?: number | null;
+  reminderOverridden?: boolean;
+  emailReminderSentAt?: string | null;
+  smsReminderSentAt?: string | null;
+  reminderResolvedAt?: string | null;
 
   expenseId?: string | null;
   encryptedPayload?: string | null;
@@ -88,6 +97,7 @@ type PlannedDraft = {
   amountUsd?: number;
   categoryId?: string;
   expenseType?: ExpenseType;
+  dueDate?: string;
 };
 type PlannedDraftMap = Record<string, PlannedDraft>;
 
@@ -104,13 +114,38 @@ function toFiniteNumber(value: unknown, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function reminderChannelLabel(channel: ReminderChannel | null | undefined, t: (key: string, options?: any) => string) {
+  if (channel === "EMAIL") return t("expenses.reminderChannelEmail");
+  if (channel === "SMS") return t("expenses.reminderChannelSms");
+  return t("expenses.reminderNone");
+}
+
+function reminderDateInputValue(value: string | null | undefined) {
+  if (!value) return "";
+  return String(value).slice(0, 10);
+}
+
+function reminderSummary(
+  planned: Pick<PlannedExpense, "reminderChannel" | "dueDate" | "remindDaysBefore">,
+  t: (key: string, options?: any) => string
+) {
+  const channel = planned.reminderChannel ?? "NONE";
+  if (channel === "NONE" || !planned.dueDate) return t("expenses.reminderNone");
+  const dueDate = new Date(planned.dueDate);
+  const dueLabel = new Intl.DateTimeFormat(undefined, { day: "2-digit", month: "2-digit" }).format(dueDate);
+  const offset = Number(planned.remindDaysBefore ?? 0);
+  const timing =
+    offset <= 0 ? t("expenses.reminderSameDay") : t("expenses.reminderDaysBeforeValue", { count: offset });
+  return `${reminderChannelLabel(channel, t)} · ${t("expenses.reminderDueDateValue", { date: dueLabel })} · ${timing}`;
+}
+
 export default function ExpensesPage() {
   const nav = useNavigate();
   const { t } = useTranslation();
   const { encryptPayload, decryptPayload, hasEncryptionSupport } = useEncryption();
 
   const { setHeader, onboardingStep, setOnboardingStep, meLoaded, me, showSuccess, isMobile, serverFxRate } = useAppShell();
-  const { formatAmountUsd, currencyLabel } = useDisplayCurrency();
+  const { formatAmountUsd, currencyLabel, preferredDisplayCurrencyId } = useDisplayCurrency();
 
   const { year, month } = useAppYearMonth();
 
@@ -135,6 +170,7 @@ export default function ExpensesPage() {
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
   const [confirmingPlannedId, setConfirmingPlannedId] = useState<string | null>(null);
+  const [updatingReminderPlannedId, setUpdatingReminderPlannedId] = useState<string | null>(null);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -148,13 +184,32 @@ export default function ExpensesPage() {
   const [expenseTypeCreate, setExpenseTypeCreate] = useState<ExpenseType>("VARIABLE");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState<number>(100);
-  const [currencyId, setCurrencyId] = useState<"UYU" | "USD">("UYU");
+  const [currencyId, setCurrencyId] = useState<"UYU" | "USD">(preferredDisplayCurrencyId);
   const [usdUyuRate, setUsdUyuRate] = useState<number>(getFxDefault());
   useEffect(() => {
     if (serverFxRate != null) setUsdUyuRate(serverFxRate);
   }, [serverFxRate]);
   const [categoryId, setCategoryId] = useState<string>("");
   const [ymCreate, setYmCreate] = useState<string>(ymToInputValue(year, month));
+
+  useEffect(() => {
+    if (!description.trim() && Number(amount) === 100) {
+      setCurrencyId(preferredDisplayCurrencyId);
+    }
+  }, [preferredDisplayCurrencyId, description, amount]);
+
+  const createShowsConversionBlock =
+    (currencyId === "UYU" && preferredDisplayCurrencyId === "USD") ||
+    (currencyId === "USD" && preferredDisplayCurrencyId === "UYU");
+  const createFxEditable = currencyId === "UYU";
+  const createEquivalentLabel =
+    currencyId === "UYU"
+      ? Number.isFinite(usdUyuRate) && usdUyuRate > 0
+        ? `≈ ${usd0.format(amount / usdUyuRate)} USD`
+        : "—"
+      : preferredDisplayCurrencyId === "UYU" && Number.isFinite(usdUyuRate) && usdUyuRate > 0
+        ? `≈ ${usd0.format(amount * usdUyuRate)} UYU`
+        : "—";
 
   // inline drafts (Expenses real)
   const [drafts, setDrafts] = useState<DraftMap>({});
@@ -194,9 +249,14 @@ export default function ExpensesPage() {
   }
 
   function getPlannedDisplayState(p: PlannedExpense, d: PlannedDraft) {
-    const isUyu = p.template?.defaultCurrencyId === "UYU";
+    const currencyId: "UYU" | "USD" = p.template?.defaultCurrencyId === "UYU" ? "UYU" : "USD";
+    const isUyu = currencyId === "UYU";
     const hasLockedUyu = isUyu && p.amount != null && p.usdUyuRate != null && Number.isFinite(p.amount) && p.usdUyuRate > 0;
-    const rate = hasLockedUyu ? p.usdUyuRate! : isUyu && Number.isFinite(usdUyuRate) && usdUyuRate > 0 ? usdUyuRate : 1;
+    const rate = hasLockedUyu
+      ? p.usdUyuRate!
+      : Number.isFinite(usdUyuRate) && usdUyuRate > 0
+        ? usdUyuRate
+        : 1;
     const amountUsd = getPlannedAmountUsdValue(p, d);
     const hasDraftAmount = d.amountUsd !== undefined && Number.isFinite(Number(d.amountUsd));
     const displayValue = isUyu
@@ -207,7 +267,7 @@ export default function ExpensesPage() {
           : Math.round(amountUsd * rate)
       : Math.round(amountUsd);
 
-    return { isUyu, hasLockedUyu, rate, amountUsd, displayValue };
+    return { currencyId, isUyu, hasLockedUyu, rate, amountUsd, displayValue };
   }
 
   const categoriesByType = useMemo(() => {
@@ -374,6 +434,12 @@ export default function ExpensesPage() {
       return (a.description ?? "").localeCompare(b.description ?? "");
     });
   }, [planned, t]);
+
+  const showPlannedConversionColumns = plannedSorted.some((p) => {
+    const d = getPlannedDraft(p.id);
+    const { currencyId } = getPlannedDisplayState(p, d);
+    return currencyId !== preferredDisplayCurrencyId;
+  });
 
   function exportExpensesCsv() {
     const headers = [
@@ -567,6 +633,28 @@ export default function ExpensesPage() {
     await loadPageData();
   }
 
+  async function clearPlannedReminder(plannedId: string) {
+    if (isClosed(month)) {
+      setError(t("expenses.monthClosedEditDrafts"));
+      return;
+    }
+    setUpdatingReminderPlannedId(plannedId);
+    setError("");
+    try {
+      await api(`/plannedExpenses/${plannedId}`, {
+        method: "PUT",
+        body: JSON.stringify({ clearReminder: true }),
+      });
+      clearPlannedDraft(plannedId);
+      await loadPageData();
+      showSuccess(t("expenses.reminderRemoved"));
+    } catch (e: any) {
+      setError(e?.message ?? t("expenses.reminderRemoveError"));
+    } finally {
+      setUpdatingReminderPlannedId(null);
+    }
+  }
+
   async function buildPlannedPatchBody(plannedId: string, patch: any) {
     let body = patch;
     if (hasEncryptionSupport && (patch.description !== undefined || patch.amountUsd !== undefined || patch.amount !== undefined)) {
@@ -589,6 +677,7 @@ export default function ExpensesPage() {
             encryptedPayload: enc,
             ...(patch.categoryId !== undefined && { categoryId: patch.categoryId }),
             ...(patch.expenseType !== undefined && { expenseType: patch.expenseType }),
+            ...(patch.dueDate !== undefined && { dueDate: patch.dueDate }),
           };
         }
       }
@@ -602,6 +691,7 @@ export default function ExpensesPage() {
     if (d.categoryId !== undefined) patch.categoryId = d.categoryId;
     if (d.expenseType !== undefined) patch.expenseType = d.expenseType;
     if (d.description !== undefined && d.description.trim()) patch.description = d.description.trim();
+    if (d.dueDate !== undefined && d.dueDate.trim()) patch.dueDate = d.dueDate.trim();
 
     const hasAmountDraft = d.amountUsd !== undefined;
     if (hasAmountDraft) {
@@ -913,7 +1003,7 @@ export default function ExpensesPage() {
               ? { display: "flex", flexDirection: "column", gap: 12, maxWidth: 360 }
               : {
                   gridTemplateColumns:
-                    currencyId === "UYU"
+                    createShowsConversionBlock
                       ? "0.8fr 1.6fr 1.6fr 0.8fr 0.8fr 1.4fr 1fr auto"
                       : "0.8fr 1.6fr 1.6fr 0.8fr 0.8fr 1fr auto",
                   alignItems: "end",
@@ -973,21 +1063,27 @@ export default function ExpensesPage() {
             <input className="input" type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} disabled={createMonthClosed} />
           </div>
 
-          {currencyId === "UYU" && (
+          {createShowsConversionBlock && (
             <div>
               <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.fx")}</div>
               <div className="row" style={{ gap: 6, alignItems: "center" }}>
-                <input
-                  className="input"
-                  type="number"
-                  step="0.001"
-                  value={Number.isFinite(usdUyuRate) ? usdUyuRate.toFixed(2) : ""}
-                  onChange={(e) => setUsdUyuRate(Number(e.target.value))}
-                  style={{ width: 120 }}
-                  disabled={createMonthClosed}
-                />
+                {createFxEditable ? (
+                  <input
+                    className="input"
+                    type="number"
+                    step="0.001"
+                    value={Number.isFinite(usdUyuRate) ? usdUyuRate.toFixed(2) : ""}
+                    onChange={(e) => setUsdUyuRate(Number(e.target.value))}
+                    style={{ width: 120 }}
+                    disabled={createMonthClosed}
+                  />
+                ) : (
+                  <div className="input" style={{ width: 120, display: "flex", alignItems: "center" }}>
+                    {Number.isFinite(usdUyuRate) ? usdUyuRate.toFixed(2) : "—"}
+                  </div>
+                )}
                 <div className="muted" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
-                  ≈ {usd0.format(amount / (usdUyuRate || 1))} USD
+                  {createEquivalentLabel}
                 </div>
               </div>
             </div>
@@ -1109,7 +1205,12 @@ export default function ExpensesPage() {
               const d = getPlannedDraft(p.id);
               const currentCategoryId = d.categoryId ?? p.categoryId;
               const enforcedType = categoryTypeOf(currentCategoryId) ?? (d.expenseType ?? p.expenseType);
-              const { isUyu, rate, amountUsd, displayValue } = getPlannedDisplayState(p, d);
+              const { currencyId: currentCurrency, isUyu, rate, amountUsd, displayValue } = getPlannedDisplayState(p, d);
+              const showsConversion = currentCurrency !== preferredDisplayCurrencyId;
+              const convertedPreview =
+                preferredDisplayCurrencyId === "UYU"
+                  ? amountUsd * (rate || 0)
+                  : amountUsd;
               const locked = isClosed(month);
               const ymDisplay = `${p.year}-${String(p.month).padStart(2, "0")}`;
 
@@ -1211,10 +1312,54 @@ export default function ExpensesPage() {
                     </div>
 
                     <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-                      <span className="muted" style={{ fontSize: 12 }}>
-                        {isUyu ? `${t("expenses.fx")}: ${Number(rate).toFixed(2)}` : "USD"}
-                      </span>
-                      <strong>{usd0.format(amountUsd)} USD</strong>
+                      {showsConversion ? (
+                        <>
+                          <span className="muted" style={{ fontSize: 12 }}>
+                            {isUyu ? `${t("expenses.fx")}: ${Number(rate).toFixed(2)}` : `${t("expenses.fx")}: ${Number(rate).toFixed(2)}`}
+                          </span>
+                          <strong>{usd0.format(convertedPreview)} {preferredDisplayCurrencyId}</strong>
+                        </>
+                      ) : (
+                        <span />
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.reminder")}</div>
+                      {p.reminderChannel && p.reminderChannel !== "NONE" ? (
+                        <div style={{ display: "grid", gap: 8 }}>
+                          <div className="muted" style={{ fontSize: 12 }}>
+                            {reminderSummary(p, t)}
+                          </div>
+                          <div className="row" style={{ gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                            <input
+                              className="input"
+                              type="date"
+                              value={d.dueDate ?? reminderDateInputValue(p.dueDate)}
+                              disabled={locked || updatingReminderPlannedId === p.id}
+                              onChange={(e) => setPlannedDraft(p.id, { dueDate: e.target.value })}
+                              onBlur={(e) => {
+                                if (locked || updatingReminderPlannedId === p.id) return;
+                                const value = e.target.value.trim();
+                                if (!value) return;
+                                patchPlanned(p.id, { dueDate: value }).then(() => clearPlannedDraft(p.id));
+                              }}
+                              style={{ flex: "1 1 180px" }}
+                            />
+                            <button
+                              className="btn"
+                              type="button"
+                              disabled={locked || updatingReminderPlannedId !== null}
+                              onClick={() => clearPlannedReminder(p.id)}
+                              style={{ height: 40 }}
+                            >
+                              {updatingReminderPlannedId === p.id ? t("expenses.reminderRemoving") : t("expenses.reminderRemove")}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="muted" style={{ fontSize: 12 }}>{t("expenses.reminderNone")}</span>
+                      )}
                     </div>
 
                     <button
@@ -1251,8 +1396,9 @@ export default function ExpensesPage() {
                 <th>{t("expenses.description")}</th>
                 <th style={{ width: 90 }}>{t("expenses.curr")}</th>
                 <th className="right" style={{ width: 110 }}>{t("expenses.amount")}</th>
-                <th style={{ width: 100 }}>{t("expenses.fx")}</th>
-                <th className="right" style={{ width: 100 }}>{t("expenses.usd")}</th>
+                {showPlannedConversionColumns && <th style={{ width: 100 }}>{t("expenses.fx")}</th>}
+                {showPlannedConversionColumns && <th className="right" style={{ width: 100 }}>{preferredDisplayCurrencyId}</th>}
+                <th style={{ width: 240 }}>{t("expenses.reminder")}</th>
                 <th style={{ width: 220 }}>{t("expenses.actions")}</th>
               </tr>
             </thead>
@@ -1261,7 +1407,12 @@ export default function ExpensesPage() {
                 const d = getPlannedDraft(p.id);
                 const currentCategoryId = d.categoryId ?? p.categoryId;
                 const enforcedType = categoryTypeOf(currentCategoryId) ?? (d.expenseType ?? p.expenseType);
-                const { isUyu, rate, amountUsd, displayValue } = getPlannedDisplayState(p, d);
+                const { currencyId: currentCurrency, isUyu, rate, amountUsd, displayValue } = getPlannedDisplayState(p, d);
+                const showsConversion = currentCurrency !== preferredDisplayCurrencyId;
+                const convertedPreview =
+                  preferredDisplayCurrencyId === "UYU"
+                    ? amountUsd * (rate || 0)
+                    : amountUsd;
                 const locked = isClosed(month);
                 const ymDisplay = `${p.year}-${String(p.month).padStart(2, "0")}`;
 
@@ -1326,7 +1477,7 @@ export default function ExpensesPage() {
                     </td>
 
                     <td>
-                      <span style={{ fontSize: 13, fontWeight: 600 }}>{isUyu ? "UYU" : "USD"}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{currentCurrency}</span>
                     </td>
 
                     <td className="right">
@@ -1359,16 +1510,59 @@ export default function ExpensesPage() {
                       />
                     </td>
 
-                    <td>
-                      {isUyu ? (
-                        <span className="muted" style={{ fontSize: 12 }}>{Number(rate).toFixed(2)}</span>
-                      ) : (
-                        <span className="muted" style={{ fontSize: 12 }}>—</span>
-                      )}
-                    </td>
+                    {showPlannedConversionColumns && (
+                      <td>
+                        {showsConversion ? (
+                          <span className="muted" style={{ fontSize: 12 }}>{Number(rate).toFixed(2)}</span>
+                        ) : (
+                          <span className="muted" style={{ fontSize: 12 }}>—</span>
+                        )}
+                      </td>
+                    )}
 
-                    <td className="right">
-                      <span className="muted" style={{ whiteSpace: "nowrap" }}>{usd0.format(amountUsd)} USD</span>
+                    {showPlannedConversionColumns && (
+                      <td className="right">
+                        <span className="muted" style={{ whiteSpace: "nowrap" }}>
+                          {showsConversion ? `${usd0.format(convertedPreview)} ${preferredDisplayCurrencyId}` : "—"}
+                        </span>
+                      </td>
+                    )}
+
+                    <td>
+                      {p.reminderChannel && p.reminderChannel !== "NONE" ? (
+                        <div style={{ display: "grid", gap: 6 }}>
+                          <div className="muted" style={{ fontSize: 12 }}>
+                            {reminderSummary(p, t)}
+                          </div>
+                          <div style={{ display: "grid", gap: 6 }}>
+                            <input
+                              className="input"
+                              type="date"
+                              value={d.dueDate ?? reminderDateInputValue(p.dueDate)}
+                              disabled={locked || updatingReminderPlannedId === p.id}
+                              onChange={(e) => setPlannedDraft(p.id, { dueDate: e.target.value })}
+                              onBlur={(e) => {
+                                if (locked || updatingReminderPlannedId === p.id) return;
+                                const value = e.target.value.trim();
+                                if (!value) return;
+                                patchPlanned(p.id, { dueDate: value }).then(() => clearPlannedDraft(p.id));
+                              }}
+                              style={{ width: "100%" }}
+                            />
+                            <button
+                              className="btn"
+                              type="button"
+                              disabled={locked || updatingReminderPlannedId !== null}
+                              onClick={() => clearPlannedReminder(p.id)}
+                              style={{ height: 34, justifySelf: "start" }}
+                            >
+                              {updatingReminderPlannedId === p.id ? t("expenses.reminderRemoving") : t("expenses.reminderRemove")}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="muted" style={{ fontSize: 12 }}>{t("expenses.reminderNone")}</span>
+                      )}
                     </td>
 
                     <td className="right">
@@ -1391,7 +1585,7 @@ export default function ExpensesPage() {
 
               {planned.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="muted">
+                  <td colSpan={showPlannedConversionColumns ? 10 : 8} className="muted">
                     <div style={{ padding: "8px 0" }}>
                       <div style={{ fontWeight: 800, marginBottom: 4 }}>{t("expenses.noDrafts")}</div>
                       <div className="muted" style={{ fontSize: 13 }}>
@@ -1470,6 +1664,7 @@ function RealExpensesTable(props: {
   fallbackYm: string;
 }) {
   const { t } = useTranslation();
+  const { preferredDisplayCurrencyId } = useDisplayCurrency();
   const {
     expenses,
     categories,
@@ -1486,6 +1681,11 @@ function RealExpensesTable(props: {
     props;
 
   const categoriesSorted = useMemo(() => categories.slice().sort((a, b) => a.name.localeCompare(b.name)), [categories]);
+  const showConversionColumns = expenses.some((expense) => {
+    const draftCurrency = getDraft(expense.id).currencyId;
+    const currentCurrency = (draftCurrency ?? (expense.currencyId as any)) as "UYU" | "USD";
+    return currentCurrency !== preferredDisplayCurrencyId;
+  });
 
   if (isMobile) {
     return (
@@ -1499,7 +1699,13 @@ function RealExpensesTable(props: {
               ? (d.usdUyuRate ?? (e.usdUyuRate ?? getFxDefault()))
               : (d.usdUyuRate ?? getFxDefault());
           const ymValue = d.ym ?? fallbackYm;
-          const usdPreview = currentCurrency === "USD" ? currentAmount : currentAmount / (currentRate || 1);
+          const amountUsdPreview = currentCurrency === "USD" ? currentAmount : currentAmount / (currentRate || 1);
+          const showsConversion = currentCurrency !== preferredDisplayCurrencyId;
+          const fxEditable = currentCurrency === "UYU" && preferredDisplayCurrencyId === "USD";
+          const convertedPreview =
+            preferredDisplayCurrencyId === "UYU"
+              ? amountUsdPreview * (currentRate || 0)
+              : amountUsdPreview;
           const expMonth = fallbackMonth;
           const locked = isMonthClosed(expMonth);
 
@@ -1606,29 +1812,35 @@ function RealExpensesTable(props: {
                   </div>
                 </div>
 
-                {currentCurrency === "UYU" && (
+                {showsConversion && (
                   <div>
                     <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.fx")}</div>
-                    <input
-                      className="input"
-                      type="number"
-                      step="0.001"
-                      value={Number.isFinite(currentRate) ? Number(currentRate).toFixed(2) : ""}
-                      disabled={locked}
-                      onChange={(ev) => setDraft(e.id, { usdUyuRate: Number(ev.target.value) })}
-                      onBlur={() => {
-                        if (locked) return;
-                        if (!Number.isFinite(currentRate) || currentRate <= 0) return;
-                        setFxDefault(Number(currentRate));
-                        patchExpense(e.id, expMonth, { usdUyuRate: Number(currentRate) }).then(() => clearDraft(e.id));
-                      }}
-                    />
+                    {fxEditable ? (
+                      <input
+                        className="input"
+                        type="number"
+                        step="0.001"
+                        value={Number.isFinite(currentRate) ? Number(currentRate).toFixed(2) : ""}
+                        disabled={locked}
+                        onChange={(ev) => setDraft(e.id, { usdUyuRate: Number(ev.target.value) })}
+                        onBlur={() => {
+                          if (locked) return;
+                          if (!Number.isFinite(currentRate) || currentRate <= 0) return;
+                          setFxDefault(Number(currentRate));
+                          patchExpense(e.id, expMonth, { usdUyuRate: Number(currentRate) }).then(() => clearDraft(e.id));
+                        }}
+                      />
+                    ) : (
+                      <div className="input" style={{ display: "flex", alignItems: "center" }}>
+                        {Number.isFinite(currentRate) ? Number(currentRate).toFixed(2) : "—"}
+                      </div>
+                    )}
                   </div>
                 )}
 
                 <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
                   <span className="muted" style={{ fontSize: 12 }}>
-                    {currentCurrency === "UYU" ? `≈ ${usd0.format(usdPreview)} USD` : `${usd0.format(currentAmount)} USD`}
+                    {showsConversion ? `≈ ${usd0.format(convertedPreview)} ${preferredDisplayCurrencyId}` : ""}
                   </span>
                   <button
                     className="btn danger"
@@ -1664,8 +1876,8 @@ function RealExpensesTable(props: {
             <th>{t("expenses.description")}</th>
             <th style={{ width: 90 }}>{t("expenses.curr")}</th>
             <th className="right" style={{ width: 110 }}>{t("expenses.amount")}</th>
-            <th style={{ width: 100 }}>{t("expenses.fx")}</th>
-            <th className="right" style={{ width: 100 }}>{t("expenses.usd")}</th>
+            {showConversionColumns && <th style={{ width: 100 }}>{t("expenses.fx")}</th>}
+            {showConversionColumns && <th className="right" style={{ width: 100 }}>{preferredDisplayCurrencyId}</th>}
             <th style={{ width: 110 }} />
           </tr>
         </thead>
@@ -1682,7 +1894,13 @@ function RealExpensesTable(props: {
                 : (d.usdUyuRate ?? getFxDefault());
 
             const ymValue = d.ym ?? fallbackYm;
-            const usdPreview = currentCurrency === "USD" ? currentAmount : currentAmount / (currentRate || 1);
+            const amountUsdPreview = currentCurrency === "USD" ? currentAmount : currentAmount / (currentRate || 1);
+            const showsConversion = currentCurrency !== preferredDisplayCurrencyId;
+            const fxEditable = currentCurrency === "UYU" && preferredDisplayCurrencyId === "USD";
+            const convertedPreview =
+              preferredDisplayCurrencyId === "UYU"
+                ? amountUsdPreview * (currentRate || 0)
+                : amountUsdPreview;
             const expMonth = fallbackMonth;
             const locked = isMonthClosed(expMonth);
 
@@ -1802,34 +2020,44 @@ function RealExpensesTable(props: {
                   />
                 </td>
 
-                <td>
-                  {currentCurrency === "UYU" ? (
-                    <input
-                      className="input"
-                      type="number"
-                      step="0.001"
-                      value={Number.isFinite(currentRate) ? Number(currentRate).toFixed(2) : ""}
-                      disabled={locked}
-                      onChange={(ev) => setDraft(e.id, { usdUyuRate: Number(ev.target.value) })}
-                      onBlur={() => {
-                        if (locked) return;
-                        if (!Number.isFinite(currentRate) || currentRate <= 0) return;
-                        setFxDefault(Number(currentRate));
-                        patchExpense(e.id, expMonth, { usdUyuRate: Number(currentRate) }).then(() => clearDraft(e.id));
-                      }}
-                      style={{ width: 90 }}
-                      title={locked ? t("expenses.monthClosed") : t("expenses.fxUsdUyu")}
-                    />
-                  ) : (
-                    <span className="muted" style={{ fontSize: 12 }}>—</span>
-                  )}
-                </td>
+                {showConversionColumns && (
+                  <td>
+                    {showsConversion ? (
+                      fxEditable ? (
+                        <input
+                          className="input"
+                          type="number"
+                          step="0.001"
+                          value={Number.isFinite(currentRate) ? Number(currentRate).toFixed(2) : ""}
+                          disabled={locked}
+                          onChange={(ev) => setDraft(e.id, { usdUyuRate: Number(ev.target.value) })}
+                          onBlur={() => {
+                            if (locked) return;
+                            if (!Number.isFinite(currentRate) || currentRate <= 0) return;
+                            setFxDefault(Number(currentRate));
+                            patchExpense(e.id, expMonth, { usdUyuRate: Number(currentRate) }).then(() => clearDraft(e.id));
+                          }}
+                          style={{ width: 90 }}
+                          title={locked ? t("expenses.monthClosed") : t("expenses.fxUsdUyu")}
+                        />
+                      ) : (
+                        <span className="muted" style={{ fontSize: 12 }}>
+                          {Number.isFinite(currentRate) ? Number(currentRate).toFixed(2) : "—"}
+                        </span>
+                      )
+                    ) : (
+                      <span className="muted" style={{ fontSize: 12 }}>—</span>
+                    )}
+                  </td>
+                )}
 
-                <td className="right">
-                  <span className="muted" style={{ whiteSpace: "nowrap" }}>
-                    {currentCurrency === "UYU" ? `≈ ${usd0.format(usdPreview)}` : usd0.format(currentAmount)} USD
-                  </span>
-                </td>
+                {showConversionColumns && (
+                  <td className="right">
+                    <span className="muted" style={{ whiteSpace: "nowrap" }}>
+                      {showsConversion ? `≈ ${usd0.format(convertedPreview)} ${preferredDisplayCurrencyId}` : "—"}
+                    </span>
+                  </td>
+                )}
 
                 <td className="right">
                   <button
@@ -1848,7 +2076,7 @@ function RealExpensesTable(props: {
 
           {expenses.length === 0 && (
             <tr>
-              <td colSpan={9} className="muted" style={{ padding: "12px 10px" }}>
+              <td colSpan={showConversionColumns ? 9 : 7} className="muted" style={{ padding: "12px 10px" }}>
                 {t("expenses.noExpensesInList")}
               </td>
             </tr>

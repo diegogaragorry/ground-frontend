@@ -9,6 +9,7 @@ import { getCategoryDisplayName, getExpenseTypeLabel, getTemplateDescriptionDisp
 import { getFxDefault } from "../utils/fx";
 
 type ExpenseType = "FIXED" | "VARIABLE";
+type ReminderChannel = "NONE" | "EMAIL" | "SMS";
 type Category = { id: string; name: string; expenseType: ExpenseType; nameKey?: string | null };
 
 type MonthCloseRow = {
@@ -66,9 +67,14 @@ type ExpenseTemplateRow = {
   categoryId: string;
   description: string;
   descriptionKey?: string | null;
+  onboardingSourceKey?: string | null;
   defaultAmountUsd: number | null;
+  defaultAmount?: number | null;
   defaultCurrencyId?: string | null;
   showInExpenses?: boolean;
+  reminderChannel?: ReminderChannel;
+  dueDayOfMonth?: number | null;
+  remindDaysBefore?: number | null;
   createdAt: string;
   updatedAt: string;
   encryptedPayload?: string | null;
@@ -89,6 +95,61 @@ function editNumberOrNull(v: string): number | null {
   if (!s) return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
+}
+
+function reminderChannelLabel(channel: ReminderChannel, t: (key: string, options?: any) => string) {
+  if (channel === "EMAIL") return t("admin.reminderChannelEmail");
+  if (channel === "SMS") return t("admin.reminderChannelSms");
+  return t("admin.reminderChannelNone");
+}
+
+function reminderSummary(
+  config: {
+    reminderChannel?: ReminderChannel | null;
+    dueDayOfMonth?: number | null;
+    remindDaysBefore?: number | null;
+  },
+  t: (key: string, options?: any) => string
+) {
+  const channel = config.reminderChannel ?? "NONE";
+  const dueDay = config.dueDayOfMonth ?? null;
+  const remindDaysBefore = Number(config.remindDaysBefore ?? 0);
+  if (channel === "NONE" || dueDay == null) return t("admin.reminderChannelNone");
+  const timing =
+    remindDaysBefore <= 0
+      ? t("admin.reminderSameDay")
+      : t("admin.reminderDaysBeforeValue", { count: remindDaysBefore });
+  return `${reminderChannelLabel(channel, t)} · ${t("admin.reminderDueDayValue", { day: dueDay })} · ${timing}`;
+}
+
+function isEncryptedPlaceholder(value: unknown) {
+  return typeof value === "string" && /^\(encrypted(?:-[a-f0-9]{8})?\)$/i.test(value.trim());
+}
+
+function buildReminderPayload(args: {
+  reminderChannel: ReminderChannel;
+  dueDayOfMonth: string;
+  remindDaysBefore: string;
+}) {
+  const reminderChannel = args.reminderChannel;
+  const dueDayRaw = String(args.dueDayOfMonth ?? "").trim();
+  const remindBeforeRaw = String(args.remindDaysBefore ?? "").trim();
+
+  if (reminderChannel === "NONE") {
+    return { reminderChannel, dueDayOfMonth: null, remindDaysBefore: 0 };
+  }
+
+  const dueDayOfMonth = Number(dueDayRaw);
+  if (!Number.isInteger(dueDayOfMonth) || dueDayOfMonth < 1 || dueDayOfMonth > 31) {
+    throw new Error("dueDayOfMonth");
+  }
+
+  const remindDaysBefore = remindBeforeRaw === "" ? 0 : Number(remindBeforeRaw);
+  if (!Number.isInteger(remindDaysBefore) || remindDaysBefore < 0 || remindDaysBefore > 31) {
+    throw new Error("remindDaysBefore");
+  }
+
+  return { reminderChannel, dueDayOfMonth, remindDaysBefore };
 }
 
 /* ---------------------------------------------------------
@@ -705,7 +766,8 @@ function ExpenseTemplatesAdminCard({
   onScrollTargetRef?: React.RefObject<HTMLDivElement | null>;
 }) {
   const { t } = useTranslation();
-  const { showSuccess } = useAppShell();
+  const { preferredDisplayCurrencyId } = useDisplayCurrency();
+  const { showSuccess, me, serverFxRate } = useAppShell();
   const { encryptPayload, decryptPayload, hasEncryptionSupport } = useEncryption();
   const [rows, setRows] = useState<ExpenseTemplateRow[]>([]);
   const [err, setErr] = useState("");
@@ -715,8 +777,11 @@ function ExpenseTemplatesAdminCard({
   const [categoryId, setCategoryId] = useState<string>("");
   const [description, setDescription] = useState<string>("");
   const [defaultAmountUsd, setDefaultAmountUsd] = useState<string>("");
-  const [createDefaultCurrencyId, setCreateDefaultCurrencyId] = useState<"UYU" | "USD">("USD");
-  const [createUsdUyuRate, setCreateUsdUyuRate] = useState<number>(() => getFxDefault());
+  const [createDefaultCurrencyId, setCreateDefaultCurrencyId] = useState<"UYU" | "USD">(preferredDisplayCurrencyId);
+  const [createCurrencyTouched, setCreateCurrencyTouched] = useState(false);
+  const [createReminderChannel, setCreateReminderChannel] = useState<ReminderChannel>("NONE");
+  const [createDueDayOfMonth, setCreateDueDayOfMonth] = useState<string>("");
+  const [createRemindDaysBefore, setCreateRemindDaysBefore] = useState<string>("0");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editExpenseType, setEditExpenseType] = useState<ExpenseType>("VARIABLE");
@@ -724,8 +789,11 @@ function ExpenseTemplatesAdminCard({
   const [editDescription, setEditDescription] = useState<string>("");
   const [editDefaultAmountUsd, setEditDefaultAmountUsd] = useState<string>("");
   const [editDefaultCurrencyId, setEditDefaultCurrencyId] = useState<"UYU" | "USD">("USD");
-  const [editUsdUyuRate, setEditUsdUyuRate] = useState<number>(getFxDefault());
+  const [editReminderChannel, setEditReminderChannel] = useState<ReminderChannel>("NONE");
+  const [editDueDayOfMonth, setEditDueDayOfMonth] = useState<string>("");
+  const [editRemindDaysBefore, setEditRemindDaysBefore] = useState<string>("0");
   const [savingId, setSavingId] = useState<string | null>(null);
+  const templateFxRate = serverFxRate ?? getFxDefault();
 
   const catsByType = useMemo(() => {
     const fixed = categories.filter((c) => c.expenseType === "FIXED");
@@ -741,18 +809,23 @@ function ExpenseTemplatesAdminCard({
     const resolved: ExpenseTemplateRow[] = [];
     for (const row of raw) {
       if (row.encryptedPayload) {
-        const pl = await decryptPayload<{ description?: string; defaultAmountUsd?: number | null }>(row.encryptedPayload);
+        const pl = await decryptPayload<{
+          description?: string;
+          defaultAmountUsd?: number | null;
+          defaultAmount?: number | null;
+        }>(row.encryptedPayload);
         if (pl != null && typeof pl.description === "string") {
           resolved.push({
             ...row,
             description: pl.description,
             defaultAmountUsd: pl.defaultAmountUsd ?? null,
+            defaultAmount: typeof pl.defaultAmount === "number" ? pl.defaultAmount : null,
           });
         } else {
-          resolved.push({ ...row, description: "—", defaultAmountUsd: null });
+          resolved.push({ ...row, description: "—", defaultAmountUsd: null, defaultAmount: null });
         }
       } else {
-        resolved.push(row);
+        resolved.push({ ...row, defaultAmount: row.defaultAmountUsd });
       }
     }
     setRows(resolved);
@@ -773,6 +846,12 @@ function ExpenseTemplatesAdminCard({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categories]);
+
+  useEffect(() => {
+    if (!createCurrencyTouched) {
+      setCreateDefaultCurrencyId(preferredDisplayCurrencyId);
+    }
+  }, [preferredDisplayCurrencyId, createCurrencyTouched]);
 
   useEffect(() => {
     const pick = categories.find((c) => c.expenseType === expenseType);
@@ -802,6 +881,17 @@ function ExpenseTemplatesAdminCard({
     return amt / usdUyuRate;
   }
 
+  function computeDisplayedTemplateAmount(row: Pick<ExpenseTemplateRow, "defaultAmount" | "defaultAmountUsd" | "defaultCurrencyId">) {
+    if (row.defaultAmount != null && Number.isFinite(row.defaultAmount)) {
+      return row.defaultAmount;
+    }
+    if (row.defaultAmountUsd == null || !Number.isFinite(row.defaultAmountUsd)) return null;
+    if ((row.defaultCurrencyId ?? "USD") === "UYU") {
+      return Math.round(row.defaultAmountUsd * templateFxRate);
+    }
+    return row.defaultAmountUsd;
+  }
+
   async function create(e: React.FormEvent) {
     e.preventDefault();
     setErr("");
@@ -813,19 +903,40 @@ function ExpenseTemplatesAdminCard({
 
     const amountStr = defaultAmountUsd.trim();
     const defaultAmountUsdValue = amountStr
-      ? computeDefaultAmountUsd(amountStr, createDefaultCurrencyId, createUsdUyuRate)
+      ? computeDefaultAmountUsd(amountStr, createDefaultCurrencyId, templateFxRate)
       : null;
     if (amountStr && defaultAmountUsdValue == null)
       return setErr(createDefaultCurrencyId === "UYU" ? t("expenses.fx") : t("common.error"));
+
+    let reminderPayload: { reminderChannel: ReminderChannel; dueDayOfMonth: number | null; remindDaysBefore: number };
+    try {
+      reminderPayload = buildReminderPayload({
+        reminderChannel: createReminderChannel,
+        dueDayOfMonth: createDueDayOfMonth,
+        remindDaysBefore: createRemindDaysBefore,
+      });
+    } catch (error: any) {
+      return setErr(
+        error?.message === "dueDayOfMonth"
+          ? t("admin.reminderDueDayRequired")
+          : t("admin.reminderDaysBeforeInvalid")
+      );
+    }
 
     try {
       const body: Record<string, unknown> = {
         expenseType,
         categoryId,
         defaultCurrencyId: createDefaultCurrencyId,
+        defaultAmountUsd: defaultAmountUsdValue,
+        ...reminderPayload,
       };
       if (hasEncryptionSupport) {
-        const enc = await encryptPayload({ description: desc, defaultAmountUsd: defaultAmountUsdValue });
+        const enc = await encryptPayload({
+          description: desc,
+          defaultAmountUsd: defaultAmountUsdValue,
+          defaultAmount: amountStr ? Number(amountStr) : null,
+        });
         if (enc) body.encryptedPayload = enc;
         else { body.description = desc; body.defaultAmountUsd = defaultAmountUsdValue; }
       } else {
@@ -840,6 +951,11 @@ function ExpenseTemplatesAdminCard({
 
       setDescription("");
       setDefaultAmountUsd("");
+      setCreateCurrencyTouched(false);
+      setCreateDefaultCurrencyId(preferredDisplayCurrencyId);
+      setCreateReminderChannel("NONE");
+      setCreateDueDayOfMonth("");
+      setCreateRemindDaysBefore("0");
       await loadTemplates();
       setInfo(t("admin.templateCreatedInfo"));
       showSuccess(t("admin.templateCreated"));
@@ -855,14 +971,11 @@ function ExpenseTemplatesAdminCard({
     setEditDescription(getTemplateDescriptionDisplay(row, t));
     const cur = (row.defaultCurrencyId ?? "USD") as "UYU" | "USD";
     setEditDefaultCurrencyId(cur);
-    const rate = getFxDefault();
-    setEditUsdUyuRate(rate);
-    const amt =
-      row.defaultAmountUsd == null
-        ? ""
-        : cur === "UYU"
-          ? String(Math.round(row.defaultAmountUsd * rate))
-          : String(Math.round(row.defaultAmountUsd));
+    setEditReminderChannel(row.reminderChannel ?? "NONE");
+    setEditDueDayOfMonth(row.dueDayOfMonth != null ? String(row.dueDayOfMonth) : "");
+    setEditRemindDaysBefore(String(Number(row.remindDaysBefore ?? 0)));
+    const displayedAmount = computeDisplayedTemplateAmount(row);
+    const amt = displayedAmount == null ? "" : String(Math.round(displayedAmount));
     setEditDefaultAmountUsd(amt);
     setErr("");
     setInfo("");
@@ -871,6 +984,9 @@ function ExpenseTemplatesAdminCard({
   function cancelEdit() {
     setEditingId(null);
     setEditDefaultAmountUsd("");
+    setEditReminderChannel("NONE");
+    setEditDueDayOfMonth("");
+    setEditRemindDaysBefore("0");
   }
 
   async function saveEdit(id: string) {
@@ -894,10 +1010,27 @@ function ExpenseTemplatesAdminCard({
     const displayedTranslated = row ? getTemplateDescriptionDisplay(row, t) : "";
     const descToSend = row && desc === displayedTranslated ? row.description : desc;
     const amountUsdValue = editDefaultAmountUsd.trim()
-      ? computeDefaultAmountUsd(editDefaultAmountUsd, editDefaultCurrencyId, editUsdUyuRate)
+      ? computeDefaultAmountUsd(editDefaultAmountUsd, editDefaultCurrencyId, templateFxRate)
       : null;
     if (editDefaultAmountUsd.trim() && amountUsdValue == null) {
       setErr(editDefaultCurrencyId === "UYU" ? t("expenses.fx") : t("common.error"));
+      setSavingId(null);
+      return;
+    }
+
+    let reminderPayload: { reminderChannel: ReminderChannel; dueDayOfMonth: number | null; remindDaysBefore: number };
+    try {
+      reminderPayload = buildReminderPayload({
+        reminderChannel: editReminderChannel,
+        dueDayOfMonth: editDueDayOfMonth,
+        remindDaysBefore: editRemindDaysBefore,
+      });
+    } catch (error: any) {
+      setErr(
+        error?.message === "dueDayOfMonth"
+          ? t("admin.reminderDueDayRequired")
+          : t("admin.reminderDaysBeforeInvalid")
+      );
       setSavingId(null);
       return;
     }
@@ -906,9 +1039,15 @@ function ExpenseTemplatesAdminCard({
       const body: Record<string, unknown> = {
         categoryId: editCategoryId,
         defaultCurrencyId: editDefaultCurrencyId,
+        defaultAmountUsd: amountUsdValue,
+        ...reminderPayload,
       };
       if (hasEncryptionSupport) {
-        const enc = await encryptPayload({ description: descToSend, defaultAmountUsd: amountUsdValue });
+        const enc = await encryptPayload({
+          description: descToSend,
+          defaultAmountUsd: amountUsdValue,
+          defaultAmount: editDefaultAmountUsd.trim() ? Number(editDefaultAmountUsd) : null,
+        });
         if (enc) body.encryptedPayload = enc;
         else { body.description = descToSend; body.defaultAmountUsd = amountUsdValue; }
       } else {
@@ -959,8 +1098,28 @@ function ExpenseTemplatesAdminCard({
     }
   }
 
-  const visibleRows = rows.filter((r) => r.showInExpenses !== false);
-  const notVisibleRows = rows.filter((r) => r.showInExpenses === false);
+  const supersededCategoryIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const row of rows) {
+      if (String(row.onboardingSourceKey ?? "").startsWith("onboarding:template:")) {
+        set.add(row.categoryId);
+      }
+    }
+    return set;
+  }, [rows]);
+
+  const displayRows = useMemo(
+    () =>
+      rows.filter((row) => {
+        const isLegacyPlaceholder = !row.onboardingSourceKey && isEncryptedPlaceholder(row.description);
+        if (!isLegacyPlaceholder) return true;
+        return !supersededCategoryIds.has(row.categoryId);
+      }),
+    [rows, supersededCategoryIds]
+  );
+
+  const visibleRows = displayRows.filter((r) => r.showInExpenses !== false);
+  const notVisibleRows = displayRows.filter((r) => r.showInExpenses === false);
 
   const sortTemplates = (a: ExpenseTemplateRow, b: ExpenseTemplateRow) => {
     if (a.expenseType !== b.expenseType) return a.expenseType.localeCompare(b.expenseType);
@@ -1015,18 +1174,78 @@ function ExpenseTemplatesAdminCard({
                 <option value="USD">USD</option>
               </select>
               <input className="input" type="number" value={editDefaultAmountUsd} onChange={(e) => setEditDefaultAmountUsd(e.target.value)} style={{ width: 82, height: 32, textAlign: "right", flexShrink: 0 }} />
-              {editDefaultCurrencyId === "UYU" && (
-                <input className="input" type="number" step="0.001" value={Number.isFinite(editUsdUyuRate) ? editUsdUyuRate.toFixed(2) : ""} onChange={(e) => setEditUsdUyuRate(Number(e.target.value))} style={{ width: 72, height: 32, flexShrink: 0 }} title={t("expenses.fx")} />
+            </div>
+          ) : (
+            computeDisplayedTemplateAmount(row) == null ? (
+              <span className="muted">—</span>
+            ) : (
+              <span>{usd0.format(computeDisplayedTemplateAmount(row) ?? 0)} {row.defaultCurrencyId ?? "USD"}</span>
+            )
+          )}
+        </td>
+        <td style={{ minWidth: 260, width: 260 }}>
+          {isEditing ? (
+            <div style={{ display: "grid", gap: 6 }}>
+              <select className="select" value={editReminderChannel} onChange={(e) => setEditReminderChannel(e.target.value as ReminderChannel)} style={{ width: "100%", height: 32 }}>
+                <option value="NONE">{t("admin.reminderChannelNone")}</option>
+                <option value="EMAIL">{t("admin.reminderChannelEmail")}</option>
+                <option value="SMS">{t("admin.reminderChannelSms")}</option>
+              </select>
+              {editReminderChannel !== "NONE" && (
+                <div style={{ display: "grid", gap: 6 }}>
+                  <div className="row" style={{ gap: 6, flexWrap: "nowrap" }}>
+                    <div style={{ minWidth: 88, flex: "0 0 88px" }}>
+                      <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>
+                        {t("admin.reminderDueDayShort")}
+                      </div>
+                      <input
+                        className="input"
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={editDueDayOfMonth}
+                        onChange={(e) => setEditDueDayOfMonth(e.target.value)}
+                        placeholder="15"
+                        style={{ width: "100%", height: 32 }}
+                      />
+                    </div>
+                    <div style={{ minWidth: 120, flex: "0 0 120px" }}>
+                      <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>
+                        {t("admin.reminderDaysBeforeShort")}
+                      </div>
+                      <input
+                        className="input"
+                        type="number"
+                        min={0}
+                        max={31}
+                        value={editRemindDaysBefore}
+                        onChange={(e) => setEditRemindDaysBefore(e.target.value)}
+                        style={{ width: "100%", height: 32 }}
+                      />
+                    </div>
+                  </div>
+                  <div className="muted" style={{ fontSize: 11 }}>
+                    {t("admin.reminderDaysBeforeHelp")}
+                  </div>
+                </div>
+              )}
+              {editReminderChannel === "SMS" && !me?.phoneVerifiedAt && (
+                <div className="muted" style={{ fontSize: 11 }}>
+                  {t("admin.reminderSmsRequiresPhone")}
+                </div>
               )}
             </div>
           ) : (
-            row.defaultAmountUsd == null ? (
-              <span className="muted">—</span>
-            ) : (row.defaultCurrencyId ?? "USD") === "UYU" ? (
-              <span>{usd0.format(Math.round(row.defaultAmountUsd * getFxDefault()))} UYU</span>
-            ) : (
-              <span>{usd0.format(row.defaultAmountUsd)} USD</span>
-            )
+            <span className="muted" style={{ fontSize: 13 }}>
+              {reminderSummary(
+                {
+                  reminderChannel: row.reminderChannel ?? "NONE",
+                  dueDayOfMonth: row.dueDayOfMonth,
+                  remindDaysBefore: row.remindDaysBefore,
+                },
+                t
+              )}
+            </span>
           )}
         </td>
         <td className="right" style={{ minWidth: showAddButton || showRemoveButton ? 260 : 200, width: showAddButton || showRemoveButton ? 260 : 200 }}>
@@ -1105,7 +1324,15 @@ function ExpenseTemplatesAdminCard({
           </div>
           <div style={{ minWidth: 80 }}>
             <label className="admin-label">{t("expenses.curr")}</label>
-            <select className="select" value={createDefaultCurrencyId} onChange={(e) => setCreateDefaultCurrencyId(e.target.value as "UYU" | "USD")} style={{ width: "100%", marginTop: 4, height: 40, fontSize: 11 }}>
+            <select
+              className="select"
+              value={createDefaultCurrencyId}
+              onChange={(e) => {
+                setCreateDefaultCurrencyId(e.target.value as "UYU" | "USD");
+                setCreateCurrencyTouched(true);
+              }}
+              style={{ width: "100%", marginTop: 4, height: 40, fontSize: 11 }}
+            >
               <option value="UYU">UYU</option>
               <option value="USD">USD</option>
             </select>
@@ -1114,14 +1341,36 @@ function ExpenseTemplatesAdminCard({
             <label className="admin-label">{t("admin.defaultAmountLabel", { currency: createDefaultCurrencyId })}</label>
             <input className="input" type="number" value={defaultAmountUsd} onChange={(e) => setDefaultAmountUsd(e.target.value)} placeholder={t("admin.optionalPlaceholder")} style={{ width: "100%", marginTop: 4, height: 40 }} />
           </div>
-          {createDefaultCurrencyId === "UYU" && (
-            <div style={{ minWidth: 140 }}>
-              <label className="admin-label">{t("expenses.fx")}</label>
-              <input className="input" type="number" step="0.001" value={Number.isFinite(createUsdUyuRate) ? createUsdUyuRate.toFixed(2) : ""} onChange={(e) => setCreateUsdUyuRate(Number(e.target.value))} style={{ width: "100%", marginTop: 4, height: 40 }} />
-            </div>
+          <div style={{ minWidth: 140 }}>
+            <label className="admin-label">{t("admin.reminder")}</label>
+            <select className="select" value={createReminderChannel} onChange={(e) => setCreateReminderChannel(e.target.value as ReminderChannel)} style={{ width: "100%", marginTop: 4, height: 40 }}>
+              <option value="NONE">{t("admin.reminderChannelNone")}</option>
+              <option value="EMAIL">{t("admin.reminderChannelEmail")}</option>
+              <option value="SMS">{t("admin.reminderChannelSms")}</option>
+            </select>
+          </div>
+          {createReminderChannel !== "NONE" && (
+            <>
+              <div style={{ minWidth: 110 }}>
+                <label className="admin-label">{t("admin.reminderDueDay")}</label>
+                <input className="input" type="number" min={1} max={31} value={createDueDayOfMonth} onChange={(e) => setCreateDueDayOfMonth(e.target.value)} placeholder="15" style={{ width: "100%", marginTop: 4, height: 40 }} />
+              </div>
+              <div style={{ minWidth: 150 }}>
+                <label className="admin-label">{t("admin.reminderDaysBefore")}</label>
+                <input className="input" type="number" min={0} max={31} value={createRemindDaysBefore} onChange={(e) => setCreateRemindDaysBefore(e.target.value)} style={{ width: "100%", marginTop: 4, height: 40 }} />
+                <div className="muted" style={{ marginTop: 4, fontSize: 11 }}>
+                  {t("admin.reminderDaysBeforeHelp")}
+                </div>
+              </div>
+            </>
           )}
           <button className="btn primary" type="submit" style={{ height: 40 }}>{t("admin.create")}</button>
         </form>
+        {createReminderChannel === "SMS" && !me?.phoneVerifiedAt && (
+          <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
+            {t("admin.reminderSmsRequiresPhone")}
+          </div>
+        )}
         {err && <div className="admin-message admin-message--error" style={{ marginTop: 10 }}>{err}</div>}
         {info && <div className="admin-message admin-message--info" style={{ marginTop: 10 }}>{info}</div>}
       </div>
@@ -1138,6 +1387,7 @@ function ExpenseTemplatesAdminCard({
                   <th style={{ width: 220 }}>{t("expenses.category")}</th>
                   <th>{t("expenses.description")}</th>
                   <th className="right" style={{ width: 120 }}>{t("admin.defaultUsd")}</th>
+                  <th style={{ width: 260 }}>{t("admin.reminder")}</th>
                   <th className="right" style={{ width: 260, minWidth: 260 }}>{t("expenses.actions")}</th>
                 </tr>
               </thead>
@@ -1145,7 +1395,7 @@ function ExpenseTemplatesAdminCard({
                 {visibleRowsSorted.map((row) => renderTemplateRow(row, { showRemoveButton: true }))}
                 {visibleRowsSorted.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="muted" style={{ padding: 24, textAlign: "center" }}>{t("admin.noTemplatesYet")}</td>
+                    <td colSpan={6} className="muted" style={{ padding: 24, textAlign: "center" }}>{t("admin.noTemplatesYet")}</td>
                   </tr>
                 )}
               </tbody>
@@ -1164,6 +1414,7 @@ function ExpenseTemplatesAdminCard({
                   <th style={{ width: 220 }}>{t("expenses.category")}</th>
                   <th>{t("expenses.description")}</th>
                   <th className="right" style={{ width: 120 }}>{t("admin.defaultUsd")}</th>
+                  <th style={{ width: 260 }}>{t("admin.reminder")}</th>
                   <th className="right" style={{ width: 260, minWidth: 260 }}>{t("expenses.actions")}</th>
                 </tr>
               </thead>
@@ -1171,7 +1422,7 @@ function ExpenseTemplatesAdminCard({
                 {notVisibleRowsSorted.map((row) => renderTemplateRow(row, { showAddButton: true }))}
                 {notVisibleRowsSorted.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="muted" style={{ padding: 24, textAlign: "center" }}>{t("admin.noTemplatesNotVisible")}</td>
+                    <td colSpan={6} className="muted" style={{ padding: 24, textAlign: "center" }}>{t("admin.noTemplatesNotVisible")}</td>
                   </tr>
                 )}
               </tbody>

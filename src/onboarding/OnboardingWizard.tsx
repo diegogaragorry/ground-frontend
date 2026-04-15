@@ -2,25 +2,169 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
+import { useEncryption } from "../context/EncryptionContext";
 import { useAppShell } from "../layout/AppShell";
 import { getFxDefault } from "../utils/fx";
 
 type ExpenseType = "FIXED" | "VARIABLE";
 type Category = { id: string; name: string; expenseType: ExpenseType };
+type CurrencyId = "UYU" | "USD";
+type SavingsAccountDraft = {
+  sourceKey: string;
+  investmentId?: string | null;
+  name: string;
+  capital: string;
+  currencyId: CurrencyId;
+};
+type InvestmentDraft = {
+  sourceKey: string;
+  investmentId?: string | null;
+  name: string;
+  returnPct: string;
+  amountUsd: string;
+  currencyId: CurrencyId;
+};
+type OnboardingContextResponse = {
+  year: number;
+  month: number;
+  incomeWork: {
+    amountUsd?: number | null;
+    nominalUsd?: number | null;
+    taxesUsd?: number | null;
+    encryptedPayload?: string | null;
+  } | null;
+  savingsAccounts: Array<{
+    sourceKey: string;
+    investmentId?: string | null;
+    name: string;
+    capital: number;
+    capitalUsd?: number | null;
+    currencyId: string;
+    encryptedPayload?: string | null;
+    snapshotYear?: number | null;
+    snapshotMonth?: number | null;
+  }>;
+  investments: Array<{
+    sourceKey: string;
+    investmentId?: string | null;
+    name: string;
+    capital: number;
+    capitalUsd?: number | null;
+    currencyId: string;
+    encryptedPayload?: string | null;
+    snapshotYear?: number | null;
+    snapshotMonth?: number | null;
+    targetAnnualReturn: number;
+  }>;
+  templates: Array<{
+    id: string;
+    description: string;
+    categoryId: string;
+    defaultAmountUsd?: number | null;
+    defaultCurrencyId?: string | null;
+    encryptedPayload?: string | null;
+    expenseType: ExpenseType;
+    showInExpenses?: boolean;
+    onboardingSourceKey?: string | null;
+  }>;
+};
 
 const WIZARD_TOTAL_STEPS = 8; // 0: welcome, 1: housing, 2: transport, 3: services, 4: health, 5: recurrent, 6: income, 7: done
+const WIZARD_TEMPLATE_DESCRIPTIONS = new Set([
+  "Rent",
+  "Mortgage",
+  "Building Fees",
+  "Property Taxes",
+  "Fuel",
+  "Public Transport",
+  "Ride Sharing / Taxis",
+  "Electricity",
+  "Water",
+  "Gas",
+  "Internet / Fiber",
+  "Mobile Phone",
+  "TV / Cable",
+  "Streaming Services",
+  "Other online (Spotify, etc.)",
+  "Private Health Insurance",
+  "Gym Membership",
+  "Pharmacy",
+  "Personal Care",
+  "Psychologist",
+  "Groceries",
+  "Holiday Gifts",
+  "Donations / Raffles",
+  "Tenis, Surf, Football / Others",
+  "Restaurants",
+  "Coffee & Snacks",
+  "Delivery",
+  "Events & Concerts",
+]);
 
 function findCategory(cats: Category[], name: string, type: ExpenseType): Category | undefined {
   return cats.find((c) => c.name === name && c.expenseType === type);
 }
 
+function createSavingsAccountDraft(sourceKey: string, seed?: Partial<SavingsAccountDraft>): SavingsAccountDraft {
+  return {
+    sourceKey,
+    investmentId: seed?.investmentId ?? null,
+    name: seed?.name ?? "",
+    capital: seed?.capital ?? "",
+    currencyId: seed?.currencyId ?? "USD",
+  };
+}
+
+function createInvestmentDraft(sourceKey: string, seed?: Partial<InvestmentDraft>): InvestmentDraft {
+  return {
+    sourceKey,
+    investmentId: seed?.investmentId ?? null,
+    name: seed?.name ?? "",
+    returnPct: seed?.returnPct ?? "",
+    amountUsd: seed?.amountUsd ?? "",
+    currencyId: seed?.currencyId ?? "USD",
+  };
+}
+
+function nextOnboardingSourceKey(prefix: string, keys: string[]) {
+  const max = keys.reduce((acc, key) => {
+    if (!key.startsWith(prefix)) return acc;
+    const parsed = Number(key.slice(prefix.length));
+    return Number.isInteger(parsed) && parsed > acc ? parsed : acc;
+  }, -1);
+  return `${prefix}${max + 1}`;
+}
+
+function formatOnboardingAmount(value: number | null | undefined, currencyId: CurrencyId, fx: number) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  const raw = currencyId === "UYU" ? n * fx : n;
+  if (currencyId === "UYU") return String(Math.round(raw));
+  const rounded = Math.round(raw * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+}
+
+function formatEditableAmount(value: number | null | undefined) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  const rounded = Math.round(n * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+}
+
+function monthDiff(fromYear: number | null | undefined, fromMonth: number | null | undefined, toYear: number, toMonth: number) {
+  if (!Number.isInteger(fromYear) || !Number.isInteger(fromMonth)) return 0;
+  return Math.max(0, (toYear - Number(fromYear)) * 12 + (toMonth - Number(fromMonth)));
+}
+
 export function OnboardingWizard(props: {
-  onComplete: () => void;
+  onGoToDashboard: () => void;
+  onStartTour: () => void;
   onSkip: () => void;
 }) {
   const { t } = useTranslation();
-  const { onComplete, onSkip } = props;
+  const { onGoToDashboard, onStartTour, onSkip } = props;
   const { updatePreferredDisplayCurrency, preferredDisplayCurrencyId } = useAppShell();
+  const { decryptPayload, hasEncryptionSupport } = useEncryption();
 
   const [step, setStep] = useState(0);
   const [wizardDisplayCurrency, setWizardDisplayCurrency] = useState<"USD" | "UYU">(
@@ -102,15 +246,322 @@ export function OnboardingWizard(props: {
   const [incomeWorkType, setIncomeWorkType] = useState<"nominal" | "liquid">("liquid");
   const [incomeWorkTaxes, setIncomeWorkTaxes] = useState("");
   const [incomeSavings, setIncomeSavings] = useState(false);
-  const [incomeSavingsUsd, setIncomeSavingsUsd] = useState("");
+  const [savingsAccountsList, setSavingsAccountsList] = useState<SavingsAccountDraft[]>([
+    createSavingsAccountDraft("onboarding:savings:0"),
+  ]);
   const [incomeInvestments, setIncomeInvestments] = useState(false);
-  const [investmentsList, setInvestmentsList] = useState<Array<{ name: string; returnPct: string; amountUsd: string; currencyId: "UYU" | "USD" }>>([{ name: "", returnPct: "", amountUsd: "", currencyId: "USD" }]);
+  const [investmentsList, setInvestmentsList] = useState<InvestmentDraft[]>([
+    createInvestmentDraft("onboarding:investment:0"),
+  ]);
 
   useEffect(() => {
-    api<Category[]>("/categories")
-      .then(setCategories)
-      .catch((e) => setError(e?.message ?? "Failed to load categories"));
-  }, []);
+    let active = true;
+
+    async function loadInitialContext() {
+      try {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+        const [cats, context] = await Promise.all([
+          api<Category[]>("/categories"),
+          api<OnboardingContextResponse>(`/auth/me/onboarding/context?year=${currentYear}&month=${currentMonth}`).catch(() => ({
+            year: currentYear,
+            month: currentMonth,
+            incomeWork: null,
+            savingsAccounts: [],
+            investments: [],
+            templates: [],
+          })),
+        ]);
+
+        if (!active) return;
+        setCategories(cats);
+
+        const resolvedIncome = context.incomeWork?.encryptedPayload
+          ? await decryptPayload<{ amountUsd?: number | string | null; nominalUsd?: number | string | null; taxesUsd?: number | string | null }>(
+              context.incomeWork.encryptedPayload
+            )
+          : null;
+        const incomeAmountUsd = Number(resolvedIncome?.amountUsd ?? context.incomeWork?.amountUsd ?? 0);
+        const incomeNominalUsd = Number(resolvedIncome?.nominalUsd ?? context.incomeWork?.nominalUsd ?? 0);
+        const incomeTaxesUsd = Number(resolvedIncome?.taxesUsd ?? context.incomeWork?.taxesUsd ?? 0);
+        const incomeCurrency: CurrencyId = preferredDisplayCurrencyId === "UYU" ? "UYU" : "USD";
+        if ((Number.isFinite(incomeAmountUsd) && incomeAmountUsd > 0) || (Number.isFinite(incomeNominalUsd) && incomeNominalUsd > 0)) {
+          setIncomeWork(true);
+          setItemCurrency("income.work", incomeCurrency);
+          if (Number.isFinite(incomeTaxesUsd) && incomeTaxesUsd > 0) {
+            setIncomeWorkType("nominal");
+            setIncomeWorkUsd(formatOnboardingAmount(incomeNominalUsd, incomeCurrency, getFxDefault()));
+            setIncomeWorkTaxes(formatOnboardingAmount(incomeTaxesUsd, incomeCurrency, getFxDefault()));
+          } else {
+            setIncomeWorkType("liquid");
+            setIncomeWorkUsd(formatOnboardingAmount(incomeAmountUsd, incomeCurrency, getFxDefault()));
+            setIncomeWorkTaxes("");
+          }
+        }
+
+        if (context.savingsAccounts.length > 0) {
+          setIncomeSavings(true);
+          const resolvedSavingsAccounts = await Promise.all(
+            context.savingsAccounts.map(async (row, idx) => {
+              const currencyId: CurrencyId = row.currencyId === "UYU" ? "UYU" : "USD";
+              const decrypted = row.encryptedPayload
+                ? await decryptPayload<{ closingCapital?: number | string | null; closingCapitalUsd?: number | string | null }>(row.encryptedPayload)
+                : null;
+              const capital = Number(
+                decrypted?.closingCapital ??
+                  row.capital ??
+                  (currencyId === "USD" ? row.capitalUsd ?? 0 : 0)
+              );
+              return createSavingsAccountDraft(row.sourceKey || `onboarding:savings:${idx}`, {
+                investmentId: row.investmentId ?? null,
+                name: row.name ?? "",
+                capital: formatEditableAmount(capital),
+                currencyId,
+              });
+            })
+          );
+          setSavingsAccountsList(resolvedSavingsAccounts);
+        }
+
+        const resolvedTemplates = await Promise.all(
+          (context.templates ?? []).map(async (row) => {
+            const decrypted = row.encryptedPayload
+              ? await decryptPayload<{ description?: string; defaultAmountUsd?: number | string | null }>(row.encryptedPayload)
+              : null;
+            const description = String(decrypted?.description ?? row.description ?? "").trim();
+            const amountUsd = Number(decrypted?.defaultAmountUsd ?? row.defaultAmountUsd ?? 0);
+            const defaultCurrencyId: CurrencyId = row.defaultCurrencyId === "UYU" ? "UYU" : "USD";
+            return {
+              ...row,
+              description,
+              defaultAmountUsd: Number.isFinite(amountUsd) ? amountUsd : 0,
+              defaultCurrencyId,
+            };
+          })
+        );
+
+        for (const row of resolvedTemplates) {
+          if (row.showInExpenses === false) continue;
+          const amount = formatOnboardingAmount(row.defaultAmountUsd, row.defaultCurrencyId, getFxDefault());
+          const key = row.onboardingSourceKey || row.description;
+          switch (key) {
+            case "onboarding:template:housing.rent":
+            case "Rent":
+              setHousingRent(true);
+              setItemCurrency("housing.rent", row.defaultCurrencyId);
+              setHousingRentUsd(amount);
+              break;
+            case "onboarding:template:housing.mortgage":
+            case "Mortgage":
+              setHousingMortgage(true);
+              setItemCurrency("housing.mortgage", row.defaultCurrencyId);
+              setHousingMortgageUsd(amount);
+              break;
+            case "onboarding:template:housing.fees":
+            case "Building Fees":
+              setHousingFees(true);
+              setItemCurrency("housing.fees", row.defaultCurrencyId);
+              setHousingFeesUsd(amount);
+              break;
+            case "onboarding:template:housing.taxes":
+            case "Property Taxes":
+              setHousingTaxes(true);
+              setItemCurrency("housing.taxes", row.defaultCurrencyId);
+              setHousingTaxesUsd(amount);
+              break;
+            case "onboarding:template:transport.fuel":
+            case "Fuel":
+              setTransportVehicle(true);
+              setItemCurrency("transport.vehicle", row.defaultCurrencyId);
+              setTransportVehicleUsd(amount);
+              break;
+            case "onboarding:template:transport.public":
+            case "Public Transport":
+              setTransportPublic(true);
+              setItemCurrency("transport.public", row.defaultCurrencyId);
+              setTransportPublicUsd(amount);
+              break;
+            case "onboarding:template:transport.taxi":
+            case "Ride Sharing / Taxis":
+              setTransportTaxi(true);
+              setItemCurrency("transport.taxi", row.defaultCurrencyId);
+              setTransportTaxiUsd(amount);
+              break;
+            case "onboarding:template:services.electricity":
+            case "Electricity":
+              setSvcElectricity(true);
+              setItemCurrency("svc.electricity", row.defaultCurrencyId);
+              setSvcUsd((prev) => ({ ...prev, electricity: amount }));
+              break;
+            case "onboarding:template:services.water":
+            case "Water":
+              setSvcWater(true);
+              setItemCurrency("svc.water", row.defaultCurrencyId);
+              setSvcUsd((prev) => ({ ...prev, water: amount }));
+              break;
+            case "onboarding:template:services.gas":
+            case "Gas":
+              setSvcGas(true);
+              setItemCurrency("svc.gas", row.defaultCurrencyId);
+              setSvcUsd((prev) => ({ ...prev, gas: amount }));
+              break;
+            case "onboarding:template:services.internet":
+            case "Internet / Fiber":
+              setSvcInternet(true);
+              setItemCurrency("svc.internet", row.defaultCurrencyId);
+              setSvcUsd((prev) => ({ ...prev, internet: amount }));
+              break;
+            case "onboarding:template:services.mobile":
+            case "Mobile Phone":
+              setSvcMobile(true);
+              setItemCurrency("svc.mobile", row.defaultCurrencyId);
+              setSvcUsd((prev) => ({ ...prev, mobile: amount }));
+              break;
+            case "onboarding:template:services.tv":
+            case "TV / Cable":
+              setSvcTV(true);
+              setItemCurrency("svc.tv", row.defaultCurrencyId);
+              setSvcUsd((prev) => ({ ...prev, tv: amount }));
+              break;
+            case "onboarding:template:services.streaming":
+            case "Streaming Services":
+              setSvcStreaming(true);
+              setItemCurrency("svc.streaming", row.defaultCurrencyId);
+              setSvcUsd((prev) => ({ ...prev, streaming: amount }));
+              break;
+            case "onboarding:template:services.other-online":
+            case "Other online (Spotify, etc.)":
+              setSvcOtherOnline(true);
+              setItemCurrency("svc.otherOnline", row.defaultCurrencyId);
+              setSvcUsd((prev) => ({ ...prev, otherOnline: amount }));
+              break;
+            case "onboarding:template:health.insurance":
+            case "Private Health Insurance":
+              setHealthInsurance(true);
+              setItemCurrency("health.insurance", row.defaultCurrencyId);
+              setHealthUsd((prev) => ({ ...prev, insurance: amount }));
+              break;
+            case "onboarding:template:health.gym":
+            case "Gym Membership":
+              setHealthGym(true);
+              setItemCurrency("health.gym", row.defaultCurrencyId);
+              setHealthUsd((prev) => ({ ...prev, gym: amount }));
+              break;
+            case "onboarding:template:health.pharmacy":
+            case "Pharmacy":
+              setHealthPharmacy(true);
+              setItemCurrency("health.pharmacy", row.defaultCurrencyId);
+              setHealthUsd((prev) => ({ ...prev, pharmacy: amount }));
+              break;
+            case "onboarding:template:health.personal":
+            case "Personal Care":
+              setHealthPersonal(true);
+              setItemCurrency("health.personal", row.defaultCurrencyId);
+              setHealthUsd((prev) => ({ ...prev, personal: amount }));
+              break;
+            case "onboarding:template:health.dental":
+            case "Psychologist":
+              setHealthDental(true);
+              setItemCurrency("health.dental", row.defaultCurrencyId);
+              setHealthUsd((prev) => ({ ...prev, dental: amount }));
+              break;
+            case "onboarding:template:recurrent.groceries":
+            case "Groceries":
+              setRecGroceries(true);
+              setItemCurrency("rec.groceries", row.defaultCurrencyId);
+              setRecUsd((prev) => ({ ...prev, groceries: amount }));
+              break;
+            case "onboarding:template:recurrent.gifts":
+            case "Holiday Gifts":
+              setRecGifts(true);
+              setItemCurrency("rec.gifts", row.defaultCurrencyId);
+              setRecUsd((prev) => ({ ...prev, gifts: amount }));
+              break;
+            case "onboarding:template:recurrent.donations":
+            case "Donations / Raffles":
+              setRecDonations(true);
+              setItemCurrency("rec.donations", row.defaultCurrencyId);
+              setRecUsd((prev) => ({ ...prev, donations: amount }));
+              break;
+            case "onboarding:template:recurrent.sports":
+            case "Tenis, Surf, Football / Others":
+              setRecSports(true);
+              setItemCurrency("rec.sports", row.defaultCurrencyId);
+              setRecUsd((prev) => ({ ...prev, sports: amount }));
+              break;
+            case "onboarding:template:recurrent.restaurants":
+            case "Restaurants":
+              setRecRestaurants(true);
+              setItemCurrency("rec.restaurants", row.defaultCurrencyId);
+              setRecUsd((prev) => ({ ...prev, restaurants: amount }));
+              break;
+            case "onboarding:template:recurrent.cafes":
+            case "Coffee & Snacks":
+              setRecCafes(true);
+              setItemCurrency("rec.cafes", row.defaultCurrencyId);
+              setRecUsd((prev) => ({ ...prev, cafes: amount }));
+              break;
+            case "onboarding:template:recurrent.delivery":
+            case "Delivery":
+              setRecDelivery(true);
+              setItemCurrency("rec.delivery", row.defaultCurrencyId);
+              setRecUsd((prev) => ({ ...prev, delivery: amount }));
+              break;
+            case "onboarding:template:recurrent.events":
+            case "Events & Concerts":
+              setRecEvents(true);
+              setItemCurrency("rec.events", row.defaultCurrencyId);
+              setRecUsd((prev) => ({ ...prev, events: amount }));
+              break;
+            default:
+              break;
+          }
+        }
+
+        if (context.investments.length > 0) {
+          setIncomeInvestments(true);
+          const resolvedInvestments = await Promise.all(
+            context.investments.map(async (row, idx) => {
+              const currencyId: CurrencyId = row.currencyId === "UYU" ? "UYU" : "USD";
+              const decrypted = row.encryptedPayload
+                ? await decryptPayload<{ closingCapital?: number | string | null; closingCapitalUsd?: number | string | null }>(row.encryptedPayload)
+                : null;
+              const capital = Number(
+                decrypted?.closingCapital ??
+                  row.capital ??
+                  (currencyId === "USD" ? row.capitalUsd ?? 0 : 0)
+              );
+              const projectedCapital =
+                monthDiff(row.snapshotYear, row.snapshotMonth, context.year, context.month) > 0 && Number(row.targetAnnualReturn ?? 0) > 0
+                  ? capital *
+                    Math.pow(
+                      1 + Number(row.targetAnnualReturn ?? 0) / 12,
+                      monthDiff(row.snapshotYear, row.snapshotMonth, context.year, context.month)
+                    )
+                  : capital;
+              return createInvestmentDraft(row.sourceKey || `onboarding:investment:${idx}`, {
+                investmentId: row.investmentId ?? null,
+                name: row.name ?? "",
+                amountUsd: formatEditableAmount(projectedCapital),
+                currencyId,
+                returnPct: Number(row.targetAnnualReturn ?? 0) > 0 ? String(Math.round(Number(row.targetAnnualReturn) * 10000) / 100) : "",
+              });
+            })
+          );
+          setInvestmentsList(resolvedInvestments);
+        }
+      } catch (e: any) {
+        if (!active) return;
+        setError(e?.message ?? "Failed to load categories");
+      }
+    }
+
+    loadInitialContext();
+    return () => {
+      active = false;
+    };
+  }, [decryptPayload, hasEncryptionSupport, preferredDisplayCurrencyId]);
 
   function parseUsd(s: string): number | null {
     const v = String(s ?? "").trim();
@@ -144,12 +595,13 @@ export function OnboardingWizard(props: {
 
   async function upsertTemplatesBatch(
     templates: Array<{
+      onboardingSourceKey: string;
       categoryId: string;
       description: string;
       amountUsd: number | null;
       defaultCurrencyId: "UYU" | "USD";
     }>
-  ): Promise<Array<{ id: string; categoryId: string; description: string; showInExpenses?: boolean }>> {
+  ): Promise<Array<{ id: string; categoryId: string; description: string; showInExpenses?: boolean; onboardingSourceKey?: string | null }>> {
     if (templates.length === 0) return [];
     const startMonth = new Date().getMonth() + 1;
     const { rows } = await api<{ rows: Array<{ id: string; categoryId: string; description: string; showInExpenses?: boolean }> }>("/admin/expenseTemplates/batch", {
@@ -157,6 +609,7 @@ export function OnboardingWizard(props: {
       body: JSON.stringify({
         startMonth,
         templates: templates.map((template) => ({
+          onboardingSourceKey: template.onboardingSourceKey,
           categoryId: template.categoryId,
           description: template.description,
           defaultAmountUsd: template.amountUsd,
@@ -177,22 +630,22 @@ export function OnboardingWizard(props: {
     selectedTemplateIdsRef.current = [];
     try {
       const housingId = await getCategoryId("Housing", "FIXED");
-      const templates: Array<{ categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
+      const templates: Array<{ onboardingSourceKey: string; categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
       if (housingRent) {
         const cur = getItemCurrency("housing.rent");
-        templates.push({ categoryId: housingId, description: "Rent", amountUsd: toUsdAmount(housingRentUsd, cur, getItemRate("housing.rent")), defaultCurrencyId: cur });
+        templates.push({ onboardingSourceKey: "onboarding:template:housing.rent", categoryId: housingId, description: "Rent", amountUsd: toUsdAmount(housingRentUsd, cur, getItemRate("housing.rent")), defaultCurrencyId: cur });
       }
       if (housingMortgage) {
         const cur = getItemCurrency("housing.mortgage");
-        templates.push({ categoryId: housingId, description: "Mortgage", amountUsd: toUsdAmount(housingMortgageUsd, cur, getItemRate("housing.mortgage")), defaultCurrencyId: cur });
+        templates.push({ onboardingSourceKey: "onboarding:template:housing.mortgage", categoryId: housingId, description: "Mortgage", amountUsd: toUsdAmount(housingMortgageUsd, cur, getItemRate("housing.mortgage")), defaultCurrencyId: cur });
       }
       if (housingFees) {
         const cur = getItemCurrency("housing.fees");
-        templates.push({ categoryId: housingId, description: "Building Fees", amountUsd: toUsdAmount(housingFeesUsd, cur, getItemRate("housing.fees")), defaultCurrencyId: cur });
+        templates.push({ onboardingSourceKey: "onboarding:template:housing.fees", categoryId: housingId, description: "Building Fees", amountUsd: toUsdAmount(housingFeesUsd, cur, getItemRate("housing.fees")), defaultCurrencyId: cur });
       }
       if (housingTaxes) {
         const cur = getItemCurrency("housing.taxes");
-        templates.push({ categoryId: housingId, description: "Property Taxes", amountUsd: toUsdAmount(housingTaxesUsd, cur, getItemRate("housing.taxes")), defaultCurrencyId: cur });
+        templates.push({ onboardingSourceKey: "onboarding:template:housing.taxes", categoryId: housingId, description: "Property Taxes", amountUsd: toUsdAmount(housingTaxesUsd, cur, getItemRate("housing.taxes")), defaultCurrencyId: cur });
       }
       await upsertTemplatesBatch(templates);
       setStep(2);
@@ -208,18 +661,18 @@ export function OnboardingWizard(props: {
     setLoading(true);
     try {
       const transportId = await getCategoryId("Transport", "VARIABLE");
-      const templates: Array<{ categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
+      const templates: Array<{ onboardingSourceKey: string; categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
       if (transportVehicle) {
         const cur = getItemCurrency("transport.vehicle");
-        templates.push({ categoryId: transportId, description: "Fuel", amountUsd: toUsdAmount(transportVehicleUsd, cur, getItemRate("transport.vehicle")), defaultCurrencyId: cur });
+        templates.push({ onboardingSourceKey: "onboarding:template:transport.fuel", categoryId: transportId, description: "Fuel", amountUsd: toUsdAmount(transportVehicleUsd, cur, getItemRate("transport.vehicle")), defaultCurrencyId: cur });
       }
       if (transportPublic) {
         const cur = getItemCurrency("transport.public");
-        templates.push({ categoryId: transportId, description: "Public Transport", amountUsd: toUsdAmount(transportPublicUsd, cur, getItemRate("transport.public")), defaultCurrencyId: cur });
+        templates.push({ onboardingSourceKey: "onboarding:template:transport.public", categoryId: transportId, description: "Public Transport", amountUsd: toUsdAmount(transportPublicUsd, cur, getItemRate("transport.public")), defaultCurrencyId: cur });
       }
       if (transportTaxi) {
         const cur = getItemCurrency("transport.taxi");
-        templates.push({ categoryId: transportId, description: "Ride Sharing / Taxis", amountUsd: toUsdAmount(transportTaxiUsd, cur, getItemRate("transport.taxi")), defaultCurrencyId: cur });
+        templates.push({ onboardingSourceKey: "onboarding:template:transport.taxi", categoryId: transportId, description: "Ride Sharing / Taxis", amountUsd: toUsdAmount(transportTaxiUsd, cur, getItemRate("transport.taxi")), defaultCurrencyId: cur });
       }
       await upsertTemplatesBatch(templates);
       setStep(3);
@@ -236,41 +689,41 @@ export function OnboardingWizard(props: {
     try {
       const utilitiesCat = findCategory(categories, "Utilities", "FIXED");
       const connectivityCat = findCategory(categories, "Connectivity", "FIXED");
-      const templates: Array<{ categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
+      const templates: Array<{ onboardingSourceKey: string; categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
       if (utilitiesCat) {
         if (svcElectricity) {
           const cur = getItemCurrency("svc.electricity");
-          templates.push({ categoryId: utilitiesCat.id, description: "Electricity", amountUsd: toUsdAmount(svcUsd.electricity ?? "", cur, getItemRate("svc.electricity")), defaultCurrencyId: cur });
+          templates.push({ onboardingSourceKey: "onboarding:template:services.electricity", categoryId: utilitiesCat.id, description: "Electricity", amountUsd: toUsdAmount(svcUsd.electricity ?? "", cur, getItemRate("svc.electricity")), defaultCurrencyId: cur });
         }
         if (svcWater) {
           const cur = getItemCurrency("svc.water");
-          templates.push({ categoryId: utilitiesCat.id, description: "Water", amountUsd: toUsdAmount(svcUsd.water ?? "", cur, getItemRate("svc.water")), defaultCurrencyId: cur });
+          templates.push({ onboardingSourceKey: "onboarding:template:services.water", categoryId: utilitiesCat.id, description: "Water", amountUsd: toUsdAmount(svcUsd.water ?? "", cur, getItemRate("svc.water")), defaultCurrencyId: cur });
         }
         if (svcGas) {
           const cur = getItemCurrency("svc.gas");
-          templates.push({ categoryId: utilitiesCat.id, description: "Gas", amountUsd: toUsdAmount(svcUsd.gas ?? "", cur, getItemRate("svc.gas")), defaultCurrencyId: cur });
+          templates.push({ onboardingSourceKey: "onboarding:template:services.gas", categoryId: utilitiesCat.id, description: "Gas", amountUsd: toUsdAmount(svcUsd.gas ?? "", cur, getItemRate("svc.gas")), defaultCurrencyId: cur });
         }
       }
       if (connectivityCat) {
         if (svcInternet) {
           const cur = getItemCurrency("svc.internet");
-          templates.push({ categoryId: connectivityCat.id, description: "Internet / Fiber", amountUsd: toUsdAmount(svcUsd.internet ?? "", cur, getItemRate("svc.internet")), defaultCurrencyId: cur });
+          templates.push({ onboardingSourceKey: "onboarding:template:services.internet", categoryId: connectivityCat.id, description: "Internet / Fiber", amountUsd: toUsdAmount(svcUsd.internet ?? "", cur, getItemRate("svc.internet")), defaultCurrencyId: cur });
         }
         if (svcMobile) {
           const cur = getItemCurrency("svc.mobile");
-          templates.push({ categoryId: connectivityCat.id, description: "Mobile Phone", amountUsd: toUsdAmount(svcUsd.mobile ?? "", cur, getItemRate("svc.mobile")), defaultCurrencyId: cur });
+          templates.push({ onboardingSourceKey: "onboarding:template:services.mobile", categoryId: connectivityCat.id, description: "Mobile Phone", amountUsd: toUsdAmount(svcUsd.mobile ?? "", cur, getItemRate("svc.mobile")), defaultCurrencyId: cur });
         }
         if (svcTV) {
           const cur = getItemCurrency("svc.tv");
-          templates.push({ categoryId: connectivityCat.id, description: "TV / Cable", amountUsd: toUsdAmount(svcUsd.tv ?? "", cur, getItemRate("svc.tv")), defaultCurrencyId: cur });
+          templates.push({ onboardingSourceKey: "onboarding:template:services.tv", categoryId: connectivityCat.id, description: "TV / Cable", amountUsd: toUsdAmount(svcUsd.tv ?? "", cur, getItemRate("svc.tv")), defaultCurrencyId: cur });
         }
         if (svcStreaming) {
           const cur = getItemCurrency("svc.streaming");
-          templates.push({ categoryId: connectivityCat.id, description: "Streaming Services", amountUsd: toUsdAmount(svcUsd.streaming ?? "", cur, getItemRate("svc.streaming")), defaultCurrencyId: cur });
+          templates.push({ onboardingSourceKey: "onboarding:template:services.streaming", categoryId: connectivityCat.id, description: "Streaming Services", amountUsd: toUsdAmount(svcUsd.streaming ?? "", cur, getItemRate("svc.streaming")), defaultCurrencyId: cur });
         }
         if (svcOtherOnline) {
           const cur = getItemCurrency("svc.otherOnline");
-          templates.push({ categoryId: connectivityCat.id, description: "Other online (Spotify, etc.)", amountUsd: toUsdAmount(svcUsd.otherOnline ?? "", cur, getItemRate("svc.otherOnline")), defaultCurrencyId: cur });
+          templates.push({ onboardingSourceKey: "onboarding:template:services.other-online", categoryId: connectivityCat.id, description: "Other online (Spotify, etc.)", amountUsd: toUsdAmount(svcUsd.otherOnline ?? "", cur, getItemRate("svc.otherOnline")), defaultCurrencyId: cur });
         }
       }
       await upsertTemplatesBatch(templates);
@@ -292,29 +745,29 @@ export function OnboardingWizard(props: {
     setError("");
     setLoading(true);
     try {
-      const templates: Array<{ categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
+      const templates: Array<{ onboardingSourceKey: string; categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
       if (healthCat) {
         if (healthInsurance) {
           const cur = getItemCurrency("health.insurance");
-          templates.push({ categoryId: healthCat.id, description: "Private Health Insurance", amountUsd: toUsdAmount(healthUsd.insurance ?? "", cur, getItemRate("health.insurance")), defaultCurrencyId: cur });
+          templates.push({ onboardingSourceKey: "onboarding:template:health.insurance", categoryId: healthCat.id, description: "Private Health Insurance", amountUsd: toUsdAmount(healthUsd.insurance ?? "", cur, getItemRate("health.insurance")), defaultCurrencyId: cur });
         }
         if (healthGym) {
           const cur = getItemCurrency("health.gym");
-          templates.push({ categoryId: healthCat.id, description: "Gym Membership", amountUsd: toUsdAmount(healthUsd.gym ?? "", cur, getItemRate("health.gym")), defaultCurrencyId: cur });
+          templates.push({ onboardingSourceKey: "onboarding:template:health.gym", categoryId: healthCat.id, description: "Gym Membership", amountUsd: toUsdAmount(healthUsd.gym ?? "", cur, getItemRate("health.gym")), defaultCurrencyId: cur });
         }
       }
       if (wellnessCat) {
         if (healthPharmacy) {
           const cur = getItemCurrency("health.pharmacy");
-          templates.push({ categoryId: wellnessCat.id, description: "Pharmacy", amountUsd: toUsdAmount(healthUsd.pharmacy ?? "", cur, getItemRate("health.pharmacy")), defaultCurrencyId: cur });
+          templates.push({ onboardingSourceKey: "onboarding:template:health.pharmacy", categoryId: wellnessCat.id, description: "Pharmacy", amountUsd: toUsdAmount(healthUsd.pharmacy ?? "", cur, getItemRate("health.pharmacy")), defaultCurrencyId: cur });
         }
         if (healthPersonal) {
           const cur = getItemCurrency("health.personal");
-          templates.push({ categoryId: wellnessCat.id, description: "Personal Care", amountUsd: toUsdAmount(healthUsd.personal ?? "", cur, getItemRate("health.personal")), defaultCurrencyId: cur });
+          templates.push({ onboardingSourceKey: "onboarding:template:health.personal", categoryId: wellnessCat.id, description: "Personal Care", amountUsd: toUsdAmount(healthUsd.personal ?? "", cur, getItemRate("health.personal")), defaultCurrencyId: cur });
         }
         if (healthDental) {
           const cur = getItemCurrency("health.dental");
-          templates.push({ categoryId: wellnessCat.id, description: "Psychologist", amountUsd: toUsdAmount(healthUsd.dental ?? "", cur, getItemRate("health.dental")), defaultCurrencyId: cur });
+          templates.push({ onboardingSourceKey: "onboarding:template:health.dental", categoryId: wellnessCat.id, description: "Psychologist", amountUsd: toUsdAmount(healthUsd.dental ?? "", cur, getItemRate("health.dental")), defaultCurrencyId: cur });
         }
       }
       await upsertTemplatesBatch(templates);
@@ -337,51 +790,55 @@ export function OnboardingWizard(props: {
     // Consider selected if checkbox is checked OR user entered an amount (so "completed" = visible)
     const has = (rec: boolean, key: string) => rec || String(recUsd[key] ?? "").trim() !== "";
     try {
-      const recurrentSelections: Array<{ categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
+      const recurrentSelections: Array<{ onboardingSourceKey: string; categoryId: string; description: string; amountUsd: number | null; defaultCurrencyId: "UYU" | "USD" }> = [];
       if (has(recGroceries, "groceries") && foodCat) {
         const cur = getItemCurrency("rec.groceries");
-        recurrentSelections.push({ categoryId: foodCat.id, description: "Groceries", amountUsd: toUsdAmount(recUsd.groceries ?? "", cur, getItemRate("rec.groceries")), defaultCurrencyId: cur });
+        recurrentSelections.push({ onboardingSourceKey: "onboarding:template:recurrent.groceries", categoryId: foodCat.id, description: "Groceries", amountUsd: toUsdAmount(recUsd.groceries ?? "", cur, getItemRate("rec.groceries")), defaultCurrencyId: cur });
       }
       if (has(recGifts, "gifts") && giftsCat) {
         const cur = getItemCurrency("rec.gifts");
-        recurrentSelections.push({ categoryId: giftsCat.id, description: "Holiday Gifts", amountUsd: toUsdAmount(recUsd.gifts ?? "", cur, getItemRate("rec.gifts")), defaultCurrencyId: cur });
+        recurrentSelections.push({ onboardingSourceKey: "onboarding:template:recurrent.gifts", categoryId: giftsCat.id, description: "Holiday Gifts", amountUsd: toUsdAmount(recUsd.gifts ?? "", cur, getItemRate("rec.gifts")), defaultCurrencyId: cur });
       }
       if (has(recDonations, "donations") && giftsCat) {
         const cur = getItemCurrency("rec.donations");
-        recurrentSelections.push({ categoryId: giftsCat.id, description: "Donations / Raffles", amountUsd: toUsdAmount(recUsd.donations ?? "", cur, getItemRate("rec.donations")), defaultCurrencyId: cur });
+        recurrentSelections.push({ onboardingSourceKey: "onboarding:template:recurrent.donations", categoryId: giftsCat.id, description: "Donations / Raffles", amountUsd: toUsdAmount(recUsd.donations ?? "", cur, getItemRate("rec.donations")), defaultCurrencyId: cur });
       }
       if (has(recSports, "sports") && sportsCat) {
         const cur = getItemCurrency("rec.sports");
-        recurrentSelections.push({ categoryId: sportsCat.id, description: "Tenis, Surf, Football / Others", amountUsd: toUsdAmount(recUsd.sports ?? "", cur, getItemRate("rec.sports")), defaultCurrencyId: cur });
+        recurrentSelections.push({ onboardingSourceKey: "onboarding:template:recurrent.sports", categoryId: sportsCat.id, description: "Tenis, Surf, Football / Others", amountUsd: toUsdAmount(recUsd.sports ?? "", cur, getItemRate("rec.sports")), defaultCurrencyId: cur });
       }
       if (has(recRestaurants, "restaurants") && diningCat) {
         const cur = getItemCurrency("rec.restaurants");
-        recurrentSelections.push({ categoryId: diningCat.id, description: "Restaurants", amountUsd: toUsdAmount(recUsd.restaurants ?? "", cur, getItemRate("rec.restaurants")), defaultCurrencyId: cur });
+        recurrentSelections.push({ onboardingSourceKey: "onboarding:template:recurrent.restaurants", categoryId: diningCat.id, description: "Restaurants", amountUsd: toUsdAmount(recUsd.restaurants ?? "", cur, getItemRate("rec.restaurants")), defaultCurrencyId: cur });
       }
       if (has(recCafes, "cafes") && diningCat) {
         const cur = getItemCurrency("rec.cafes");
-        recurrentSelections.push({ categoryId: diningCat.id, description: "Coffee & Snacks", amountUsd: toUsdAmount(recUsd.cafes ?? "", cur, getItemRate("rec.cafes")), defaultCurrencyId: cur });
+        recurrentSelections.push({ onboardingSourceKey: "onboarding:template:recurrent.cafes", categoryId: diningCat.id, description: "Coffee & Snacks", amountUsd: toUsdAmount(recUsd.cafes ?? "", cur, getItemRate("rec.cafes")), defaultCurrencyId: cur });
       }
       if (has(recDelivery, "delivery") && diningCat) {
         const cur = getItemCurrency("rec.delivery");
-        recurrentSelections.push({ categoryId: diningCat.id, description: "Delivery", amountUsd: toUsdAmount(recUsd.delivery ?? "", cur, getItemRate("rec.delivery")), defaultCurrencyId: cur });
+        recurrentSelections.push({ onboardingSourceKey: "onboarding:template:recurrent.delivery", categoryId: diningCat.id, description: "Delivery", amountUsd: toUsdAmount(recUsd.delivery ?? "", cur, getItemRate("rec.delivery")), defaultCurrencyId: cur });
       }
       if (has(recEvents, "events") && diningCat) {
         const cur = getItemCurrency("rec.events");
-        recurrentSelections.push({ categoryId: diningCat.id, description: "Events & Concerts", amountUsd: toUsdAmount(recUsd.events ?? "", cur, getItemRate("rec.events")), defaultCurrencyId: cur });
+        recurrentSelections.push({ onboardingSourceKey: "onboarding:template:recurrent.events", categoryId: diningCat.id, description: "Events & Concerts", amountUsd: toUsdAmount(recUsd.events ?? "", cur, getItemRate("rec.events")), defaultCurrencyId: cur });
       }
       const recurrentResults = await upsertTemplatesBatch(recurrentSelections);
       for (const template of recurrentResults) if (template?.id) recurrentVisibleIds.push(template.id);
       // Visibility: only templates selected in THIS step (recurrent). First time → only these; re-run → keep already visible + these
-      const { rows } = await api<{ rows: Array<{ id: string; categoryId: string; description: string; showInExpenses?: boolean }> }>("/admin/expenseTemplates");
+      const { rows } = await api<{ rows: Array<{ id: string; categoryId: string; description: string; showInExpenses?: boolean; onboardingSourceKey?: string | null }> }>("/admin/expenseTemplates");
       const allRows = Array.isArray(rows) ? rows : [];
       // Use ALL templates the user selected in the entire wizard (housing, transport, services, recurrent)
       const allSelectedIds = [...new Set([...selectedTemplateIdsRef.current, ...recurrentVisibleIds])];
-      const alreadyVisible = allRows.filter((r) => r.showInExpenses !== false).map((r) => r.id);
-      const isFirstTimeOrAllDefault = allRows.length > 0 && alreadyVisible.length === allRows.length;
-      const visibleTemplateIds = isFirstTimeOrAllDefault
-        ? allSelectedIds
-        : [...new Set([...alreadyVisible, ...allSelectedIds])];
+      const visibleNonWizardIds = allRows
+        .filter(
+          (r) =>
+            r.showInExpenses !== false &&
+            !String(r.onboardingSourceKey ?? "").startsWith("onboarding:template:") &&
+            !WIZARD_TEMPLATE_DESCRIPTIONS.has(r.description)
+        )
+        .map((r) => r.id);
+      const visibleTemplateIds = [...new Set([...visibleNonWizardIds, ...allSelectedIds])];
       await api("/admin/expenseTemplates/set-visibility", {
         method: "POST",
         body: JSON.stringify({ visibleTemplateIds }),
@@ -420,12 +877,26 @@ export function OnboardingWizard(props: {
             enabled: incomeSavings,
             accountName: t("investments.defaultBankAccountName"),
             currencyId: savingsCur,
-            capital: Number(incomeSavingsUsd) || 0,
+            capital: 0,
             usdUyuRate: savingsCur === "UYU" ? savingsRate : undefined,
           },
+          savingsAccounts: incomeSavings
+            ? savingsAccountsList
+                .filter((account) => account.name.trim() || String(account.capital ?? "").trim())
+                .map((account, idx) => ({
+                  sourceKey: account.sourceKey || `onboarding:savings:${idx}`,
+                  investmentId: account.investmentId ?? undefined,
+                  name: account.name.trim() || `${t("investments.defaultBankAccountName")} ${idx + 1}`,
+                  currencyId: account.currencyId,
+                  capital: Number(account.capital) || 0,
+                  usdUyuRate: account.currencyId === "UYU" ? savingsRate : undefined,
+                }))
+            : [],
           investments: investmentsList
             .filter((i) => i.name.trim())
-            .map((inv) => ({
+            .map((inv, idx) => ({
+              sourceKey: inv.sourceKey || `onboarding:investment:${idx}`,
+              investmentId: inv.investmentId ?? undefined,
               name: inv.name.trim(),
               currencyId: inv.currencyId,
               capital: Number(inv.amountUsd) || 0,
@@ -446,12 +917,16 @@ export function OnboardingWizard(props: {
     if (step === 0) {
       updatePreferredDisplayCurrency(wizardDisplayCurrency).catch(() => {});
       setStep(1);
-    } else if (step === 7) onComplete();
+    } else if (step === 7) onStartTour();
   }
 
   function back() {
     if (step > 0) setStep(step - 1);
   }
+
+  const shouldShowSavingsFx =
+    (incomeSavings && savingsAccountsList.some((account) => account.currencyId !== wizardDisplayCurrency)) ||
+    (incomeInvestments && investmentsList.some((inv) => inv.currencyId !== wizardDisplayCurrency));
 
   return (
     <div className="card onboarding-wizard" style={{ padding: 20, maxWidth: 760, width: "100%" }}>
@@ -837,29 +1312,85 @@ export function OnboardingWizard(props: {
             <label className="row onboarding-option" style={{ flexWrap: "wrap" }}>
               <input type="checkbox" checked={incomeSavings} onChange={(e) => setIncomeSavings(e.target.checked)} />
               <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400 }}>{t("onboarding.wizardIncomeSavings")}</span>
-              {incomeSavings && (
-                <>
-                  <select className="select" value={getItemCurrency("income.savings")} onChange={(e) => setItemCurrency("income.savings", e.target.value as "UYU" | "USD")} style={{ width: 72, minWidth: 72, height: 36, fontSize: 12, padding: "4px 6px" }}>
-                    <option value="UYU">UYU</option>
-                    <option value="USD">USD</option>
-                  </select>
-                  <input
-                    type="number"
-                    className="input onboarding-amount-input"
-                    placeholder={t("onboarding.wizardIncomeSavingsCapital")}
-                    value={incomeSavingsUsd}
-                    onChange={(e) => setIncomeSavingsUsd(e.target.value)}
-                    style={{ width: 165, minWidth: 165 }}
-                  />
-                  {getItemCurrency("income.savings") !== wizardDisplayCurrency && (
-                    <span className="row" style={{ alignItems: "center", gap: 4 }}>
-                      <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
-                      <input type="number" step="0.001" className="input" value={Number.isFinite(getItemRate("income.savings")) ? getItemRate("income.savings").toFixed(2) : ""} onChange={(e) => setItemRate("income.savings", Number(e.target.value))} style={{ width: 72, height: 36, fontSize: 11 }} min={0} />
-                    </span>
-                  )}
-                </>
-              )}
             </label>
+            {incomeSavings && (
+              <div style={{ paddingLeft: 28, display: "grid", gap: 10 }}>
+                {savingsAccountsList.map((account, idx) => (
+                  <div key={account.sourceKey} style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr auto 165px auto", alignItems: "center" }} className="wizard-investment-row">
+                    <input
+                      type="text"
+                      className="input onboarding-investment-text-input"
+                      placeholder={t("onboarding.wizardIncomeSavingsAccountName")}
+                      value={account.name}
+                      onChange={(e) =>
+                        setSavingsAccountsList((prev) => {
+                          const next = [...prev];
+                          next[idx] = { ...next[idx], name: e.target.value };
+                          return next;
+                        })
+                      }
+                      style={{ minWidth: 0 }}
+                    />
+                    <select
+                      className="select"
+                      value={account.currencyId}
+                      onChange={(e) =>
+                        setSavingsAccountsList((prev) => {
+                          const next = [...prev];
+                          next[idx] = { ...next[idx], currencyId: e.target.value as CurrencyId };
+                          return next;
+                        })
+                      }
+                      style={{ width: 72, minWidth: 72, height: 36, fontSize: 12, padding: "4px 6px" }}
+                      title={t("onboarding.wizardCurrencyLabel")}
+                    >
+                      <option value="UYU">UYU</option>
+                      <option value="USD">USD</option>
+                    </select>
+                    <input
+                      type="number"
+                      className="input onboarding-amount-input"
+                      placeholder={t("onboarding.wizardIncomeSavingsCapital")}
+                      value={account.capital}
+                      onChange={(e) =>
+                        setSavingsAccountsList((prev) => {
+                          const next = [...prev];
+                          next[idx] = { ...next[idx], capital: e.target.value };
+                          return next;
+                        })
+                      }
+                      style={{ width: "100%", minWidth: 0 }}
+                      min={0}
+                    />
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={savingsAccountsList.length <= 1}
+                      onClick={() =>
+                        setSavingsAccountsList((prev) => {
+                          if (prev.length <= 1) return [createSavingsAccountDraft(account.sourceKey)];
+                          return prev.filter((row) => row.sourceKey !== account.sourceKey);
+                        })
+                      }
+                    >
+                      {t("common.delete")}
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() =>
+                    setSavingsAccountsList((prev) => [
+                      ...prev,
+                      createSavingsAccountDraft(nextOnboardingSourceKey("onboarding:savings:", prev.map((row) => row.sourceKey))),
+                    ])
+                  }
+                >
+                  {t("onboarding.wizardAddSavingsAccount")}
+                </button>
+              </div>
+            )}
             <label className="row onboarding-option" style={{ flexWrap: "wrap" }}>
               <input type="checkbox" checked={incomeInvestments} onChange={(e) => setIncomeInvestments(e.target.checked)} />
               <span style={{ flexShrink: 0, fontSize: 14, fontWeight: 400 }}>{t("onboarding.wizardIncomeInvestments")}</span>
@@ -867,7 +1398,7 @@ export function OnboardingWizard(props: {
             {incomeInvestments && (
               <div style={{ paddingLeft: 28, display: "grid", gap: 10 }}>
                 {investmentsList.map((inv, idx) => (
-                  <div key={idx} style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr auto 165px auto", alignItems: "center" }} className="wizard-investment-row">
+                  <div key={inv.sourceKey} style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr auto 165px auto", alignItems: "center" }} className="wizard-investment-row">
                     <input
                       type="text"
                       className="input onboarding-investment-text-input"
@@ -936,10 +1467,31 @@ export function OnboardingWizard(props: {
                 <button
                   type="button"
                   className="btn"
-                  onClick={() => setInvestmentsList((prev) => [...prev, { name: "", returnPct: "", amountUsd: "", currencyId: "USD" }])}
+                  onClick={() =>
+                    setInvestmentsList((prev) => [
+                      ...prev,
+                      createInvestmentDraft(nextOnboardingSourceKey("onboarding:investment:", prev.map((row) => row.sourceKey))),
+                    ])
+                  }
                 >
                   {t("onboarding.wizardAddInvestment")}
                 </button>
+              </div>
+            )}
+            {shouldShowSavingsFx && (
+              <div style={{ paddingLeft: 28 }}>
+                <span className="row" style={{ alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <span className="muted" style={{ fontSize: 11, whiteSpace: "nowrap" }}>{t("onboarding.wizardFxLabel")}</span>
+                  <input
+                    type="number"
+                    step="0.001"
+                    className="input"
+                    value={Number.isFinite(getItemRate("income.savings")) ? getItemRate("income.savings").toFixed(2) : ""}
+                    onChange={(e) => setItemRate("income.savings", Number(e.target.value))}
+                    style={{ width: 72, height: 36, fontSize: 11 }}
+                    min={0}
+                  />
+                </span>
               </div>
             )}
           </div>
@@ -951,6 +1503,19 @@ export function OnboardingWizard(props: {
         <>
           <div style={{ fontSize: 18, fontWeight: 900, marginBottom: 8 }}>{t("onboarding.wizardDoneTitle")}</div>
           <div className="muted" style={{ fontSize: 14, lineHeight: 1.4 }}>{t("onboarding.wizardDoneSub")}</div>
+          <div
+            style={{
+              marginTop: 16,
+              padding: "12px 14px",
+              borderRadius: 14,
+              background: "rgba(15,23,42,0.04)",
+              color: "rgba(15,23,42,0.76)",
+              fontSize: 13,
+              lineHeight: 1.55,
+            }}
+          >
+            {t("onboarding.wizardDoneHelpNote")}
+          </div>
         </>
       )}
 
@@ -997,11 +1562,16 @@ export function OnboardingWizard(props: {
           </button>
         )}
         {step === 7 && (
-          <button type="button" className="btn primary" onClick={onComplete}>
-            {t("onboarding.wizardGoToExpenses")}
-          </button>
+          <>
+            <button type="button" className="btn" onClick={onGoToDashboard}>
+              {t("onboarding.wizardGoToDashboard")}
+            </button>
+            <button type="button" className="btn primary" onClick={onStartTour}>
+              {t("onboarding.wizardStartTour")}
+            </button>
+          </>
         )}
-        <button type="button" className="btn" onClick={onSkip} style={{ marginLeft: "auto" }}>
+        <button type="button" className="btn" onClick={onSkip} style={{ marginLeft: "auto", display: step === 7 ? "none" : undefined }}>
           {t("onboarding.wizardSkip")}
         </button>
       </div>
