@@ -52,6 +52,10 @@ function ymNow(): YearMonth {
   return { year: d.getFullYear(), month: d.getMonth() + 1 };
 }
 
+function isEncryptedPlaceholder(value: unknown) {
+  return typeof value === "string" && /^\(encrypted(?:-[a-z0-9]+)?\)$/i.test(value.trim());
+}
+
 /* =========================
    Onboarding (per user)
 ========================= */
@@ -366,10 +370,11 @@ export function AppShell(props: { children: React.ReactNode }) {
   const isMobile = ctx.isMobile;
 
   const { t, i18n } = useTranslation();
-  const { hasEncryptionSupport, encryptPayload, encryptionKey } = useEncryption();
+  const { hasEncryptionSupport, encryptPayload, encryptionKey, decryptPayload } = useEncryption();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const migrationAutoRunDoneRef = useRef(false);
   const recoveryAutoSetupAttemptedForUserRef = useRef<string | null>(null);
+  const reminderLabelRepairAttemptedRef = useRef<string | null>(null);
 
   const locale = i18n.language?.startsWith("es") ? "es" : "en";
   const monthNames = React.useMemo(() => {
@@ -429,6 +434,61 @@ export function AppShell(props: { children: React.ReactNode }) {
       .then(() => {})
       .catch(() => {});
   }, [ctx.meLoaded, ctx.me, hasEncryptionSupport, encryptionKey]);
+
+  React.useEffect(() => {
+    if (!ctx.meLoaded || !ctx.me || !hasEncryptionSupport) return;
+    const current = ymNow();
+    const attemptKey = `${ctx.me.id}:${current.year}-${current.month}`;
+    if (reminderLabelRepairAttemptedRef.current === attemptKey) return;
+    reminderLabelRepairAttemptedRef.current = attemptKey;
+
+    api<{
+      planned?: {
+        rows?: Array<{
+          id: string;
+          description?: string | null;
+          reminderChannel?: "NONE" | "EMAIL" | "SMS" | null;
+          reminderLabel?: string | null;
+          encryptedPayload?: string | null;
+        }>;
+      };
+    }>(`/expenses/page-data?year=${current.year}&month=${current.month}`)
+      .then(async (payload) => {
+        const rows = payload.planned?.rows ?? [];
+        const candidates: Array<{ id: string; reminderLabel: string }> = [];
+
+        for (const row of rows) {
+          if (!row?.id) continue;
+          if (!row.reminderChannel || row.reminderChannel === "NONE") continue;
+          if (String(row.reminderLabel ?? "").trim()) continue;
+
+          let label =
+            typeof row.description === "string" && !isEncryptedPlaceholder(row.description)
+              ? row.description.trim()
+              : "";
+
+          if (!label && row.encryptedPayload) {
+            const decrypted = await decryptPayload<{ description?: string }>(row.encryptedPayload);
+            if (typeof decrypted?.description === "string" && !isEncryptedPlaceholder(decrypted.description)) {
+              label = decrypted.description.trim();
+            }
+          }
+
+          if (label) candidates.push({ id: row.id, reminderLabel: label });
+        }
+
+        if (candidates.length === 0) return;
+        await Promise.all(
+          candidates.map((item) =>
+            api(`/plannedExpenses/${item.id}`, {
+              method: "PUT",
+              body: JSON.stringify({ reminderLabel: item.reminderLabel }),
+            }).catch(() => null)
+          )
+        );
+      })
+      .catch(() => {});
+  }, [ctx.meLoaded, ctx.me, hasEncryptionSupport, decryptPayload]);
 
   // Force onboarding: ?resetOnboarding=1 o ?forceOnboarding=1 (p. ej. para testing o si el backend no devolvió el flag)
   React.useEffect(() => {
