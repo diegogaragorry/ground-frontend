@@ -933,6 +933,7 @@ function ExpenseTemplatesAdminCard({
         categoryId,
         defaultCurrencyId: createDefaultCurrencyId,
         defaultAmountUsd: defaultAmountUsdValue,
+        reminderLabel: desc,
         ...reminderPayload,
       };
       if (hasEncryptionSupport) {
@@ -1044,6 +1045,7 @@ function ExpenseTemplatesAdminCard({
         categoryId: editCategoryId,
         defaultCurrencyId: editDefaultCurrencyId,
         defaultAmountUsd: amountUsdValue,
+        reminderLabel: desc,
         ...reminderPayload,
       };
       if (hasEncryptionSupport) {

@@ -387,6 +387,8 @@
     "noDraftsToConfirm": "No hay borradores para confirmar",
     "confirmAllDrafts": "Confirmar todos los borradores",
     "expenseCreated": "Gasto creado.",
+    "createExpenseProcessing": "Procesando…",
+    "createExpenseProcessingNotice": "Estamos agregando este gasto. Puede demorar unos segundos mientras se actualiza el mes.",
     "expenseDeleted": "Gasto eliminado.",
     "draftConfirmed": "Borrador confirmado.",
     "invalidMonth": "Mes inválido",

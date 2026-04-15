@@ -387,6 +387,8 @@
     "noDraftsToConfirm": "No drafts to confirm",
     "confirmAllDrafts": "Confirm all drafts",
     "expenseCreated": "Expense created.",
+    "createExpenseProcessing": "Processing…",
+    "createExpenseProcessingNotice": "We are adding this expense. It may take a few seconds while the month is updated.",
     "expenseDeleted": "Expense deleted.",
     "draftConfirmed": "Draft confirmed.",
     "invalidMonth": "Invalid month",

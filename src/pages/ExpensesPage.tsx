@@ -172,6 +172,7 @@ export default function ExpensesPage() {
   const [confirmingPlannedId, setConfirmingPlannedId] = useState<string | null>(null);
   const [updatingReminderPlannedId, setUpdatingReminderPlannedId] = useState<string | null>(null);
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
+  const [creatingExpense, setCreatingExpense] = useState(false);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -517,6 +518,7 @@ export default function ExpensesPage() {
     e.preventDefault();
     setError("");
     setInfo("");
+    if (creatingExpense) return;
 
     const ym = inputValueToYm(ymCreate);
     if (!ym) return setError(t("expenses.invalidMonth"));
@@ -534,6 +536,7 @@ export default function ExpensesPage() {
     const amountUsdNum =
       currencyId === "UYU" && Number(usdUyuRate) > 0 ? amountNum / Number(usdUyuRate) : amountNum;
     try {
+      setCreatingExpense(true);
       const body: Record<string, unknown> = {
         description: description.trim(),
         amount: amountNum,
@@ -563,6 +566,8 @@ export default function ExpensesPage() {
       showSuccess(t("expenses.expenseCreated"));
     } catch (err: any) {
       setError(err?.message ?? t("common.error"));
+    } finally {
+      setCreatingExpense(false);
     }
   }
 
@@ -680,6 +685,7 @@ export default function ExpensesPage() {
         if (enc) {
           body = {
             encryptedPayload: enc,
+            reminderLabel: String(merged.description ?? "").trim() || undefined,
             ...(patch.categoryId !== undefined && { categoryId: patch.categoryId }),
             ...(patch.expenseType !== undefined && { expenseType: patch.expenseType }),
             ...(patch.dueDate !== undefined && { dueDate: patch.dueDate }),
@@ -1046,7 +1052,7 @@ export default function ExpensesPage() {
 
           <div>
             <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.category")}</div>
-            <select className="select" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={createMonthClosed}>
+            <select className="select" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={createMonthClosed || creatingExpense}>
               {(categoriesByType[expenseTypeCreate] ?? []).map((c) => (
                 <option key={c.id} value={c.id}>
                   {getCategoryDisplayName(c, t)}
@@ -1057,7 +1063,7 @@ export default function ExpensesPage() {
 
           <div>
             <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.description")}</div>
-            <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("expenses.descriptionPlaceholder")} disabled={createMonthClosed} />
+            <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("expenses.descriptionPlaceholder")} disabled={createMonthClosed || creatingExpense} />
           </div>
 
           <div>
@@ -1065,7 +1071,7 @@ export default function ExpensesPage() {
             <select
               className="select"
               value={currencyId}
-              disabled={createMonthClosed}
+              disabled={createMonthClosed || creatingExpense}
               onChange={(e) => {
                 const v = e.target.value as "UYU" | "USD";
                 setCurrencyId(v);
@@ -1080,7 +1086,7 @@ export default function ExpensesPage() {
 
           <div>
             <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.amount")}</div>
-            <input className="input" type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} disabled={createMonthClosed} />
+            <input className="input" type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} disabled={createMonthClosed || creatingExpense} />
           </div>
 
           {createShowsConversionBlock && (
@@ -1095,7 +1101,7 @@ export default function ExpensesPage() {
                     value={Number.isFinite(usdUyuRate) ? usdUyuRate.toFixed(2) : ""}
                     onChange={(e) => setUsdUyuRate(Number(e.target.value))}
                     style={{ width: 120 }}
-                    disabled={createMonthClosed}
+                    disabled={createMonthClosed || creatingExpense}
                   />
                 ) : (
                   <div className="input" style={{ width: 120, display: "flex", alignItems: "center" }}>
@@ -1111,13 +1117,29 @@ export default function ExpensesPage() {
 
           <div>
             <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.month")}</div>
-            <input className="input" type="month" value={ymCreate} onChange={(e) => setYmCreate(e.target.value)} />
+            <input className="input" type="month" value={ymCreate} onChange={(e) => setYmCreate(e.target.value)} disabled={creatingExpense} />
           </div>
 
-          <button className="btn primary" type="submit" disabled={createMonthClosed}>
-            {t("expenses.add")}
+          <button className="btn primary" type="submit" disabled={createMonthClosed || creatingExpense}>
+            {creatingExpense ? t("expenses.createExpenseProcessing") : t("expenses.add")}
           </button>
         </form>
+
+        {creatingExpense && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: "12px 14px",
+              borderRadius: 14,
+              background: "rgba(15,23,42,0.04)",
+              color: "rgba(15,23,42,0.78)",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            {t("expenses.createExpenseProcessingNotice")}
+          </div>
+        )}
 
         {createMonthClosed && (
           <div className="muted" style={{ marginTop: 10, fontSize: 12 }}>
