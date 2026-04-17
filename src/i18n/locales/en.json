@@ -1029,6 +1029,7 @@
     "wizardDoneTitle": "You're all set",
     "wizardDoneSub": "We've created your template. You can now go to the main dashboard or take a quick tour to see where to add expenses, review your accounts, and follow your budget.",
     "wizardDoneHelpNote": "If you prefer not to take the tour now, you'll be able to start it later from the Help page.",
+    "skipSetupHelp": "You can resume the initial setup later from Dashboard > Setup guide. If you want a guided tour of the site, you'll find it in Help.",
     "wizardGoToDashboard": "Go to dashboard",
     "wizardStartTour": "Take the tour",
     "wizardTransportFuelNote": "For Car/Motorcycle, the amount is used as your fuel estimate ({{category}}).",

@@ -523,8 +523,10 @@ export function AppShell(props: { children: React.ReactNode }) {
 
   function skipSetup() {
     if (!ctx || !ctx.me) return;
-    ctx.setOnboardingStep("admin");
-    nav(`${APP_BASE}/admin`, { replace: false });
+    ctx.setOnboardingStep("done");
+    ctx.setOnboardingTourStep(null);
+    ctx.showSuccess(t("onboarding.skipSetupHelp"));
+    nav(APP_BASE, { replace: false });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 

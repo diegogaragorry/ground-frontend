@@ -1029,6 +1029,7 @@
     "wizardDoneTitle": "Listo",
     "wizardDoneSub": "Armamos tu plantilla. Ahora podés ir al panel principal o hacer un recorrido por la app para ver dónde cargar gastos, ver tus cuentas y seguir tu presupuesto.",
     "wizardDoneHelpNote": "Si preferís no hacer el recorrido ahora, vas a poder iniciarlo después desde la pantalla de Ayuda.",
+    "skipSetupHelp": "Podés retomar la carga inicial después desde Panel > Guía de configuración. Si querés ver un recorrido guiado por el sitio, lo vas a encontrar en Ayuda.",
     "wizardGoToDashboard": "Ir al panel principal",
     "wizardStartTour": "Hacer recorrido",
     "wizardTransportFuelNote": "Para Auto/Moto, el monto se usa como estimado de nafta/combustible ({{category}}).",
