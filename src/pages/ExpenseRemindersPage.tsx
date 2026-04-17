@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "../api";
 import { useEncryption } from "../context/EncryptionContext";
 import { useAppShell, useAppYearMonth } from "../layout/AppShell";
-import { getCategoryDisplayName, getExpenseTypeLabel } from "../utils/categoryI18n";
+import { getCategoryDisplayName, getExpenseTypeLabel, getTemplateDescriptionDisplay } from "../utils/categoryI18n";
 
 type ExpenseType = "FIXED" | "VARIABLE";
 type ReminderChannel = "NONE" | "EMAIL" | "SMS";
@@ -376,7 +376,12 @@ export default function ExpenseRemindersPage() {
                         t
                       )
                     : "—";
-                  const description = row.description?.trim() ? row.description : "—";
+                  const description = row.description?.trim()
+                    ? getTemplateDescriptionDisplay(
+                        { description: row.description, expenseType: row.expenseType },
+                        t
+                      )
+                    : "—";
                   return (
                     <option key={row.id} value={row.id}>
                       {`${categoryDisplay} · ${description}`}
@@ -474,7 +479,12 @@ export default function ExpenseRemindersPage() {
                           t
                         )
                       : "—";
-                    const description = row.description?.trim() ? row.description : "—";
+                    const description = row.description?.trim()
+                      ? getTemplateDescriptionDisplay(
+                          { description: row.description, expenseType: row.expenseType },
+                          t
+                        )
+                      : "—";
                     const isBusy = updatingId === row.id;
 
                     return (
