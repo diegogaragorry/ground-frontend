@@ -20,6 +20,7 @@ type PlannedExpense = {
   expenseType: ExpenseType;
   categoryId: string;
   description: string;
+  isConfirmed?: boolean;
   reminderChannel?: ReminderChannel;
   reminderLabel?: string | null;
   dueDate?: string | null;
@@ -67,6 +68,21 @@ function formatShortDate(value: string | Date | null | undefined, language: stri
   }).format(date);
 }
 
+function daysInMonth(year: number, month: number) {
+  return new Date(year, month, 0).getDate();
+}
+
+function buildDateInput(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function defaultReminderDateInput(year: number, month: number) {
+  const now = new Date();
+  const sameMonth = now.getFullYear() === year && now.getMonth() + 1 === month;
+  const fallbackDay = sameMonth ? now.getDate() : 1;
+  return buildDateInput(year, month, Math.min(fallbackDay, daysInMonth(year, month)));
+}
+
 export default function ExpenseRemindersPage() {
   const { t, i18n } = useTranslation();
   const { decryptPayload } = useEncryption();
@@ -75,6 +91,7 @@ export default function ExpenseRemindersPage() {
 
   const [loading, setLoading] = useState(false);
   const [savingMode, setSavingMode] = useState(false);
+  const [creatingReminder, setCreatingReminder] = useState(false);
   const [error, setError] = useState("");
   const [planned, setPlanned] = useState<PlannedExpense[]>([]);
   const [closedMonths, setClosedMonths] = useState<Set<number>>(new Set());
@@ -83,6 +100,10 @@ export default function ExpenseRemindersPage() {
   const [reminderSendMode, setReminderSendMode] = useState<ReminderSendMode>(
     me?.expenseReminderSendMode === "DAILY_UNTIL_PAID" ? "DAILY_UNTIL_PAID" : "ONCE"
   );
+  const [createPlannedId, setCreatePlannedId] = useState("");
+  const [createReminderChannel, setCreateReminderChannel] = useState<ReminderChannel>("EMAIL");
+  const [createDueDate, setCreateDueDate] = useState("");
+  const [createRemindAt, setCreateRemindAt] = useState("");
 
   useEffect(() => {
     setReminderSendMode(me?.expenseReminderSendMode === "DAILY_UNTIL_PAID" ? "DAILY_UNTIL_PAID" : "ONCE");
@@ -142,15 +163,7 @@ export default function ExpenseRemindersPage() {
     try {
       const payload = await api<ExpensesPageData>(`/expenses/page-data?year=${year}&month=${month}`);
       const resolved = await resolvePlanned(payload.planned?.rows ?? []);
-      setPlanned(
-        resolved.filter(
-          (row) =>
-            row.reminderChannel &&
-            row.reminderChannel !== "NONE" &&
-            !!row.dueDate &&
-            !row.reminderResolvedAt
-        )
-      );
+      setPlanned(resolved);
       setClosedMonths(new Set((payload.monthCloses?.rows ?? []).filter((row) => row.isClosed !== false).map((row) => row.month)));
     } catch (e: any) {
       setError(e?.message ?? t("common.error"));
@@ -164,7 +177,43 @@ export default function ExpenseRemindersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year, month]);
 
-  async function patchReminder(id: string, patch: Record<string, unknown>) {
+  const activeReminderRows = useMemo(
+    () =>
+      planned.filter(
+        (row) =>
+          !row.isConfirmed &&
+          row.reminderChannel &&
+          row.reminderChannel !== "NONE" &&
+          !!row.dueDate &&
+          !row.reminderResolvedAt
+      ),
+    [planned]
+  );
+
+  const availableReminderDrafts = useMemo(
+    () =>
+      planned.filter(
+        (row) =>
+          !row.isConfirmed &&
+          (!row.reminderChannel || row.reminderChannel === "NONE" || !row.dueDate || !!row.reminderResolvedAt)
+      ),
+    [planned]
+  );
+
+  useEffect(() => {
+    const defaultDate = defaultReminderDateInput(year, month);
+    const selectedStillAvailable = availableReminderDrafts.some((row) => row.id === createPlannedId);
+    if (!selectedStillAvailable) {
+      setCreatePlannedId(availableReminderDrafts[0]?.id ?? "");
+      setCreateDueDate(defaultDate);
+      setCreateRemindAt(defaultDate);
+      return;
+    }
+    if (!createDueDate) setCreateDueDate(defaultDate);
+    if (!createRemindAt) setCreateRemindAt(defaultDate);
+  }, [availableReminderDrafts, createPlannedId, createDueDate, createRemindAt, year, month]);
+
+  async function saveReminder(id: string, patch: Record<string, unknown>, successMessage?: string) {
     if (isClosed(month)) {
       setError(t("expenses.monthClosedEditDrafts"));
       return;
@@ -189,6 +238,7 @@ export default function ExpenseRemindersPage() {
       });
       clearDraft(id);
       await load();
+      if (successMessage) showSuccess(successMessage);
     } catch (e: any) {
       setError(e?.message ?? t("common.error"));
     } finally {
@@ -196,22 +246,47 @@ export default function ExpenseRemindersPage() {
     }
   }
 
-  async function clearReminderForMonth(id: string) {
-    setUpdatingId(id);
+  async function createMonthlyReminder() {
+    if (isClosed(month)) {
+      setError(t("expenses.monthClosedEditDrafts"));
+      return;
+    }
+    if (!createPlannedId) {
+      setError(t("expenseReminders.selectDraftRequired"));
+      return;
+    }
+    if (createReminderChannel === "NONE") {
+      setError(t("expenseReminders.channelRequired"));
+      return;
+    }
+    if (!createDueDate) {
+      setError(t("expenseReminders.dueDateRequired"));
+      return;
+    }
+    if (!createRemindAt) {
+      setError(t("expenseReminders.notificationDateRequired"));
+      return;
+    }
+
+    setCreatingReminder(true);
     setError("");
     try {
-      await api(`/plannedExpenses/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({ clearReminder: true }),
-      });
-      clearDraft(id);
-      await load();
-      showSuccess(t("expenses.reminderRemoved"));
-    } catch (e: any) {
-      setError(e?.message ?? t("expenses.reminderRemoveError"));
+      await saveReminder(
+        createPlannedId,
+        {
+          reminderChannel: createReminderChannel,
+          dueDate: createDueDate,
+          remindAt: createRemindAt,
+        },
+        t("expenseReminders.created")
+      );
     } finally {
-      setUpdatingId((current) => (current === id ? null : current));
+      setCreatingReminder(false);
     }
+  }
+
+  async function clearReminderForMonth(id: string) {
+    await saveReminder(id, { clearReminder: true }, t("expenses.reminderRemoved"));
   }
 
   async function updateReminderMode(nextMode: ReminderSendMode) {
@@ -233,7 +308,7 @@ export default function ExpenseRemindersPage() {
 
   const groupedByDueDate = useMemo(() => {
     const map = new Map<string, { dueDate: string; rows: PlannedExpense[] }>();
-    for (const row of planned) {
+    for (const row of activeReminderRows) {
       const key = reminderDateInputValue(row.dueDate);
       if (!key) continue;
       const existing = map.get(key);
@@ -244,48 +319,120 @@ export default function ExpenseRemindersPage() {
       map.set(key, { dueDate: key, rows: [row] });
     }
     return [...map.values()].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  }, [planned]);
+  }, [activeReminderRows]);
 
   const locked = isClosed(month);
 
   return (
     <div className="grid">
       <div className="card">
-        <div style={{ fontWeight: 850, fontSize: 18 }}>{t("expenseReminders.settingsTitle")}</div>
-        <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>
-          {t("expenseReminders.settingsSubtitle")}
+        <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontWeight: 850, marginBottom: 6, fontSize: 18 }}>{t("expenseReminders.addTitle")}</div>
+            <div className="muted" style={{ fontSize: 13 }}>
+              {t("expenseReminders.addSubtitle")}
+            </div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+              {t("expenseReminders.addNote", { month: `${year}-${String(month).padStart(2, "0")}` })}
+            </div>
+          </div>
+          {locked && <span className="badge">{t("common.closed")}</span>}
         </div>
-        <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
-          <label className="row" style={{ gap: 10, alignItems: "flex-start", flexWrap: "nowrap" }}>
+
+        {error && (
+          <div style={{ color: "var(--danger)", marginTop: 12 }}>
+            {error}
+          </div>
+        )}
+
+        <div
+          className="grid"
+          style={{
+            marginTop: 12,
+            gridTemplateColumns: "minmax(240px, 1.7fr) minmax(120px, 0.8fr) minmax(180px, 0.9fr) minmax(180px, 0.9fr) auto",
+            gap: 10,
+            alignItems: "end",
+          }}
+        >
+          <div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenseReminders.draft")}</div>
+            <select
+              className="select"
+              value={createPlannedId}
+              disabled={locked || creatingReminder || availableReminderDrafts.length === 0}
+              onChange={(e) => setCreatePlannedId(e.target.value)}
+            >
+              {availableReminderDrafts.length === 0 ? (
+                <option value="">{t("expenseReminders.noDraftsAvailable")}</option>
+              ) : (
+                availableReminderDrafts.map((row) => {
+                  const categoryDisplay = row.category
+                    ? getCategoryDisplayName(
+                        {
+                          name: row.category.name,
+                          nameKey: row.category.nameKey ?? null,
+                          expenseType: row.expenseType,
+                        },
+                        t
+                      )
+                    : "—";
+                  const description = row.description?.trim() ? row.description : "—";
+                  return (
+                    <option key={row.id} value={row.id}>
+                      {`${categoryDisplay} · ${description}`}
+                    </option>
+                  );
+                })
+              )}
+            </select>
+          </div>
+
+          <div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenses.reminder")}</div>
+            <select
+              className="select"
+              value={createReminderChannel}
+              disabled={locked || creatingReminder || availableReminderDrafts.length === 0}
+              onChange={(e) => setCreateReminderChannel(e.target.value as ReminderChannel)}
+            >
+              <option value="EMAIL">{t("expenseReminders.channelEmail")}</option>
+              <option value="SMS">{t("expenseReminders.channelSms")}</option>
+            </select>
+          </div>
+
+          <div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenseReminders.dueDate")}</div>
             <input
-              type="radio"
-              name="expenseReminderSendMode"
-              checked={reminderSendMode === "ONCE"}
-              disabled={savingMode}
-              onChange={() => updateReminderMode("ONCE")}
+              className="input"
+              type="date"
+              value={createDueDate}
+              disabled={locked || creatingReminder || availableReminderDrafts.length === 0}
+              onChange={(e) => {
+                setCreateDueDate(e.target.value);
+                if (!createRemindAt) setCreateRemindAt(e.target.value);
+              }}
             />
-            <span>
-              <strong>{t("expenseReminders.sendModeOnceTitle")}</strong>
-              <span className="muted" style={{ display: "block", marginTop: 2, fontSize: 13 }}>
-                {t("expenseReminders.sendModeOnceBody")}
-              </span>
-            </span>
-          </label>
-          <label className="row" style={{ gap: 10, alignItems: "flex-start", flexWrap: "nowrap" }}>
+          </div>
+
+          <div>
+            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>{t("expenseReminders.notificationDate")}</div>
             <input
-              type="radio"
-              name="expenseReminderSendMode"
-              checked={reminderSendMode === "DAILY_UNTIL_PAID"}
-              disabled={savingMode}
-              onChange={() => updateReminderMode("DAILY_UNTIL_PAID")}
+              className="input"
+              type="date"
+              value={createRemindAt}
+              disabled={locked || creatingReminder || availableReminderDrafts.length === 0}
+              onChange={(e) => setCreateRemindAt(e.target.value)}
             />
-            <span>
-              <strong>{t("expenseReminders.sendModeDailyTitle")}</strong>
-              <span className="muted" style={{ display: "block", marginTop: 2, fontSize: 13 }}>
-                {t("expenseReminders.sendModeDailyBody")}
-              </span>
-            </span>
-          </label>
+          </div>
+
+          <button
+            className="btn primary"
+            type="button"
+            disabled={locked || creatingReminder || availableReminderDrafts.length === 0}
+            onClick={createMonthlyReminder}
+          >
+            {creatingReminder ? t("expenseReminders.adding") : t("expenseReminders.addButton")}
+          </button>
         </div>
       </div>
 
@@ -299,12 +446,6 @@ export default function ExpenseRemindersPage() {
           </div>
           {locked && <span className="badge">{t("common.closed")}</span>}
         </div>
-
-        {error && (
-          <div style={{ color: "var(--danger)", marginTop: 12 }}>
-            {error}
-          </div>
-        )}
 
         {loading ? (
           <div className="muted" style={{ marginTop: 16 }}>{t("common.loading")}</div>
@@ -391,7 +532,7 @@ export default function ExpenseRemindersPage() {
                               onBlur={(e) => {
                                 const value = e.target.value.trim();
                                 if (!value || value === reminderDateInputValue(row.dueDate) || locked || isBusy) return;
-                                patchReminder(row.id, { dueDate: value });
+                                saveReminder(row.id, { dueDate: value });
                               }}
                             />
                           </div>
@@ -408,7 +549,7 @@ export default function ExpenseRemindersPage() {
                               onBlur={(e) => {
                                 const value = e.target.value.trim();
                                 if (!value || value === reminderDateInputValue(row.remindAt) || locked || isBusy) return;
-                                patchReminder(row.id, { remindAt: value });
+                                saveReminder(row.id, { remindAt: value });
                               }}
                             />
                           </div>
@@ -421,6 +562,45 @@ export default function ExpenseRemindersPage() {
             ))}
           </div>
         )}
+      </div>
+
+      <div className="card">
+        <div style={{ fontWeight: 850, fontSize: 18 }}>{t("expenseReminders.settingsTitle")}</div>
+        <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>
+          {t("expenseReminders.settingsSubtitle")}
+        </div>
+        <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+          <label className="row" style={{ gap: 10, alignItems: "flex-start", flexWrap: "nowrap" }}>
+            <input
+              type="radio"
+              name="expenseReminderSendMode"
+              checked={reminderSendMode === "ONCE"}
+              disabled={savingMode}
+              onChange={() => updateReminderMode("ONCE")}
+            />
+            <span>
+              <strong>{t("expenseReminders.sendModeOnceTitle")}</strong>
+              <span className="muted" style={{ display: "block", marginTop: 2, fontSize: 13 }}>
+                {t("expenseReminders.sendModeOnceBody")}
+              </span>
+            </span>
+          </label>
+          <label className="row" style={{ gap: 10, alignItems: "flex-start", flexWrap: "nowrap" }}>
+            <input
+              type="radio"
+              name="expenseReminderSendMode"
+              checked={reminderSendMode === "DAILY_UNTIL_PAID"}
+              disabled={savingMode}
+              onChange={() => updateReminderMode("DAILY_UNTIL_PAID")}
+            />
+            <span>
+              <strong>{t("expenseReminders.sendModeDailyTitle")}</strong>
+              <span className="muted" style={{ display: "block", marginTop: 2, fontSize: 13 }}>
+                {t("expenseReminders.sendModeDailyBody")}
+              </span>
+            </span>
+          </label>
+        </div>
       </div>
     </div>
   );

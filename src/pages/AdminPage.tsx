@@ -66,6 +66,7 @@ type ExpenseTemplateRow = {
   expenseType: ExpenseType;
   categoryId: string;
   description: string;
+  legacyPlaceholder?: boolean;
   descriptionKey?: string | null;
   onboardingSourceKey?: string | null;
   defaultAmountUsd: number | null;
@@ -810,6 +811,7 @@ function ExpenseTemplatesAdminCard({
   async function resolveTemplateRows(rawRows: ExpenseTemplateRow[]) {
     const resolved: ExpenseTemplateRow[] = [];
     for (const row of rawRows) {
+      const legacyPlaceholder = !row.onboardingSourceKey && isEncryptedPlaceholder(row.description);
       if (row.encryptedPayload) {
         const pl = await decryptPayload<{
           description?: string;
@@ -819,15 +821,16 @@ function ExpenseTemplatesAdminCard({
         if (pl != null && typeof pl.description === "string") {
           resolved.push({
             ...row,
+            legacyPlaceholder,
             description: pl.description,
             defaultAmountUsd: pl.defaultAmountUsd ?? null,
             defaultAmount: typeof pl.defaultAmount === "number" ? pl.defaultAmount : null,
           });
         } else {
-          resolved.push({ ...row, description: "—", defaultAmountUsd: null, defaultAmount: null });
+          resolved.push({ ...row, legacyPlaceholder, description: "—", defaultAmountUsd: null, defaultAmount: null });
         }
       } else {
-        resolved.push({ ...row, defaultAmount: row.defaultAmountUsd });
+        resolved.push({ ...row, legacyPlaceholder, defaultAmount: row.defaultAmountUsd });
       }
     }
     return resolved;
@@ -1163,7 +1166,7 @@ function ExpenseTemplatesAdminCard({
   const displayRows = useMemo(
     () =>
       rows.filter((row) => {
-        const isLegacyPlaceholder = !row.onboardingSourceKey && isEncryptedPlaceholder(row.description);
+        const isLegacyPlaceholder = !row.onboardingSourceKey && Boolean(row.legacyPlaceholder);
         if (!isLegacyPlaceholder) return true;
         return !supersededCategoryIds.has(row.categoryId);
       }),
