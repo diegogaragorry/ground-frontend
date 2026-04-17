@@ -39,6 +39,7 @@ type Me = {
   onboardingStep?: string;
   mobileWarningDismissed?: boolean;
   preferredDisplayCurrencyId?: string | null;
+  expenseReminderSendMode?: "ONCE" | "DAILY_UNTIL_PAID";
 };
 
 type OnboardingStep = "welcome" | "admin" | "expenses" | "investments" | "budget" | "dashboard" | "done";

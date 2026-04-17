@@ -18,6 +18,7 @@ import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import AccountPage from "./pages/AccountPage";
 const ExpenseImportPage = lazy(() => import("./pages/ExpenseImportPage"));
+const ExpenseRemindersPage = lazy(() => import("./pages/ExpenseRemindersPage"));
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = localStorage.getItem("token");
@@ -57,6 +58,14 @@ export default function App() {
         >
           <Route index element={<DashboardPage />} />
           <Route path="expenses" element={<ExpensesPage />} />
+          <Route
+            path="expenses/reminders"
+            element={
+              <Suspense fallback={<div className="card">Loading…</div>}>
+                <ExpenseRemindersPage />
+              </Suspense>
+            }
+          />
           <Route
             path="expenses/import"
             element={

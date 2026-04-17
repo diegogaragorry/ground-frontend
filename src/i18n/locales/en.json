@@ -546,6 +546,30 @@
       "unknown": "Unclassified"
     }
   },
+  "expenseReminders": {
+    "link": "Reminders",
+    "title": "Reminders",
+    "subtitle": "This month's due dates with active reminders.",
+    "settingsTitle": "Notification settings",
+    "settingsSubtitle": "Choose whether reminders are sent only on the configured date or every day until you mark the payment.",
+    "sendModeOnceTitle": "Only on the configured date",
+    "sendModeOnceBody": "A single notification is sent on the configured reminder date for that expense.",
+    "sendModeDailyTitle": "Every day until marked as paid",
+    "sendModeDailyBody": "After the first alert, Ground sends it again every day until you remove that month's reminder.",
+    "settingsSaved": "Notification settings updated.",
+    "monthTitle": "Monthly reminders",
+    "monthSubtitle": "Showing due dates with active reminders for {{month}}.",
+    "empty": "There are no active reminders for this month.",
+    "groupTitle_one": "Due {{date}} · {{count}} reminder",
+    "groupTitle_other": "Due {{date}} · {{count}} reminders",
+    "channelNone": "No reminder",
+    "channelEmail": "Email",
+    "channelSms": "SMS",
+    "dueDate": "Due date",
+    "notificationDate": "Notification date",
+    "markPaid": "Paid",
+    "clearThisMonthTooltip": "Remove reminder for this month"
+  },
   "income": {
     "title": "Income",
     "subtitle": "Income, extraordinary & taxes — {{year}}",

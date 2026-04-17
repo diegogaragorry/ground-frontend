@@ -546,6 +546,30 @@
       "unknown": "Sin clasificar"
     }
   },
+  "expenseReminders": {
+    "link": "Recordatorios",
+    "title": "Recordatorios",
+    "subtitle": "Vencimientos del mes con recordatorios activos.",
+    "settingsTitle": "Configuración de notificaciones",
+    "settingsSubtitle": "Definí si el recordatorio se manda una sola vez o todos los días hasta marcarlo como pago.",
+    "sendModeOnceTitle": "Solo el día indicado",
+    "sendModeOnceBody": "Se envía una sola vez en la fecha de notificación configurada para ese gasto.",
+    "sendModeDailyTitle": "Todos los días hasta marcar pago",
+    "sendModeDailyBody": "Después del primer aviso, Ground vuelve a recordarlo cada día hasta que quites el recordatorio de ese mes.",
+    "settingsSaved": "Configuración de notificaciones actualizada.",
+    "monthTitle": "Recordatorios del mes",
+    "monthSubtitle": "Mostrando vencimientos con recordatorios activos para {{month}}.",
+    "empty": "No hay recordatorios activos para este mes.",
+    "groupTitle_one": "Vence {{date}} · {{count}} recordatorio",
+    "groupTitle_other": "Vencen {{date}} · {{count}} recordatorios",
+    "channelNone": "Sin recordatorio",
+    "channelEmail": "Email",
+    "channelSms": "SMS",
+    "dueDate": "Fecha de vencimiento",
+    "notificationDate": "Fecha de notificación",
+    "markPaid": "Pago",
+    "clearThisMonthTooltip": "Borrar recordatorio este mes"
+  },
   "income": {
     "title": "Ingresos",
     "subtitle": "Ingresos, extraordinarios e impuestos — {{year}}",

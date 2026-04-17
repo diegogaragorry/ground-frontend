@@ -986,6 +986,13 @@ export default function ExpensesPage() {
           >
             {t("expenses.bulkImport")}
           </button>
+          <button
+            className="btn"
+            type="button"
+            onClick={() => nav(`${APP_BASE}/expenses/reminders`)}
+          >
+            {t("expenseReminders.link")}
+          </button>
           <button className="btn" type="button" onClick={exportExpensesCsv} aria-label={t("common.exportCsv")}>
             {t("common.exportCsv")}
           </button>
