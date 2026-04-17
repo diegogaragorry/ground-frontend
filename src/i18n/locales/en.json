@@ -577,6 +577,8 @@
     "channelNone": "No reminder",
     "channelEmail": "Email",
     "channelSms": "SMS",
+    "channelEmailSummary": "Notification by email",
+    "channelSmsSummary": "Notification by SMS",
     "dueDate": "Due date",
     "notificationDate": "Notification date",
     "markPaid": "Paid",

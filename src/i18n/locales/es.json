@@ -577,9 +577,11 @@
     "channelNone": "Sin recordatorio",
     "channelEmail": "Email",
     "channelSms": "SMS",
+    "channelEmailSummary": "Notificación por email",
+    "channelSmsSummary": "Notificación por SMS",
     "dueDate": "Fecha de vencimiento",
     "notificationDate": "Fecha de notificación",
-    "markPaid": "Pago",
+    "markPaid": "Pagado",
     "clearThisMonthTooltip": "Borrar recordatorio este mes"
   },
   "income": {

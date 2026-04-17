@@ -54,8 +54,8 @@ function reminderDateInputValue(value: string | null | undefined) {
 }
 
 function reminderChannelLabel(channel: ReminderChannel | null | undefined, t: (key: string, options?: any) => string) {
-  if (channel === "EMAIL") return t("expenseReminders.channelEmail");
-  if (channel === "SMS") return t("expenseReminders.channelSms");
+  if (channel === "EMAIL") return t("expenseReminders.channelEmailSummary");
+  if (channel === "SMS") return t("expenseReminders.channelSmsSummary");
   return t("expenseReminders.channelNone");
 }
 
@@ -483,44 +483,24 @@ export default function ExpenseRemindersPage() {
                         style={{
                           border: "1px solid rgba(15,23,42,0.08)",
                           borderRadius: 16,
-                          padding: 14,
-                          display: "grid",
+                          padding: "12px 14px",
+                          display: "flex",
                           gap: 12,
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          flexWrap: "wrap",
                         }}
                       >
-                        <div className="row" style={{ justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
-                          <div style={{ minWidth: 220 }}>
-                            <div style={{ fontWeight: 700 }}>{description}</div>
-                            <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>
-                              {categoryDisplay} · {getExpenseTypeLabel(row.expenseType, t)} · {reminderChannelLabel(row.reminderChannel, t)}
-                            </div>
+                        <div style={{ minWidth: 240, flex: "1 1 320px" }}>
+                          <div style={{ fontWeight: 700 }}>{description}</div>
+                          <div className="muted" style={{ marginTop: 4, fontSize: 13 }}>
+                            {categoryDisplay} · {getExpenseTypeLabel(row.expenseType, t)} · {reminderChannelLabel(row.reminderChannel, t)}
                           </div>
-                          <label
-                            className="row"
-                            title={t("expenseReminders.clearThisMonthTooltip")}
-                            style={{ gap: 8, alignItems: "center", opacity: locked ? 0.6 : 1 }}
-                          >
-                            <input
-                              type="checkbox"
-                              disabled={locked || isBusy}
-                              checked={false}
-                              onChange={(e) => {
-                                if (e.target.checked) clearReminderForMonth(row.id);
-                              }}
-                            />
-                            <span>{t("expenseReminders.markPaid")}</span>
-                          </label>
                         </div>
 
-                        <div
-                          style={{
-                            display: "grid",
-                            gap: 12,
-                            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                          }}
-                        >
+                        <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                           <div>
-                            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                            <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>
                               {t("expenseReminders.dueDate")}
                             </div>
                             <input
@@ -534,10 +514,11 @@ export default function ExpenseRemindersPage() {
                                 if (!value || value === reminderDateInputValue(row.dueDate) || locked || isBusy) return;
                                 saveReminder(row.id, { dueDate: value });
                               }}
+                              style={{ width: 160 }}
                             />
                           </div>
                           <div>
-                            <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                            <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>
                               {t("expenseReminders.notificationDate")}
                             </div>
                             <input
@@ -551,8 +532,24 @@ export default function ExpenseRemindersPage() {
                                 if (!value || value === reminderDateInputValue(row.remindAt) || locked || isBusy) return;
                                 saveReminder(row.id, { remindAt: value });
                               }}
+                              style={{ width: 160 }}
                             />
                           </div>
+                          <label
+                            className="row"
+                            title={t("expenseReminders.clearThisMonthTooltip")}
+                            style={{ gap: 8, alignItems: "center", opacity: locked ? 0.6 : 1, paddingTop: 16 }}
+                          >
+                            <input
+                              type="checkbox"
+                              disabled={locked || isBusy}
+                              checked={false}
+                              onChange={(e) => {
+                                if (e.target.checked) clearReminderForMonth(row.id);
+                              }}
+                            />
+                            <span>{t("expenseReminders.markPaid")}</span>
+                          </label>
                         </div>
                       </div>
                     );
