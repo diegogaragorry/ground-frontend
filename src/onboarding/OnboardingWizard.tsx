@@ -31,6 +31,7 @@ type OnboardingContextResponse = {
     amountUsd?: number | null;
     nominalUsd?: number | null;
     taxesUsd?: number | null;
+    currencyId?: string | null;
     encryptedPayload?: string | null;
   } | null;
   savingsAccounts: Array<{
@@ -164,7 +165,7 @@ export function OnboardingWizard(props: {
   const { t } = useTranslation();
   const { onGoToDashboard, onStartTour, onSkip } = props;
   const { updatePreferredDisplayCurrency, preferredDisplayCurrencyId } = useAppShell();
-  const { decryptPayload, hasEncryptionSupport } = useEncryption();
+  const { decryptPayload, encryptPayload, hasEncryptionSupport } = useEncryption();
 
   const [step, setStep] = useState(0);
   const [wizardDisplayCurrency, setWizardDisplayCurrency] = useState<"USD" | "UYU">(
@@ -278,24 +279,67 @@ export function OnboardingWizard(props: {
         setCategories(cats);
 
         const resolvedIncome = context.incomeWork?.encryptedPayload
-          ? await decryptPayload<{ amountUsd?: number | string | null; nominalUsd?: number | string | null; taxesUsd?: number | string | null }>(
+          ? await decryptPayload<{
+              amountUsd?: number | string | null;
+              nominalUsd?: number | string | null;
+              taxesUsd?: number | string | null;
+              amount?: number | string | null;
+              taxes?: number | string | null;
+              currencyId?: string | null;
+              incomeType?: "nominal" | "liquid" | string | null;
+              usdUyuRate?: number | string | null;
+            }>(
               context.incomeWork.encryptedPayload
             )
           : null;
-        const incomeAmountUsd = Number(resolvedIncome?.amountUsd ?? context.incomeWork?.amountUsd ?? 0);
-        const incomeNominalUsd = Number(resolvedIncome?.nominalUsd ?? context.incomeWork?.nominalUsd ?? 0);
-        const incomeTaxesUsd = Number(resolvedIncome?.taxesUsd ?? context.incomeWork?.taxesUsd ?? 0);
-        const incomeCurrency: CurrencyId = preferredDisplayCurrencyId === "UYU" ? "UYU" : "USD";
+        const incomeAmountUsd = Number(context.incomeWork?.amountUsd ?? resolvedIncome?.amountUsd ?? 0);
+        const incomeNominalUsd = Number(context.incomeWork?.nominalUsd ?? resolvedIncome?.nominalUsd ?? 0);
+        const incomeTaxesUsd = Number(context.incomeWork?.taxesUsd ?? resolvedIncome?.taxesUsd ?? 0);
+        const incomeCurrency: CurrencyId =
+          resolvedIncome?.currencyId === "UYU"
+            ? "UYU"
+            : context.incomeWork?.currencyId === "UYU"
+              ? "UYU"
+              : "USD";
+        const incomeRate = Number(resolvedIncome?.usdUyuRate ?? getFxDefault());
+        const hasRichIncomePayload =
+          resolvedIncome != null &&
+          (resolvedIncome.amount != null ||
+            resolvedIncome.taxes != null ||
+            resolvedIncome.currencyId != null ||
+            resolvedIncome.incomeType != null ||
+            resolvedIncome.usdUyuRate != null);
         if ((Number.isFinite(incomeAmountUsd) && incomeAmountUsd > 0) || (Number.isFinite(incomeNominalUsd) && incomeNominalUsd > 0)) {
           setIncomeWork(true);
           setItemCurrency("income.work", incomeCurrency);
-          if (Number.isFinite(incomeTaxesUsd) && incomeTaxesUsd > 0) {
+          if (incomeCurrency === "UYU" && Number.isFinite(incomeRate) && incomeRate > 0) {
+            setItemRate("income.work", incomeRate);
+          }
+          const savedIncomeType =
+            resolvedIncome?.incomeType === "nominal" || resolvedIncome?.incomeType === "liquid"
+              ? resolvedIncome.incomeType
+              : Number.isFinite(incomeTaxesUsd) && incomeTaxesUsd > 0
+                ? "nominal"
+                : "liquid";
+          if (savedIncomeType === "nominal") {
             setIncomeWorkType("nominal");
-            setIncomeWorkUsd(formatOnboardingAmount(incomeNominalUsd, incomeCurrency, getFxDefault()));
-            setIncomeWorkTaxes(formatOnboardingAmount(incomeTaxesUsd, incomeCurrency, getFxDefault()));
+            setIncomeWorkUsd(
+              hasRichIncomePayload && resolvedIncome?.amount != null
+                ? formatEditableAmount(Number(resolvedIncome.amount))
+                : formatOnboardingAmount(incomeNominalUsd, incomeCurrency, incomeRate)
+            );
+            setIncomeWorkTaxes(
+              hasRichIncomePayload && resolvedIncome?.taxes != null
+                ? formatEditableAmount(Number(resolvedIncome.taxes))
+                : formatOnboardingAmount(incomeTaxesUsd, incomeCurrency, incomeRate)
+            );
           } else {
             setIncomeWorkType("liquid");
-            setIncomeWorkUsd(formatOnboardingAmount(incomeAmountUsd, incomeCurrency, getFxDefault()));
+            setIncomeWorkUsd(
+              hasRichIncomePayload && resolvedIncome?.amount != null
+                ? formatEditableAmount(Number(resolvedIncome.amount))
+                : formatOnboardingAmount(incomeAmountUsd, incomeCurrency, incomeRate)
+            );
             setIncomeWorkTaxes("");
           }
         }
@@ -862,6 +906,22 @@ export function OnboardingWizard(props: {
       const workRate = getItemRate("income.work");
       const savingsCur = getItemCurrency("income.savings");
       const savingsRate = getItemRate("income.savings");
+      const incomeWorkAmountUsd = toUsdAmount(incomeWorkUsd, workCur, workRate);
+      const incomeWorkTaxesUsd =
+        incomeWorkType === "nominal" ? (toUsdAmount(incomeWorkTaxes, workCur, workRate) ?? 0) : 0;
+      const incomeWorkEncryptedPayload =
+        incomeWork && incomeWorkAmountUsd != null
+          ? await encryptPayload({
+              amount: Number(incomeWorkUsd) || 0,
+              taxes: incomeWorkType === "nominal" ? Number(incomeWorkTaxes) || 0 : 0,
+              amountUsd: incomeWorkAmountUsd,
+              nominalUsd: incomeWorkAmountUsd,
+              taxesUsd: incomeWorkTaxesUsd,
+              currencyId: workCur,
+              incomeType: incomeWorkType,
+              usdUyuRate: workCur === "UYU" ? workRate : undefined,
+            })
+          : null;
       await api("/auth/me/onboarding/finalize", {
         method: "POST",
         body: JSON.stringify({
@@ -870,8 +930,11 @@ export function OnboardingWizard(props: {
           incomeWork: {
             enabled: incomeWork,
             type: incomeWorkType,
-            amountUsd: toUsdAmount(incomeWorkUsd, workCur, workRate),
-            taxesUsd: incomeWorkType === "nominal" ? (toUsdAmount(incomeWorkTaxes, workCur, workRate) ?? 0) : 0,
+            amountUsd: incomeWorkAmountUsd,
+            taxesUsd: incomeWorkTaxesUsd,
+            currencyId: workCur,
+            usdUyuRate: workCur === "UYU" ? workRate : undefined,
+            encryptedPayload: incomeWorkEncryptedPayload,
           },
           savings: {
             enabled: incomeSavings,
