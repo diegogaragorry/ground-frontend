@@ -387,6 +387,18 @@ export default function ExpenseImportPage() {
   const rowsInvalidAmount = rowsAccepted.filter(
     ({ row }) => !Number.isFinite(Number(row.amountFinal)) || Number(row.amountFinal) === 0
   );
+  const importBlockingMessage =
+    targetMonthClosed
+      ? t("expenseImport.targetMonthClosed", { month: targetMonthLabel })
+      : rowsMissingCategory.length > 0
+        ? t("expenseImport.importBlockedMissingCategory", { count: rowsMissingCategory.length })
+        : rowsMissingDescription.length > 0
+          ? t("expenseImport.importBlockedMissingDescription", { count: rowsMissingDescription.length })
+          : rowsInvalidAmount.length > 0
+            ? t("expenseImport.importBlockedInvalidAmount", { count: rowsInvalidAmount.length })
+            : rowsAccepted.length === 0
+              ? t("expenseImport.importBlockedNoAccepted")
+              : "";
   const canImport =
     rowsAccepted.length > 0 &&
     rowsMissingCategory.length === 0 &&
@@ -398,7 +410,10 @@ export default function ExpenseImportPage() {
     !loadingContext;
 
   async function importAcceptedRows() {
-    if (!canImport) return;
+    if (!canImport) {
+      setError(importBlockingMessage || t("expenseImport.importBlockedGeneric"));
+      return;
+    }
     if (serverFxRate == null || !(serverFxRate > 0)) {
       setError(t("expenseImport.fxRequired"));
       return;
@@ -846,6 +861,20 @@ export default function ExpenseImportPage() {
             <div className="muted" style={{ lineHeight: 1.6 }}>
               {t("expenseImport.importBody", { month: targetMonthLabel })}
             </div>
+            {!canImport && importBlockingMessage ? (
+              <div
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: 14,
+                  background: "rgba(245,158,11,0.12)",
+                  color: "rgb(146,64,14)",
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                }}
+              >
+                {importBlockingMessage}
+              </div>
+            ) : null}
             <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
               <span className="badge">{t("expenseImport.acceptedCount", { count: rowsAccepted.length })}</span>
               {rowsInvalidAmount.length > 0 ? (
