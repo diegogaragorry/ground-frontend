@@ -42,6 +42,7 @@ type ExpensesPageData = {
 type ReminderDraft = {
   dueDate?: string;
   remindAt?: string;
+  reminderChannel?: ReminderChannel;
 };
 
 function isEncryptedPlaceholder(value: unknown) {
@@ -509,6 +510,28 @@ export default function ExpenseRemindersPage() {
                         </div>
 
                         <div className="row" style={{ gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                          <div>
+                            <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>
+                              {t("expenses.reminder")}
+                            </div>
+                            <select
+                              className="select"
+                              value={draft.reminderChannel ?? row.reminderChannel ?? "NONE"}
+                              disabled={locked || isBusy}
+                              onChange={(e) => {
+                                const value = e.target.value as ReminderChannel;
+                                setDraft(row.id, { reminderChannel: value });
+                                if (value !== row.reminderChannel && !locked && !isBusy) {
+                                  saveReminder(row.id, { reminderChannel: value });
+                                }
+                              }}
+                              style={{ width: 160 }}
+                            >
+                              <option value="EMAIL">{t("expenseReminders.channelEmail")}</option>
+                              <option value="SMS">{t("expenseReminders.channelSms")}</option>
+                            </select>
+                          </div>
+
                           <div>
                             <div className="muted" style={{ fontSize: 11, marginBottom: 4 }}>
                               {t("expenseReminders.dueDate")}
